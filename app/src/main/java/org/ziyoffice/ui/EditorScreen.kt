@@ -429,7 +429,7 @@ fun EditorScreen(
                 onSuccess = {
                     // The bytes are already written: always say so, even when
                     // the recents index cannot be updated.
-                    val entry = RecentFilesStore(context).remember(uri)
+                    val entry = RecentFilesStore(context).remember(uri)?.file
                     if (entry != null) {
                         draftStore.clear(file.uri)
                         dirty = false
@@ -1217,7 +1217,10 @@ fun EditorScreen(
                     onClose = { findOpen = false },
                 )
             }
-            AccessLine(access)
+            // The page already explains a read failure; repeating the same
+            // sentence above it just doubles the noise. Only report access when
+            // there is a document to show.
+            if (preview is DocxPreview.Ready) AccessLine(access)
             if (droppedFeatures.isNotEmpty() && !lossAccepted) {
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
@@ -1603,7 +1606,7 @@ private fun AccessLine(access: FileAccess) {
     val text = when (access) {
         FileAccess.Checking -> "Checking file access\u2026"
         is FileAccess.Ok -> "File access verified \u2014 ${formatSize(access.sizeBytes)} readable on-device."
-        is FileAccess.Failed -> "Could not read this file (${access.reason})."
+        is FileAccess.Failed -> ReadFailureCopy.describe(access.reason)
     }
     Text(
         text,
@@ -1695,24 +1698,26 @@ private fun DocxPage(
                 )
                 is DocxPreview.Failed -> {
                     Text(
-                        "Could not read this document: ${preview.reason}",
-                        style = MaterialTheme.typography.bodySmall,
+                        "Could not read this document.",
+                        style = MaterialTheme.typography.titleSmall,
                         color = Color(0xFF8A3F3F),
                     )
                     Text(
-                        "The placeholder canvas stays until rendering completes in M1.",
+                        ReadFailureCopy.describe(preview.reason),
                         style = MaterialTheme.typography.bodySmall,
                         color = Color(0xFF5A605C),
                     )
                 }
                 is DocxPreview.Ready -> {
                     Text(
-                        "READ ON-DEVICE BY THE ZIYOFFICE OOXML LAYER \u00B7 " +
-                            "${countParagraphs(preview.document.blocks)} PARAGRAPH(S) \u00B7 " +
-                            "${countWords(preview.document.blocks)} WORDS",
+                        "${countWords(preview.document.blocks)} words \u00B7 " +
+                            "${countParagraphs(preview.document.blocks)} paragraphs",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color(0xFF8A8F8B),
                     )
+                    preview.document.header?.takeIf { it.isNotEmpty() }?.let { header ->
+                        HeaderFooterBand("Header", header, preview.images)
+                    }
                     if (preview.document.blocks.isEmpty()) {
                         Text(
                             "This document has no text paragraphs yet.",
@@ -1773,6 +1778,9 @@ private fun DocxPage(
                             if (editing) {
                                 AddParagraphButton(onClick = onAddParagraphAtEnd)
                             }
+                        }
+                        preview.document.footer?.takeIf { it.isNotEmpty() }?.let { footer ->
+                            HeaderFooterBand("Footer", footer, preview.images)
                         }
                     }
                 }
@@ -2324,6 +2332,52 @@ private fun TableBlock(
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A header or footer shown as a labelled band above/below the body.
+ *
+ * They are read-only here on purpose: Word keeps them in separate package parts
+ * with their own section rules, and editing them from the body flow would write
+ * text into the wrong part. The band makes them visible and truthful instead of
+ * silently dropping them on the next save, which is what used to happen.
+ */
+@Composable
+private fun HeaderFooterBand(
+    label: String,
+    blocks: List<Block>,
+    bitmaps: Map<InlineImage, ImageBitmap?>,
+) {
+    val counters = remember(blocks) { mutableMapOf<Pair<Int, Int>, Int>() }
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Color(0xFFF1F1EC),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF8A8F8B),
+            )
+            blocks.forEach { block ->
+                when (block) {
+                    is Paragraph -> ParagraphLine(
+                        line = block.toDisplayLine(
+                            counters = counters,
+                            bitmaps = bitmaps,
+                            defaultSpacingTwips = 0,
+                        ),
+                    )
+                    is Table -> Text(
+                        "Table in $label \u2014 not shown here",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF5A605C),
+                    )
                 }
             }
         }

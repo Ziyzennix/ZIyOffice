@@ -14,6 +14,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Opens documents from user folders (SAF) | yes | yes | done |
+| Opens from another app ("Open with" / "Share to") | yes | yes | done |
 | Recent files list, local only | yes | yes | done |
 | **Zero permissions requested** | no (dozens) | **yes** | done |
 | **No ads / no subscription** | no | **yes** | done |
@@ -38,7 +39,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
 | Print via the system print service | yes | | done |
-| Headers/footers editing | yes | | planned — and **removed by a save** today (warned) |
+| Headers/footers | yes | Shown above and below the body, and kept by a save. Not editable yet; a document with first-page or even-page variants loses those variants (warned) | in progress |
 | Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Not editable — and **removed by a save** (warned) | — |
 | Equations, SmartArt | partial | | — |
 | Mail merge | yes | | — |

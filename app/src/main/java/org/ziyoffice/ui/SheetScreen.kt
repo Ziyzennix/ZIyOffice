@@ -656,7 +656,7 @@ fun SheetScreen(
             }
             result.fold(
                 onSuccess = {
-                    val entry = RecentFilesStore(context).remember(uri)
+                    val entry = RecentFilesStore(context).remember(uri)?.file
                     if (entry != null) {
                         snackbarHostState.showSnackbar("Saved copy \u00B7 ${entry.displayName}")
                         onSaveAs(entry)
@@ -715,7 +715,7 @@ fun SheetScreen(
             }
             result.fold(
                 onSuccess = { size ->
-                    val entry = RecentFilesStore(context).remember(uri)
+                    val entry = RecentFilesStore(context).remember(uri)?.file
                     val name = entry?.displayName ?: "the chosen file"
                     snackbarHostState.showSnackbar("PDF exported to $name \u00B7 $size bytes")
                 },
@@ -741,7 +741,7 @@ fun SheetScreen(
             }
             result.fold(
                 onSuccess = {
-                    val entry = RecentFilesStore(context).remember(uri)
+                    val entry = RecentFilesStore(context).remember(uri)?.file
                     if (entry != null) {
                         snackbarHostState.showSnackbar("Saved copy \u00B7 ${entry.displayName}")
                         onSaveAs(entry)
@@ -1049,7 +1049,7 @@ fun SheetScreen(
             when {
                 loadError != null -> CenteredNotice(
                     title = "This spreadsheet could not be opened",
-                    detail = loadError.orEmpty(),
+                    detail = ReadFailureCopy.describe(loadError),
                 )
                 sheet == null -> CenteredNotice(title = "Opening\u2026", detail = null)
                 else -> SheetGrid(

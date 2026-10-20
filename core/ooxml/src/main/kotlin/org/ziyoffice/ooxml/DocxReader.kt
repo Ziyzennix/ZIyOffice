@@ -56,10 +56,30 @@ class DocxReader(
             ?: throw IOException("$DOCUMENT_PART not found in the package")
         val styles = parts[STYLES_PART]?.let { parseStyles(it) } ?: StyleSheet.EMPTY
         val numbering = parts[NUMBERING_PART]?.let { parseNumbering(it) } ?: emptyMap()
-        val images = loadImages(parts)
+        val images = loadImages(parts, RELS_PART)
         val parser = newParser()
         parser.setInput(ByteArrayInputStream(documentBytes), null)
-        return DocumentParser(parser, styles, numbering, images).parseBody()
+        val bodyParser = DocumentParser(parser, styles, numbering, images)
+        val document = bodyParser.parseBody()
+        val targets = loadRelationshipTargets(parts, RELS_PART)
+
+        // A section's header/footer references are relationship ids, so the
+        // parts are only reachable through document.xml.rels.
+        fun part(relId: String?): List<Block>? {
+            val target = relId?.let { targets[it] } ?: return null
+            val name = resolvePartPath(target)
+            val bytes = parts[name] ?: return null
+            val relsPath = "word/_rels/${name.substringAfterLast('/')}.rels"
+            val partImages = loadImages(parts, relsPath)
+            val partParser = newParser()
+            partParser.setInput(ByteArrayInputStream(bytes), null)
+            return DocumentParser(partParser, styles, numbering, partImages).parseBody().blocks
+        }
+
+        return document.copy(
+            header = part(bodyParser.headerRelId),
+            footer = part(bodyParser.footerRelId),
+        )
     }
 
     private fun readParts(input: InputStream): Map<String, ByteArray> {
@@ -68,7 +88,13 @@ class DocxReader(
         ZipInputStream(input).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                if (entry.name in WANTED_PARTS || entry.name.startsWith(MEDIA_PREFIX)) {
+                if (entry.name in WANTED_PARTS ||
+                    entry.name.startsWith(MEDIA_PREFIX) ||
+                    // Header/footer parts and their rels are read by name: the
+                    // relationship target names the file, not a fixed constant.
+                    isHeaderOrFooterPart(entry.name) ||
+                    isHeaderOrFooterRels(entry.name)
+                ) {
                     val bytes = zip.readEntryCapped()
                     total += bytes.size
                     if (total > MAX_TOTAL_BYTES) {
@@ -84,12 +110,15 @@ class DocxReader(
     }
 
     /**
-     * Resolves image relationship ids to their media part bytes, so the document
+     * Resolves image relationship ids to their media part bytes, so a part's
      * parser can embed pictures without touching the zip again. External targets
      * (remote URLs) are never fetched — this app is offline by design.
+     *
+     * [relsPart] is the relationship part of the content being parsed: the body
+     * uses `document.xml.rels`, a header uses `header1.xml.rels`, and so on.
      */
-    private fun loadImages(parts: Map<String, ByteArray>): Map<String, ByteArray> {
-        val relsBytes = parts[RELS_PART] ?: return emptyMap()
+    private fun loadImages(parts: Map<String, ByteArray>, relsPart: String): Map<String, ByteArray> {
+        val relsBytes = parts[relsPart] ?: return emptyMap()
         val images = mutableMapOf<String, ByteArray>()
         val parser = newParser()
         parser.setInput(ByteArrayInputStream(relsBytes), null)
@@ -108,6 +137,29 @@ class DocxReader(
             event = parser.next()
         }
         return images
+    }
+
+    /** Every relationship id in [relsPart] mapped to its target path. */
+    private fun loadRelationshipTargets(
+        parts: Map<String, ByteArray>,
+        relsPart: String,
+    ): Map<String, String> {
+        val relsBytes = parts[relsPart] ?: return emptyMap()
+        val targets = mutableMapOf<String, String>()
+        val parser = newParser()
+        parser.setInput(ByteArrayInputStream(relsBytes), null)
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG && parser.name == "Relationship") {
+                if (parser.getAttributeValue(null, "TargetMode") != "External") {
+                    val id = parser.getAttributeValue(null, "Id")
+                    val target = parser.getAttributeValue(null, "Target")
+                    if (id != null && target != null) targets[id] = target
+                }
+            }
+            event = parser.next()
+        }
+        return targets
     }
 
     /** Turns a relationship target into a zip entry name (relative to /word). */
@@ -160,6 +212,18 @@ class DocxReader(
          */
         private var pendingPageBreak = false
 
+        /**
+         * Relationship ids of the default header and footer, read from the body's
+         * `w:sectPr`. Only the plain references are kept: `headerReference` and
+         * `footerReference` without a `w:type` are the ones that apply to every
+         * page. First-page and even-page variants are deliberately not modelled
+         * and are reported as loss by ContentAudit.
+         */
+        var headerRelId: String? = null
+            private set
+        var footerRelId: String? = null
+            private set
+
         fun parseBody(): Document {
             val blocks = mutableListOf<Block>()
             while (true) {
@@ -169,10 +233,36 @@ class DocxReader(
                     when (parser.name) {
                         "p" -> blocks += parseParagraph()
                         "tbl" -> blocks += parseTable()
+                        "sectPr" -> parseSectionProperties()
                     }
                 }
             }
             return Document(blocks)
+        }
+
+        /** Records the default header/footer relationship ids of a section. */
+        private fun parseSectionProperties() {
+            val depth = parser.depth
+            var event = parser.next()
+            while (event != XmlPullParser.END_DOCUMENT &&
+                !(event == XmlPullParser.END_TAG && parser.depth == depth)
+            ) {
+                if (event == XmlPullParser.START_TAG && isWord()) {
+                    val type = attribute(parser, "type")
+                    // Absent type means "default", the variant that applies to
+                    // every page; "first"/"even" need the document's settings.
+                    val isDefault = type == null || type == "default"
+                    if (isDefault) {
+                        val id = parser.getAttributeValue(RELATIONSHIPS_NAMESPACE, "id")
+                            ?: parser.getAttributeValue(null, "id")
+                        when (parser.name) {
+                            "headerReference" -> if (headerRelId == null) headerRelId = id
+                            "footerReference" -> if (footerRelId == null) footerRelId = id
+                        }
+                    }
+                }
+                event = parser.next()
+            }
         }
 
         private fun parseParagraph(): Paragraph {
@@ -873,3 +963,15 @@ class DocxReader(
         val OFF_VALUES = setOf("0", "false", "off")
     }
 }
+
+/** `word/header1.xml`, `word/footer2.xml`, … but not their `_rels` parts. */
+internal fun isHeaderOrFooterPart(name: String): Boolean =
+    (name.startsWith("word/header") || name.startsWith("word/footer")) &&
+        name.endsWith(".xml") &&
+        !name.contains("_rels/")
+
+/** `word/_rels/header1.xml.rels`, … — the relationship part of a header or footer. */
+internal fun isHeaderOrFooterRels(name: String): Boolean =
+    name.startsWith("word/_rels/") &&
+        (name.contains("header") || name.contains("footer")) &&
+        name.endsWith(".rels")

@@ -45,14 +45,28 @@ class DocxWriter {
             body.append("<w:p/>")
         }
 
+        // Header and footer are written only when the document has content for
+        // them: an empty reference would add a blank band on every page.
+        val header = document.header?.takeIf { it.isNotEmpty() }
+        val footer = document.footer?.takeIf { it.isNotEmpty() }
+
         val parts = linkedMapOf<String, ByteArray>()
-        parts["[Content_Types].xml"] = contentTypes(numbering, images).encodeToByteArray()
+        parts["[Content_Types].xml"] = contentTypes(numbering, images, header, footer)
+            .encodeToByteArray()
         parts["_rels/.rels"] = ROOT_RELS.encodeToByteArray()
-        parts["word/document.xml"] = documentXml(body.toString()).encodeToByteArray()
-        parts["word/_rels/document.xml.rels"] = documentRels(numbering, images).encodeToByteArray()
+        parts["word/document.xml"] =
+            documentXml(body.toString(), header != null, footer != null).encodeToByteArray()
+        parts["word/_rels/document.xml.rels"] =
+            documentRels(numbering, images, header, footer).encodeToByteArray()
         parts["word/styles.xml"] = STYLES_XML.encodeToByteArray()
         if (!numbering.isEmpty) {
             parts["word/numbering.xml"] = numbering.toXml().encodeToByteArray()
+        }
+        header?.let {
+            parts["word/header1.xml"] = headerFooterXml(it, HEADER_ROOT, images).encodeToByteArray()
+        }
+        footer?.let {
+            parts["word/footer1.xml"] = headerFooterXml(it, FOOTER_ROOT, images).encodeToByteArray()
         }
         images.slots.forEach { slot -> parts["word/${slot.partName}"] = slot.bytes }
 
@@ -230,18 +244,48 @@ class DocxWriter {
         sb.append("</a:graphicData></a:graphic></wp:inline></w:drawing></w:r>")
     }
 
-    private fun documentXml(body: String): String =
-        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+    private fun documentXml(body: String, hasHeader: Boolean, hasFooter: Boolean): String {
+        val references = StringBuilder()
+        if (hasHeader) {
+            references.append("<w:headerReference w:type=\"default\" r:id=\"$HEADER_REL_ID\"/>")
+        }
+        if (hasFooter) {
+            references.append("<w:footerReference w:type=\"default\" r:id=\"$FOOTER_REL_ID\"/>")
+        }
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
             "<w:document xmlns:w=\"$WORDPROCESSINGML_NAMESPACE\" xmlns:r=\"$RELATIONSHIPS_NAMESPACE\" " +
             "xmlns:wp=\"$WORDPROCESSING_DRAWING_NAMESPACE\" xmlns:a=\"$DRAWINGML_NAMESPACE\" " +
             "xmlns:pic=\"$PICTURE_NAMESPACE\"><w:body>$body" +
-            "<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/>" +
+            "<w:sectPr>$references<w:pgSz w:w=\"11906\" w:h=\"16838\"/>" +
             "<w:pgMar w:top=\"1418\" w:right=\"1418\" w:bottom=\"1418\" w:left=\"1418\"/>" +
             "</w:sectPr></w:body></w:document>"
+    }
+
+    /** The root element of a header or footer part. */
+    private fun headerFooterXml(
+        blocks: List<Block>,
+        root: String,
+        images: ImageRegistry,
+    ): String {
+        val body = StringBuilder()
+        blocks.forEach { block -> writeBlock(body, block, images) }
+        if (body.isEmpty()) body.append("<w:p/>")
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+            "<w:$root xmlns:w=\"$WORDPROCESSINGML_NAMESPACE\" " +
+            "xmlns:r=\"$RELATIONSHIPS_NAMESPACE\" " +
+            "xmlns:wp=\"$WORDPROCESSING_DRAWING_NAMESPACE\" " +
+            "xmlns:a=\"$DRAWINGML_NAMESPACE\" " +
+            "xmlns:pic=\"$PICTURE_NAMESPACE\">$body</w:$root>"
+    }
 
     // ------------------------------------------------------------- package xml
 
-    private fun contentTypes(numbering: NumberingPlan, images: ImageRegistry): String {
+    private fun contentTypes(
+        numbering: NumberingPlan,
+        images: ImageRegistry,
+        header: List<Block>?,
+        footer: List<Block>?,
+    ): String {
         val builder = StringBuilder()
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         builder.append("<Types xmlns=\"$CONTENT_TYPES_NAMESPACE\">")
@@ -259,17 +303,38 @@ class DocxWriter {
             builder.append("<Override PartName=\"/word/numbering.xml\" ")
                 .append("ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml\"/>")
         }
+        if (header != null) {
+            builder.append("<Override PartName=\"/word/header1.xml\" ")
+                .append("ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml\"/>")
+        }
+        if (footer != null) {
+            builder.append("<Override PartName=\"/word/footer1.xml\" ")
+                .append("ContentType=\"application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml\"/>")
+        }
         builder.append("</Types>")
         return builder.toString()
     }
 
-    private fun documentRels(numbering: NumberingPlan, images: ImageRegistry): String {
+    private fun documentRels(
+        numbering: NumberingPlan,
+        images: ImageRegistry,
+        header: List<Block>?,
+        footer: List<Block>?,
+    ): String {
         val builder = StringBuilder()
         builder.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
         builder.append("<Relationships xmlns=\"$PACKAGE_RELS_NAMESPACE\">")
         builder.append("<Relationship Id=\"rId1\" Type=\"$RELATIONSHIPS_NAMESPACE/styles\" Target=\"styles.xml\"/>")
         if (!numbering.isEmpty) {
             builder.append("<Relationship Id=\"rId2\" Type=\"$RELATIONSHIPS_NAMESPACE/numbering\" Target=\"numbering.xml\"/>")
+        }
+        if (header != null) {
+            builder.append("<Relationship Id=\"$HEADER_REL_ID\" ")
+                .append("Type=\"$RELATIONSHIPS_NAMESPACE/header\" Target=\"header1.xml\"/>")
+        }
+        if (footer != null) {
+            builder.append("<Relationship Id=\"$FOOTER_REL_ID\" ")
+                .append("Type=\"$RELATIONSHIPS_NAMESPACE/footer\" Target=\"footer1.xml\"/>")
         }
         images.slots.forEach { slot ->
             builder.append("<Relationship Id=\"").append(slot.relId)
@@ -376,6 +441,10 @@ class DocxWriter {
         const val CONTENT_TYPES_NAMESPACE =
             "http://schemas.openxmlformats.org/package/2006/content-types"
         const val FIRST_IMAGE_REL_ID = 2
+        const val HEADER_REL_ID = "rIdHeader1"
+        const val FOOTER_REL_ID = "rIdFooter1"
+        const val HEADER_ROOT = "hdr"
+        const val FOOTER_ROOT = "ftr"
         const val EMU_PER_DP = 9525f
         const val DEFAULT_IMAGE_WIDTH_DP = 320f
         const val DEFAULT_IMAGE_HEIGHT_DP = 200f

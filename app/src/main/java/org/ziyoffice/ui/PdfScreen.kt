@@ -34,10 +34,13 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -149,6 +152,7 @@ fun PdfScreen(
     var exportCancelled by remember { mutableStateOf(false) }
     var showMarks by remember { mutableStateOf(false) }
     var showSplit by remember { mutableStateOf(false) }
+    var moreMenuOpen by remember { mutableStateOf(false) }
     var splitRange by remember { mutableStateOf("") }
     /** Pages chosen by [splitRange]; null until the user starts a split. */
     var splitPages by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -445,43 +449,59 @@ fun PdfScreen(
                 },
                 actions = {
                     if (documents.isNotEmpty() && !loading) {
-                        IconButton(onClick = { mergeLauncher.launch(arrayOf("application/pdf")) }) {
-                            Icon(Icons.Filled.Add, contentDescription = "Add pages from another PDF")
-                        }
-                        IconButton(
-                            onClick = {
-                                // Pre-fill with the selected page: the most common
-                                // split is "just this one".
-                                splitRange = (selectedPage + 1).toString()
-                                showSplit = true
-                            },
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(Icons.Filled.ContentCut, contentDescription = "Split pages")
-                        }
-                        IconButton(
-                            onClick = { showMarks = true },
-                            enabled = marks.isNotEmpty(),
-                            modifier = Modifier.size(48.dp),
-                        ) {
-                            Icon(
-                                Icons.Filled.EditNote,
-                                contentDescription = "Marks (${marks.size})",
-                            )
-                        }
+                        // Save and Print stay visible: they are what people open a
+                        // PDF to do. The rest move into one menu, because five
+                        // icons plus the back arrow leave the title clipped to
+                        // "Budg…" on a 360 dp phone.
                         IconButton(
                             onClick = { saveLauncher.launch(file.displayName) },
                             enabled = !saving && pages.size > deleted.size,
-                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(Icons.Filled.Save, contentDescription = "Save a copy")
                         }
                         IconButton(
                             onClick = ::printPdf,
                             enabled = !saving && pages.size > deleted.size,
-                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(Icons.Filled.Print, contentDescription = "Print")
+                        }
+                        Box {
+                            IconButton(onClick = { moreMenuOpen = true }) {
+                                Icon(
+                                    Icons.Filled.MoreVert,
+                                    contentDescription = "More actions",
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = moreMenuOpen,
+                                onDismissRequest = { moreMenuOpen = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Add pages from another PDF") },
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        mergeLauncher.launch(arrayOf("application/pdf"))
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Split pages") },
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        // Pre-fill with the selected page: the most
+                                        // common split is "just this one".
+                                        splitRange = (selectedPage + 1).toString()
+                                        showSplit = true
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Marks (${marks.size})") },
+                                    enabled = marks.isNotEmpty(),
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        showMarks = true
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -529,7 +549,7 @@ fun PdfScreen(
                 ) {
                     Text("This PDF could not be opened.", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        failure.orEmpty(),
+                        ReadFailureCopy.describe(failure),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

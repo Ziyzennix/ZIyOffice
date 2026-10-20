@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import org.ziyoffice.model.Document
 import org.ziyoffice.model.InlineImage
 import org.ziyoffice.model.ListInfo
@@ -214,6 +215,35 @@ class DocxWriterTest {
         val image = reRead.images.single()
         assertContentEquals(webpBytes, image.bytes)
         assertEquals("webp", DocxWriter.imageExtension(image.bytes))
+    }
+
+    @Test
+    fun roundTripsHeaderAndFooter() {
+        val document = Document(
+            blocks = listOf(Paragraph(runs = listOf(Run("Body text")))),
+            header = listOf(Paragraph(runs = listOf(Run("Quarterly report", bold = true)))),
+            footer = listOf(Paragraph(runs = listOf(Run("Page footer", sizePt = 9f)))),
+        )
+
+        val reRead = roundTrip(document)
+
+        assertEquals("Body text", (reRead.blocks.single() as Paragraph).text())
+        assertEquals(
+            "Quarterly report",
+            (reRead.header?.single() as Paragraph).text(),
+        )
+        assertEquals(true, (reRead.header?.single() as Paragraph)?.runs?.single()?.bold)
+        assertEquals("Page footer", (reRead.footer?.single() as Paragraph).text())
+        assertEquals(9f, (reRead.footer?.single() as Paragraph)?.runs?.single()?.sizePt)
+    }
+
+    @Test
+    fun aDocumentWithoutHeaderOrFooterWritesNeither() {
+        val reRead = roundTrip(
+            Document(blocks = listOf(Paragraph(runs = listOf(Run("Only body"))))),
+        )
+        assertNull(reRead.header)
+        assertNull(reRead.footer)
     }
 
     private fun Paragraph.text(): String = runs.joinToString("") { it.text }

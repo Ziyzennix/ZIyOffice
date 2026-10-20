@@ -27,11 +27,14 @@ import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -107,6 +110,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
     var writeVersion by remember(file.uri) { mutableStateOf(0L) }
     var saving by remember { mutableStateOf(false) }
     var presenting by remember(file.uri) { mutableStateOf(false) }
+    var moreMenuOpen by remember { mutableStateOf(false) }
     var slideIndex by remember(file.uri) { mutableStateOf(0) }
     var showExitDialog by remember(file.uri) { mutableStateOf(false) }
     var loadError by remember(file.uri) { mutableStateOf<String?>(null) }
@@ -372,39 +376,60 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                     Text(file.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 actions = {
+                    // Present is the reason this screen exists, so it keeps its
+                    // icon; Save is next to it. Add slide, export and print move
+                    // into the menu — five icons left the title reading "Dec…"
+                    // on a 360 dp phone.
                     IconButton(
                         onClick = { slideIndex = 0; presenting = true },
                         enabled = current?.slides?.isNotEmpty() == true,
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = "Present slides")
                     }
-                    IconButton(
-                        onClick = {
-                            deck = deck?.withSlideAdded(slideIndex)
-                            slideIndex = (slideIndex + 1).coerceAtMost(deck?.slides?.lastIndex ?: 0)
-                            dirty = true
-                            writeVersion++
-                        },
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add slide")
-                    }
-                    IconButton(
-                        onClick = {
-                            val name = file.displayName.substringBeforeLast('.', file.displayName)
-                            exportLauncher.launch("$name.pdf")
-                        },
-                        enabled = current?.slides?.isNotEmpty() == true,
-                    ) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = "Export as PDF")
-                    }
-                    IconButton(
-                        onClick = ::printDeck,
-                        enabled = current?.slides?.isNotEmpty() == true,
-                    ) {
-                        Icon(Icons.Default.Print, contentDescription = "Print")
-                    }
                     IconButton(onClick = ::save, enabled = dirty && !saving) {
                         Icon(Icons.Default.Save, contentDescription = "Save")
+                    }
+                    Box {
+                        IconButton(onClick = { moreMenuOpen = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "More actions",
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = moreMenuOpen,
+                            onDismissRequest = { moreMenuOpen = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Add slide") },
+                                onClick = {
+                                    moreMenuOpen = false
+                                    deck = deck?.withSlideAdded(slideIndex)
+                                    slideIndex =
+                                        (slideIndex + 1).coerceAtMost(deck?.slides?.lastIndex ?: 0)
+                                    dirty = true
+                                    writeVersion++
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export as PDF") },
+                                enabled = current?.slides?.isNotEmpty() == true,
+                                onClick = {
+                                    moreMenuOpen = false
+                                    val name = file.displayName
+                                        .substringBeforeLast('.', file.displayName)
+                                    exportLauncher.launch("$name.pdf")
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Print…") },
+                                enabled = current?.slides?.isNotEmpty() == true,
+                                onClick = {
+                                    moreMenuOpen = false
+                                    printDeck()
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -421,7 +446,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
-                    loadError.orEmpty(),
+                    ReadFailureCopy.describe(loadError),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),

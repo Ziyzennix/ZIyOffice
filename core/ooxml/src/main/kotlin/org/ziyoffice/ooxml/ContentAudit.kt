@@ -38,8 +38,7 @@ object ContentAudit {
         val scan = scan(bytes) { name ->
             name == DOCUMENT_PART ||
                 name == COMMENTS_PART || name == FOOTNOTES_PART || name == ENDNOTES_PART ||
-                (name.startsWith("word/header") && name.endsWith(".xml") && !name.contains("_rels/")) ||
-                (name.startsWith("word/footer") && name.endsWith(".xml") && !name.contains("_rels/"))
+                isHeaderOrFooterPart(name)
         }
         val body = scan.parts[DOCUMENT_PART]
         val features = mutableListOf<DroppedFeature>()
@@ -47,14 +46,26 @@ object ContentAudit {
         fun part(name: String, label: String) {
             if (name in scan.names) features += DroppedFeature(label, 1)
         }
-        fun headers() = scan.names.count {
-            it.startsWith("word/header") && it.endsWith(".xml") && !it.contains("_rels/")
+        // A save keeps a header only when the body references exactly one, and
+        // that reference is the default variant: the writer emits a single
+        // default header and footer. Counting parts alone is wrong — a document
+        // with a first-page-only header has one part and still loses it.
+        val headerTypes = body?.decodeToString()?.let { referenceTypes(it, "w:headerReference") }
+            .orEmpty()
+        val footerTypes = body?.decodeToString()?.let { referenceTypes(it, "w:footerReference") }
+            .orEmpty()
+        val headerParts = scan.names.count { isHeaderOrFooterPart(it) && it.contains("header") }
+        val footerParts = scan.names.count { isHeaderOrFooterPart(it) && it.contains("footer") }
+
+        fun isKept(types: List<String?>): Boolean =
+            types.size == 1 && (types.single() == null || types.single() == "default")
+
+        if (headerParts > 0 && !isKept(headerTypes)) {
+            features += DroppedFeature("Headers", headerParts)
         }
-        fun footers() = scan.names.count {
-            it.startsWith("word/footer") && it.endsWith(".xml") && !it.contains("_rels/")
+        if (footerParts > 0 && !isKept(footerTypes)) {
+            features += DroppedFeature("Footers", footerParts)
         }
-        headers().takeIf { it > 0 }?.let { features += DroppedFeature("Headers", it) }
-        footers().takeIf { it > 0 }?.let { features += DroppedFeature("Footers", it) }
         part(COMMENTS_PART, "Comments")
         part(FOOTNOTES_PART, "Footnotes")
         part(ENDNOTES_PART, "Endnotes")
@@ -189,6 +200,30 @@ object ContentAudit {
      * so `<w:delText>` does not count as a `<w:del>` and `<m:oMathPara>` is not
      * mistaken for a second `<m:oMath>` — callers pass both when both matter.
      */
+    /**
+     * The `w:type` of every `w:headerReference`/`w:footerReference` in [xml], in
+     * document order. A reference with no type is the default variant and is
+     * returned as null, matching how [DocxReader] reads it.
+     */
+    private fun referenceTypes(xml: String, name: String): List<String?> {
+        val types = mutableListOf<String?>()
+        val needle = "<$name"
+        var from = 0
+        while (true) {
+            val at = xml.indexOf(needle, from)
+            if (at < 0) return types
+            val end = xml.indexOf('>', at).takeIf { it >= 0 } ?: return types
+            val tag = xml.substring(at, end)
+            val typeAt = tag.indexOf("w:type=\"")
+            types += if (typeAt >= 0) {
+                tag.substring(typeAt + 8, tag.indexOf('"', typeAt + 8))
+            } else {
+                null
+            }
+            from = end
+        }
+    }
+
     private fun countTag(xml: String, name: String): Int {
         val needle = "<$name"
         var count = 0

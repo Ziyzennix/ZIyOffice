@@ -34,6 +34,7 @@ import org.ziyoffice.data.RecentFilesStore
 import org.ziyoffice.model.Document
 import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.Paragraph
+import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.SlideDeck
 import org.ziyoffice.model.Workbook
@@ -61,7 +62,11 @@ private enum class ZiyTab(val label: String) {
  * About is still a pushed screen with a back button.
  */
 @Composable
-fun ZiyOfficeApp() {
+fun ZiyOfficeApp(
+    incomingUri: Uri? = null,
+    incomingMimeType: String? = null,
+    onIncomingConsumed: () -> Unit = {},
+) {
     val context = LocalContext.current
     val store = remember { RecentFilesStore(context) }
     val scope = rememberCoroutineScope()
@@ -70,12 +75,44 @@ fun ZiyOfficeApp() {
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var openFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
+    /**
+     * A file handed over by another app. Its grant usually cannot be persisted,
+     * so it is not a recents entry — it lives only for this visit and the
+     * editor's "Save as copy" is the way to keep the result.
+     */
+    var transientFile by remember { mutableStateOf<RecentFile?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val tab = ZiyTab.entries.firstOrNull { it.name == tabName } ?: ZiyTab.HOME
 
+    // "Open with" / "Share to": open the document straight away instead of
+    // dropping the user on Home and making them find it again.
+    //
+    // The effect is keyed on the uri but consumes it through a local snapshot:
+    // clearing [incomingUri] re-keys the effect and cancels whatever it was
+    // doing, which silently dropped the document. So the uri is copied first,
+    // handled to completion, and only then reported as consumed.
+    LaunchedEffect(incomingUri) {
+        val uri = incomingUri ?: return@LaunchedEffect
+        val remembered = withContext(Dispatchers.IO) { store.remember(uri, incomingMimeType) }
+        if (remembered == null) {
+            statusMessage = "Could not read that file."
+        } else {
+            if (remembered.persisted) {
+                recents = store.load()
+            } else {
+                // One-shot grant: no recents row, just this visit. Say so,
+                // because edits can only be kept through "Save as copy".
+                transientFile = remembered.file
+                statusMessage = "Opened from another app \u00b7 use Save as copy to keep changes"
+            }
+            openFileUri = remembered.file.uri
+        }
+        onIncomingConsumed()
+    }
+
     val openPicker = rememberDocumentPicker { uri: Uri ->
-        val entry = store.remember(uri)
+        val entry = store.remember(uri)?.file
         recents = store.load()
         if (entry != null) {
             openFileUri = entry.uri
@@ -87,7 +124,7 @@ fun ZiyOfficeApp() {
     // Home's PDF tile opens a PDF straight away rather than pretending the app
     // can create a blank one: the picker is narrowed to application/pdf.
     val openPdfPicker = rememberDocumentPicker(PDF_MIME_TYPES) { uri: Uri ->
-        val entry = store.remember(uri)
+        val entry = store.remember(uri)?.file
         recents = store.load()
         if (entry != null) {
             openFileUri = entry.uri
@@ -108,7 +145,7 @@ fun ZiyOfficeApp() {
             }
             result.fold(
                 onSuccess = {
-                    val entry = store.remember(uri)
+                    val entry = store.remember(uri)?.file
                     recents = store.load()
                     if (entry != null) {
                         createdFileUri = entry.uri
@@ -138,7 +175,7 @@ fun ZiyOfficeApp() {
             }
             result.fold(
                 onSuccess = {
-                    val entry = store.remember(uri)
+                    val entry = store.remember(uri)?.file
                     recents = store.load()
                     if (entry != null) {
                         createdFileUri = entry.uri
@@ -167,7 +204,7 @@ fun ZiyOfficeApp() {
             }
             result.fold(
                 onSuccess = {
-                    val entry = store.remember(uri)
+                    val entry = store.remember(uri)?.file
                     recents = store.load()
                     if (entry != null) {
                         createdFileUri = entry.uri
@@ -216,56 +253,55 @@ fun ZiyOfficeApp() {
         return
     }
 
-    val openFile = openFileUri?.let { uri -> recents.firstOrNull { it.uri == uri } }
+    val openFile = openFileUri?.let { uri ->
+        recents.firstOrNull { it.uri == uri }
+            ?: transientFile?.takeIf { it.uri == uri }
+    }
+
+    /** Leaves the editor; a transient (share-intent) file is dropped with it. */
+    fun closeFile() {
+        openFileUri = null
+        createdFileUri = null
+        transientFile = null
+    }
     if (openFile != null) {
         when (openFile.kind) {
             DocumentKind.SPREADSHEET -> SheetScreen(
                 file = openFile,
                 initialEditing = openFile.uri == createdFileUri,
-                onBack = {
-                    openFileUri = null
-                    createdFileUri = null
-                },
+                onBack = { closeFile() },
                 onSaveAs = { entry ->
                     recents = store.load()
                     openFileUri = entry.uri
                     createdFileUri = null
+                    // The copy is a real, reopenable recents entry now.
+                    transientFile = null
                 },
             )
             DocumentKind.DOCUMENT -> EditorScreen(
                 file = openFile,
                 initialEditing = openFile.uri == createdFileUri,
-                onBack = {
-                    openFileUri = null
-                    createdFileUri = null
-                },
+                onBack = { closeFile() },
                 onSaveAs = { entry ->
                     recents = store.load()
                     openFileUri = entry.uri
                     createdFileUri = null
+                    // The copy is a real, reopenable recents entry now.
+                    transientFile = null
                 },
             )
             DocumentKind.PDF -> PdfScreen(
                 file = openFile,
-                onBack = {
-                    openFileUri = null
-                    createdFileUri = null
-                },
+                onBack = { closeFile() },
                 onOpenFile = openPicker,
             )
             DocumentKind.PRESENTATION -> PresentationScreen(
                 file = openFile,
-                onBack = {
-                    openFileUri = null
-                    createdFileUri = null
-                },
+                onBack = { closeFile() },
             )
             else -> UnsupportedScreen(
                 file = openFile,
-                onBack = {
-                    openFileUri = null
-                    createdFileUri = null
-                },
+                onBack = { closeFile() },
                 onOpenFile = openPicker,
             )
         }

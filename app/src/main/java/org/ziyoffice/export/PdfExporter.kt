@@ -55,6 +55,7 @@ private const val DEFAULT_SIZE_PT = 11f
 private const val DEFAULT_SPACING_TWIPS = 160
 private const val DEFAULT_LIST_INDENT_TWIPS = 720
 private const val DEFAULT_TEXT_COLOR = 0xFF23262B.toInt()
+private const val HEADER_FOOTER_GAP = 8f
 
 private class Renderer(private val output: OutputStream) {
     private val pdf = PdfDocument()
@@ -70,7 +71,13 @@ private class Renderer(private val output: OutputStream) {
     private var canvas: Canvas = Canvas()
     private var y = MARGIN
 
+    /** Header and footer blocks of the document being exported, if any. */
+    private var headerBlocks: List<Block> = emptyList()
+    private var footerBlocks: List<Block> = emptyList()
+
     fun run(document: Document) {
+        headerBlocks = document.header.orEmpty()
+        footerBlocks = document.footer.orEmpty()
         try {
             newPage()
             drawBlocks(document.blocks, contentWidth, 0f)
@@ -90,11 +97,69 @@ private class Renderer(private val output: OutputStream) {
         page = started
         canvas = started.canvas
         y = MARGIN
+        drawHeader()
     }
 
+    /**
+     * The header is drawn at the top margin of every page and the body starts
+     * below it, so header text can never overlap the first paragraph. It is
+     * drawn with the same run styling as body text.
+     */
+    private fun drawHeader() {
+        if (headerBlocks.isEmpty()) return
+        val height = drawBand(headerBlocks, MARGIN)
+        y = MARGIN + height + HEADER_FOOTER_GAP
+    }
+
+    /** The footer is drawn last, pinned to the bottom margin. */
     private fun finishPage() {
-        page?.let { pdf.finishPage(it) }
+        val current = page
+        if (current != null) {
+            if (footerBlocks.isNotEmpty()) {
+                val height = bandHeight(footerBlocks)
+                drawBand(footerBlocks, PAGE_HEIGHT - MARGIN - height)
+            }
+            pdf.finishPage(current)
+        }
         page = null
+    }
+
+    /** Draws [blocks] starting at [top]; returns the height they occupied. */
+    private fun drawBand(blocks: List<Block>, top: Float): Float {
+        val savedY = y
+        y = top
+        blocks.forEach { block ->
+            when (block) {
+                is Paragraph -> drawParagraph(block, contentWidth, 0f)
+                is Table -> drawTable(block, contentWidth, 0f)
+            }
+        }
+        val height = y - top
+        y = savedY
+        return height
+    }
+
+    /**
+     * Height the footer will occupy. Measured with the same layout code the page
+     * uses, and with a throwaway counter map so the document's real list
+     * numbering is not advanced by a measurement.
+     */
+    private fun bandHeight(blocks: List<Block>): Float {
+        val measureCounters = mutableMapOf<Pair<Int, Int>, Int>()
+        var height = 0f
+        blocks.forEach { block ->
+            when (block) {
+                is Paragraph -> {
+                    val marker = block.list?.let { listMarker(it, measureCounters) }
+                    val layout = layoutOf(block, paragraphText(block, marker), contentWidth)
+                    val before = (block.spacingBeforeTwips ?: 0) / 20f
+                    val after = (block.spacingAfterTwips ?: DEFAULT_SPACING_TWIPS) / 20f
+                    height += before + layout.height + after
+                }
+                is Table -> height += block.rows.size * 24f
+            }
+        }
+        return height
     }
 
     /** Starts a new page unless [height] still fits below the current cursor. */

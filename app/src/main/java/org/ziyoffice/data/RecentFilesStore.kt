@@ -6,6 +6,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import org.json.JSONArray
 import org.json.JSONObject
+import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.RecentFile
 
 /**
@@ -44,46 +45,89 @@ class RecentFilesStore(context: Context) {
      * Persists the read/write grant for [uri] and records it in the recents list.
      * Write access is what makes in-place saving possible; a provider that only
      * grants reading still works (saving then reports the limitation honestly).
-     * Returns the stored entry, or null if the file metadata could not be read.
+     *
+     * [Remembered.persisted] is false when the provider handed over a one-shot
+     * grant (a share or view intent, typically). The file is readable for this
+     * session but could not be reopened from a recents row later, so it is not
+     * written to the list.
      */
-    fun remember(uri: Uri): RecentFile? {
-        runCatching {
-            appContext.contentResolver.takePersistableUriPermission(
+    fun remember(uri: Uri, mimeType: String? = null): Remembered? {
+        val persisted = persistGrant(uri)
+        val entry = entryFor(uri, mimeType) ?: return null
+        if (persisted) record(entry)
+        return Remembered(entry, persisted)
+    }
+
+    /** A file the store has seen, and whether its grant survives a restart. */
+    data class Remembered(val file: RecentFile, val persisted: Boolean)
+
+    /**
+     * Takes a persistable read/write grant for [uri]; read-only is accepted when
+     * the provider refuses write access. Returns false when neither is possible,
+     * which is the normal case for files shared from another app.
+     */
+    private fun persistGrant(uri: Uri): Boolean {
+        val resolver = appContext.contentResolver
+        val readWrite = runCatching {
+            resolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
-        }.onFailure {
-            runCatching {
-                appContext.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-            }
-        }
+        }.isSuccess
+        if (readWrite) return true
+        return runCatching {
+            resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }.isSuccess
+    }
+
+    private fun entryFor(uri: Uri, mimeType: String?): RecentFile? {
         val (name, size) = queryMetadata(uri) ?: return null
-        val entry = RecentFile(
+        // Some providers report no usable display name and the fallback is the
+        // document id itself ("document:1000142160"). Showing that in the title
+        // bar is meaningless to a reader, so the file is named after its type
+        // instead, with the intent's MIME type supplying the extension — that
+        // type is authoritative and is all that decides how it opens.
+        val named = DocumentKind.fromFileName(name) != DocumentKind.UNKNOWN
+        val displayName = if (named) {
+            name
+        } else {
+            val extension = DocumentKind.extensionFor(mimeType) ?: return null
+            val kind = DocumentKind.fromMimeType(mimeType) ?: DocumentKind.UNKNOWN
+            "${kind.label}.$extension"
+        }
+        return RecentFile(
             uri = uri.toString(),
-            displayName = name,
+            displayName = displayName,
             sizeBytes = size,
             lastOpenedAtEpochMs = System.currentTimeMillis(),
         )
+    }
+
+    private fun record(entry: RecentFile) {
         val updated = load().filterNot { it.uri == entry.uri }
             .toMutableList()
             .apply { add(0, entry) }
             .take(MAX_ENTRIES)
         save(updated)
-        return entry
     }
 
+    /**
+     * Name and size from the provider. Falls back to the uri's last path segment
+     * when the provider cannot be queried — an expired or absent grant, or a
+     * provider that went away. That is a normal outcome for a shared file, and
+     * it must not crash: the editor then reports the real read failure itself.
+     */
     private fun queryMetadata(uri: Uri): Pair<String, Long>? {
         var name: String? = null
         var size = -1L
-        appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            if (cursor.moveToFirst()) {
-                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                if (nameIndex >= 0 && !cursor.isNull(nameIndex)) name = cursor.getString(nameIndex)
-                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+        runCatching {
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex >= 0 && !cursor.isNull(nameIndex)) name = cursor.getString(nameIndex)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+                }
             }
         }
         val resolvedName = name ?: uri.lastPathSegment ?: return null

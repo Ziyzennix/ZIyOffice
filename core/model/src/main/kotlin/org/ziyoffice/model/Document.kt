@@ -7,7 +7,21 @@ package org.ziyoffice.model
  * by future non-Android front-ends. Grows milestone by milestone: paragraphs and
  * styled runs, lists, and now tables; images and sections follow.
  */
-data class Document(val blocks: List<Block>)
+data class Document(
+    val blocks: List<Block>,
+    /**
+     * The header shown on every page, or null when the document has none.
+     *
+     * Headers and footers are blocks, not plain text, because Word allows tables
+     * and pictures in them. Only the default variant is modelled: a document
+     * with different first-page or even-page headers keeps its body but loses
+     * those variants, which [org.ziyoffice.ooxml.ContentAudit] reports before a
+     * save.
+     */
+    val header: List<Block>? = null,
+    /** The footer shown on every page, or null when the document has none. */
+    val footer: List<Block>? = null,
+)
 
 /** A block-level element of the document body, in document order. */
 sealed interface Block
