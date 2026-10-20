@@ -32,9 +32,11 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Open/edit/save `.docx` | yes | | done |
 | Bold/italic/underline/strike, colors, sizes | yes | | done |
 | Headings, lists, alignment, line spacing | yes | | done |
+| Paragraph indent and spacing | yes | Increase or decrease the indent and set tight, normal or relaxed spacing; both survive a save | done |
 | Images (insert/resize) | yes | | done |
 | Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn and kept by a save | done |
 | Find & replace | yes | Find the next match, replace one match or replace all; a formula is searched through the text it quotes, never through its references | done |
+| Copy and paste cells | yes | Copy a range as tab-separated text and paste it anywhere, including into another app; a copied formula stays a formula | done |
 | Undo/redo, word count | yes | | done |
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
