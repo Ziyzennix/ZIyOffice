@@ -32,5 +32,8 @@ jobs:
       - name: "Privacy guardrail: manifest permissions"
         run: bash scripts/ci/check-manifest.sh
 
+      - name: "Privacy guardrail: no networking code"
+        run: bash scripts/ci/check-no-network-code.sh
+
       - name: "Privacy guardrail: banned dependencies"
         run: bash scripts/ci/check-dependencies.sh

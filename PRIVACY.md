@@ -41,6 +41,9 @@ Not by discipline — by the build:
 - `scripts/ci/check-manifest.sh` inspects the merged Android manifest of every build and
   fails if any permission appears without review. `INTERNET` is hard-banned: adding it
   fails the build even if someone tries to allowlist it.
+- `scripts/ci/check-no-network-code.sh` fails the build if the source uses a networking
+  API. The manifest check blocks the request; this one keeps the call from being written
+  in the first place, so a later permission change cannot turn dead code into live code.
 - `scripts/ci/check-dependencies.sh` fails the build if any known ads, analytics,
   crash-reporting or tracking library is declared as a dependency.
 - The dependency list is short, pinned in `gradle/libs.versions.toml`, and reviewed by
