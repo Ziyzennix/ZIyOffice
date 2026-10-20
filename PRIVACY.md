@@ -26,10 +26,10 @@ highest severity.
 | Data                         | Where it lives                          | Leaves the device? |
 |------------------------------|-----------------------------------------|--------------------|
 | Your documents               | The folders you choose (via SAF)        | Never              |
-| Recent-files list (M0+)      | App-private storage on this device      | Never              |
-| Autosave drafts (from M1)    | App-private storage on this device      | Never              |
+| Recent-files list            | App-private storage on this device      | Never              |
+| Autosave drafts              | App-private storage on this device      | Never              |
 | Settings                     | App-private storage on this device      | Never              |
-| Encrypted vault (from M5)    | App-private storage, encrypted at rest  | Never              |
+| Encrypted vault (planned)    | App-private storage, encrypted at rest  | Never              |
 
 Android backup is explicitly disabled (`android:allowBackup="false"`), so none of this is
 copied to any cloud backup service either.
