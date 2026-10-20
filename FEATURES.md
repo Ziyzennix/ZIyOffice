@@ -50,7 +50,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 |---|---|---|---|
 | Open/edit/save `.xlsx`, CSV import/export | yes | | done |
 | Grid with touch + keyboard editing | yes | | done |
-| Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | | done |
+| Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | About 70 functions: aggregates, maths, text, logic, conditional counting, lookup, statistics, dates and information tests | done |
 | Number/date formatting | yes | | done |
 | Freeze panes, sorting | yes | | done |
 | Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |

@@ -6,7 +6,7 @@ package org.ziyoffice.model
  * Pure Kotlin, no Android classes — evaluates formula strings against a [Sheet]
  * and returns [CellValue] results. Supports cell references (A1, $A$1), ranges
  * (A1:B2), arithmetic (+, -, *, /, ^, &), comparisons (=, <>, <, >, <=, >=),
- * and functions: SUM, IF, VLOOKUP, AVERAGE, COUNT, MIN, MAX.
+ * and the function library in [FormulaFunctions].
  *
  * Parsing is recursive-descent over a token stream. Cell references are resolved
  * through a single [CellResolver] per evaluation, so circular references are
@@ -59,7 +59,7 @@ fun columnName(index: Int): String {
 /* ----------------------------- values ----------------------------- */
 
 /** A parsed operand: either one scalar or a rectangular range of cells. */
-private sealed interface Operand {
+internal sealed interface Operand {
     data class Scalar(val value: CellValue) : Operand
     data class Range(
         val topRow: Int,
@@ -78,7 +78,7 @@ private sealed interface Operand {
 private const val MAX_EVALUATION_DEPTH = 200
 
 /** Resolves references against one sheet; owns cycle-detection state. */
-private class CellResolver(private val sheet: Sheet) {
+internal class CellResolver(private val sheet: Sheet) {
     private val byPosition: Map<Pair<Int, Int>, Cell> =
         sheet.cells.associateBy { it.row to it.column }
     private val evaluating = mutableSetOf<Pair<Int, Int>>()
@@ -150,7 +150,7 @@ private class CellResolver(private val sheet: Sheet) {
     }
 }
 
-private fun asNumber(value: CellValue): Double? = when (value) {
+internal fun asNumber(value: CellValue): Double? = when (value) {
     is CellValue.Number -> value.number
     is CellValue.Text -> value.text.toDoubleOrNull()
     is CellValue.Bool -> if (value.value) 1.0 else 0.0
@@ -168,7 +168,7 @@ private fun asNumberOrZero(value: CellValue): Double? = when (value) {
     else -> asNumber(value)
 }
 
-private fun asText(value: CellValue): String? = when (value) {
+internal fun asText(value: CellValue): String? = when (value) {
     is CellValue.Text -> value.text
     is CellValue.Number -> formatNumber(value.number)
     is CellValue.Bool -> if (value.value) "TRUE" else "FALSE"
@@ -183,7 +183,7 @@ internal fun formatNumber(number: Double): String {
     return number.toString()
 }
 
-private fun truthy(value: CellValue): Boolean = when (value) {
+internal fun truthy(value: CellValue): Boolean = when (value) {
     is CellValue.Number -> value.number != 0.0
     is CellValue.Text -> value.text.isNotEmpty()
     is CellValue.Bool -> value.value
@@ -489,7 +489,7 @@ private class Parser(
             throw FormulaException("Expected ')' after arguments at ${peek().position}")
         }
         advance()
-        return Operand.Scalar(applyFunction(nameToken.lexeme.uppercase(), args))
+        return Operand.Scalar(FormulaFunctions.apply(nameToken.lexeme.uppercase(), args, resolver))
     }
 
     private fun parseReferenceOperand(token: Token): Operand {
@@ -574,138 +574,6 @@ private class Parser(
         }
     }
 
-    /* ---------------------------- functions ---------------------------- */
-
-    /**
-     * The first error among the arguments, if any. A function that receives
-     * `#REF!` reports it instead of quietly returning a number.
-     */
-    private fun firstError(args: List<Operand>): CellValue.Error? =
-        args.firstNotNullOfOrNull { arg ->
-            when (arg) {
-                is Operand.Scalar -> arg.value as? CellValue.Error
-                is Operand.Range -> resolver.range(arg).firstOrNull { it is CellValue.Error }
-                    as? CellValue.Error
-            }
-        }
-
-    private fun applyFunction(name: String, args: List<Operand>): CellValue = when (name) {
-        "SUM" -> {
-            val error = firstError(args)
-            if (error != null) {
-                error
-            } else {
-                val numbers = args.flatMap { resolver.numbers(it) }
-                CellValue.Number(numbers.sum())
-            }
-        }
-
-        "AVERAGE" -> {
-            val error = firstError(args)
-            if (error != null) {
-                error
-            } else {
-                val numbers = args.flatMap { resolver.numbers(it) }
-                if (numbers.isEmpty()) CellValue.Error("#DIV/0!") else CellValue.Number(numbers.average())
-            }
-        }
-
-        "COUNT" -> {
-            val error = firstError(args)
-            if (error != null) {
-                error
-            } else {
-                val count = args.sumOf { arg ->
-                    when (arg) {
-                        is Operand.Range -> resolver.range(arg).count { it is CellValue.Number }
-                        is Operand.Scalar -> if (arg.value is CellValue.Number) 1 else 0
-                    }
-                }
-                CellValue.Number(count.toDouble())
-            }
-        }
-
-        "MIN" -> {
-            val error = firstError(args)
-            if (error != null) {
-                error
-            } else {
-                val numbers = args.flatMap { resolver.numbers(it) }
-                numbers.minOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
-            }
-        }
-
-        "MAX" -> {
-            val error = firstError(args)
-            if (error != null) {
-                error
-            } else {
-                val numbers = args.flatMap { resolver.numbers(it) }
-                numbers.maxOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
-            }
-        }
-
-        "IF" -> when {
-            args.size < 2 || args.size > 3 -> CellValue.Error("#VALUE!")
-            else -> {
-                val condition = resolver.scalar(args[0])
-                when {
-                    condition is CellValue.Error -> condition
-                    truthy(condition) -> resolver.scalar(args[1])
-                    args.size == 3 -> resolver.scalar(args[2])
-                    else -> CellValue.Bool(false)
-                }
-            }
-        }
-
-        "VLOOKUP" -> vlookup(args)
-
-        else -> CellValue.Error("#NAME?")
-    }
-
-    private fun vlookup(args: List<Operand>): CellValue {
-        if (args.size < 3 || args.size > 4) return CellValue.Error("#VALUE!")
-        val lookup = resolver.scalar(args[0])
-        if (lookup is CellValue.Error) return lookup
-        val table = args[1] as? Operand.Range ?: return CellValue.Error("#VALUE!")
-        val columnOffset = asNumber(resolver.scalar(args[2]))?.toInt()
-            ?: return CellValue.Error("#VALUE!")
-        val approximate = if (args.size == 4) truthy(resolver.scalar(args[3])) else true
-
-        val width = table.rightCol - table.leftCol + 1
-        if (columnOffset < 1 || columnOffset > width) return CellValue.Error("#REF!")
-
-        var foundRow: Int? = null
-        for (row in table.topRow..table.bottomRow) {
-            val candidate = resolver.cell(row, table.leftCol)
-            if (matches(lookup, candidate)) {
-                foundRow = row
-                break
-            }
-            if (!approximate) continue
-            // Approximate lookup assumes an ascending first column.
-            val c = asNumber(candidate)
-            val l = asNumber(lookup)
-            if (c != null && l != null && c > l) break
-        }
-        if (approximate && foundRow == null) {
-            // Last row whose key does not exceed the lookup value.
-            for (row in table.bottomRow downTo table.topRow) {
-                val c = asNumber(resolver.cell(row, table.leftCol)) ?: continue
-                val l = asNumber(lookup) ?: return CellValue.Error("#VALUE!")
-                if (c <= l) { foundRow = row; break }
-            }
-        }
-        val row = foundRow ?: return CellValue.Error("#N/A")
-        return resolver.cell(row, table.leftCol + columnOffset - 1)
-    }
-
-    private fun matches(left: CellValue, right: CellValue): Boolean {
-        val l = asNumber(left)
-        val r = asNumber(right)
-        if (l != null && r != null) return l == r
-        return asText(left) == asText(right)
-    }
 }
 
 private class FormulaException(override val message: String) : Exception(message)
