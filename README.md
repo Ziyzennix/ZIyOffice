@@ -1,158 +1,101 @@
 # ZiyOffice
 
 An office suite for Android. It opens, edits and prints documents, spreadsheets,
-slides and PDFs — with no account, no ads, no subscription, and not a single
-permission.
+slides and PDFs — no account, no ads, no subscription, no permissions.
 
-## why this exists
+## why
 
 The big office apps for Android are free only in the sense that you pay them
 later. They want an account before you can use the feature you opened the app
-for, they ask for storage, camera and notification permissions they do not
-need, they show ads or premium nudges, and the moment a feature wants the cloud,
-your documents sit on somebody else's server.
+for, they ask for storage and camera permissions they do not need, they show
+ads or premium nudges, and the moment a feature wants the cloud, your documents
+sit on somebody else's server.
 
 ZiyOffice is the other trade:
 
-- **it works offline.** the manifest has no `android.permission.INTERNET`, so
+- **it works offline.** no `android.permission.INTERNET` in the manifest, so
   Android blocks network access for the app. not "we don't phone home" —
   "the app cannot".
-- **no account, no ads, no analytics.** no ad SDK, no crash reporter, no
-  telemetry. the build fails if one shows up in the dependencies.
-- **no permissions at all.** not "minimal". the About screen shows what the
-  installed APK actually declares, and the list is empty.
+- **no account, no ads, no analytics.** the build fails if an ad SDK, a crash
+  reporter or a tracking dependency shows up.
+- **no permissions at all.** the About screen shows what the installed APK
+  declares. the list is empty.
 - **your files stay in your folders.** you pick them with Android's file picker.
-  the app never goes looking through your storage.
+  the app never scans your storage.
 - **free forever.** GPL-3.0 means nobody can take this, close it, and sell it
   back to you.
 
-None of that is a promise in a policy file. The build checks it: a CI script
-fails if a permission appears without review, another fails if networking code
-is written, and a third fails if a tracking dependency is declared.
+CI enforces all of it: a script fails the build if a permission appears without
+review, another if networking code is written, a third if a tracking dependency
+is declared.
 
 ## how it works
 
-### the files
+You pick files through the system picker, and ZiyOffice shows up in Android's
+"Open with" and share sheets. Unsaved work is kept as a local draft, so a crash
+does not take your typing with it. Saving rebuilds the file from ZiyOffice's own
+model, so parts the model does not know (comments, tracked changes, embedded
+charts, hidden rows) are dropped — the app says so before the first write, and
+"Save as copy" always leaves the original alone.
 
-ZiyOffice shows up in Android's "Open with" and share sheets, so a document
-attached to a mail or chat message opens straight in the editor. You always pick
-the file through the system picker, and the app keeps a grant for it — nothing
-else on the device is readable.
+- **Documents** — text formatting, headings, lists, alignment, line spacing,
+  indent and spacing, page breaks, tables, pictures, headers and footers, find
+  and replace, PDF export, print.
+- **Spreadsheets** — cells, about 70 formula functions, number and date
+  formats, frozen rows, sorting, merged cells, column widths and row heights,
+  cell borders, dropdown lists, inserting and deleting rows and columns, find
+  and replace, copy and paste, charts, CSV.
+- **Slides** — slide text, adding, deleting and reordering slides, speaker
+  notes, a present mode, PDF export. Images and shapes survive an edit but
+  cannot be edited yet.
+- **PDF** — highlight, ink, notes, a drawn signature, text stamped on a page,
+  page numbers, rotate, reorder, delete, merge, split, and redaction that
+  removes the content underneath instead of covering it.
 
-Unsaved work is kept as a local draft, so a crash or a killed process does not
-take your typing with it. Saving rebuilds the file from ZiyOffice's own model,
-which means parts the model does not know about (comments, tracked changes,
-embedded charts, hidden rows) are dropped. The app tells you that *before* the
-first write, and "Save as copy" always leaves the original alone.
+Printing goes through Android's own print service, so no permission is involved.
 
-### documents
+## not yet
 
-Bold, italic, underline, strikethrough, font size and colour, headings, lists,
-alignment, line spacing, paragraph indent and spacing, page breaks, tables with
-addable rows and columns, pictures, find and replace, word count, undo/redo,
-headers and footers. Exports to PDF and prints through Android's own print
-service.
-
-### spreadsheets
-
-Cells, about 70 formula functions (`SUM`, `AVERAGE`, `COUNTIF`, `SUMIF`, `IF`,
-`IFERROR`, `VLOOKUP`, `INDEX`/`MATCH`, `ROUND`, `TEXT`, `LEFT`, `MID`, `DATE`
-and the rest), number and date formats, frozen rows, sorting, merged cells,
-column widths and row heights, cell borders, dropdown lists, inserting and
-deleting rows and columns, find and replace, copy and paste, bar charts, and
-CSV import and export.
-
-### slides
-
-Slide text, adding, deleting and reordering slides, speaker notes, a present
-mode, PDF export. Images, shapes and animation in a slide are preserved
-untouched by an edit, but cannot be edited yet.
-
-### pdf
-
-Highlight, freehand ink, text notes, a drawn signature, text stamped on a
-page, page numbers on a saved copy, rotate, reorder, delete, merge in pages
-from another file, split by page range, and redaction that removes the content
-underneath instead of covering it. Printing goes through the system print
-service, so no permission is involved.
-
-## what it cannot do yet
-
-Encrypted vault, OCR of a scanned page, handwriting notes, images and shapes on
-slides, PDF form filling, macros, pivot tables, and `.odt`/`.ods`/`.odp` files.
-`FEATURES.md` has the full list against WPS Office, and the roadmap below says
-what is next.
+Encrypted vault, OCR, handwriting notes, images and shapes on slides, PDF form
+filling, macros, pivot tables, `.odt`/`.ods`/`.odp`. `FEATURES.md` has the full
+list against WPS Office.
 
 ## install
 
-Grab the APK from [Releases](https://github.com/Ziyzennix/ZiyOffice/releases) and
-open it on your phone; Android asks you to allow installing from this source.
-Needs Android 8.0 (API 26) or newer. The APK is about 1.8 MB.
+APK from [Releases](https://github.com/Ziyzennix/ZiyOffice/releases), opened on
+your phone. Android 8.0 (API 26) or newer. The APK is about 1.8 MB.
 
-## build and test
+## build
 
 JDK 17+ and Android SDK platform 36.
 
 ```bash
 scripts/setup-dev.sh          # check your toolchain
 ./gradlew :app:assembleDebug  # build
-./gradlew test                # run the unit tests
+./gradlew test                # unit tests
 scripts/install-device.sh     # install on a connected phone
 ```
 
 A signed release build needs `keystore.properties` in the repo root — copy
-`keystore.properties.example` and fill in your own keystore. Without it
-`assembleRelease` fails and says why.
-
-310 unit tests run on the JVM in CI. Format tests build a package in memory,
-read it back and assert the round trip; the content-audit test audits a file,
-saves it through the real reader and writer, and audits again to prove the
-warning was honest. There is no instrumented suite yet, so device behaviour is
-checked by hand.
+`keystore.properties.example` and fill in your own keystore.
 
 Everything sits on Android platform APIs: no Apache POI, no PDFium, no
-third-party format library. The dependencies are Compose, Activity Compose and
-Kotlin's test library.
-
-| Layer | Purpose |
-|---|---|
-| `core/model` | Document, workbook and deck models in plain Kotlin, unit-tested on the JVM |
-| `core/ooxml` | DOCX, XLSX and PPTX readers and writers, on `java.util.zip` and the XML pull parser |
-| `core/design` | Compose theme and colours |
-| `app` | Screens, file access through the Storage Access Framework, the PDF engine, exporters |
-| `scripts/ci` | The privacy guardrails |
-
-`docs/threat-model.md` says what the privacy claims do and do not cover,
-`docs/adr/` records the decisions behind the format layer, and
-`FEATURES.md` lists what works today.
+third-party format library. `core/model` holds the document model in plain
+Kotlin, `core/ooxml` the DOCX/XLSX/PPTX readers and writers, `app` the screens,
+the PDF engine and the exporters. 310 unit tests run on the JVM in CI; device
+behaviour is still checked by hand.
 
 ## roadmap
 
-0.5 is the current release. Next, by area:
+Next: conditional formatting, cell notes and named ranges (sheets); page
+numbers, footnotes and a table of contents (documents); images and shapes on
+slides; PDF form filling and OCR; copy/paste between apps; `.odt`/`.ods`/`.odp`
+support; an encrypted vault with a biometric lock.
 
-**Sheets** - conditional formatting, cell notes, named ranges, sorting by more
-than one column, filters, charts that are not bar charts.
+## bugs
 
-**Documents** - page numbers, footnotes, a table of contents, hyperlinks, spell
-check.
-
-**Slides** - images and shapes on a slide, title/content layouts, transitions
-and animations.
-
-**PDF** - filling forms, editing text on the page, and offline OCR of a picture
-you pick, so a scanned document becomes text you can search and copy.
-
-**Everywhere** - copy and paste between apps, reading and writing
-`.odt`/`.ods`/`.odp`, an encrypted vault with a biometric lock, handwriting
-notes, F-Droid reproducible builds.
-
-## reporting bugs
-
-Include what you did and what happened instead, the file type you were working
-on (not the file itself, unless you want to share it), and your Android version
-and phone model.
-
-Open an issue at https://github.com/Ziyzennix/ZiyOffice/issues.
+Include what you did and what happened instead, the file type, and your Android
+version and phone model. Issues: https://github.com/Ziyzennix/ZiyOffice/issues
 
 ## contributing
 
