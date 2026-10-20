@@ -1,5 +1,7 @@
 package org.ziyoffice.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -160,10 +162,12 @@ import org.ziyoffice.model.replaceInCell
 import org.ziyoffice.model.replaceText
 import org.ziyoffice.model.rowBands
 import org.ziyoffice.model.rowHeight
+import org.ziyoffice.model.tsvOf
 import org.ziyoffice.model.withBorders
 import org.ziyoffice.model.withColumnWidth
 import org.ziyoffice.model.withMergedRange
 import org.ziyoffice.model.withMergesClearedIn
+import org.ziyoffice.model.withPastedText
 import org.ziyoffice.model.withRowHeight
 import org.ziyoffice.model.writeCsv
 import org.ziyoffice.export.Printer
@@ -850,6 +854,31 @@ fun SheetScreen(
         val anchor = selection
         mutate { it.withBorders(range, kind) }
         editText = rawValueAt(anchor)
+    }
+
+    /** Copies the selected range as tab-separated text. */
+    fun copySelection() {
+        val current = currentSheet() ?: return
+        val range = selectedRange()
+        val text = current.tsvOf(range)
+        if (text.isEmpty()) return
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard?.setPrimaryClip(ClipData.newPlainText("ZiyOffice cells", text))
+        scope.launch { snackbarHostState.showSnackbar("Copied ${rangeLabel(range)}") }
+    }
+
+    /** Pastes the clipboard into the sheet, starting at the selected cell. */
+    fun pasteClipboard() {
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        val text = clipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+        if (text.isEmpty()) {
+            scope.launch { snackbarHostState.showSnackbar("The clipboard holds no text") }
+            return
+        }
+        val at = selection
+        mutate { it.withPastedText(text, at.row, at.column) }
+        editText = rawValueAt(selection)
+        scope.launch { snackbarHostState.showSnackbar("Pasted into ${rangeLabel(selectedRange())}") }
     }
 
     /**
@@ -1582,6 +1611,21 @@ fun SheetScreen(
                             expanded = menuExpanded,
                             onDismissRequest = { menuExpanded = false },
                         ) {
+                            DropdownMenuItem(
+                                text = { Text("Copy") },
+                                onClick = {
+                                    menuExpanded = false
+                                    copySelection()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Paste") },
+                                onClick = {
+                                    menuExpanded = false
+                                    pasteClipboard()
+                                },
+                            )
+                            HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text("Share as .xlsx") },
                                 onClick = {
