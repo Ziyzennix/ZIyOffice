@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -84,11 +85,14 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -99,9 +103,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.ByteArrayInputStream
@@ -118,20 +124,33 @@ import org.ziyoffice.data.RecentFilesStore
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellFormat
-import org.ziyoffice.model.CellValue
-import org.ziyoffice.model.chartPointsFrom
+import org.ziyoffice.model.CellRange
+import org.ziyoffice.model.CellRangeCorner
+import org.ziyoffice.model.DEFAULT_COLUMN_WIDTH_CHARS
+import org.ziyoffice.model.DEFAULT_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Sheet
+import org.ziyoffice.model.SheetRowBand
 import org.ziyoffice.model.SheetSort
 import org.ziyoffice.model.Workbook
+import org.ziyoffice.model.cellPlacements
+import org.ziyoffice.model.chartPointsFrom
 import org.ziyoffice.model.columnName
+import org.ziyoffice.model.columnWidth
 import org.ziyoffice.model.evaluateFormula
 import org.ziyoffice.model.formatCellValue
+import org.ziyoffice.model.formatNumber
 import org.ziyoffice.model.generalNumber
 import org.ziyoffice.model.isDateFormat
-import org.ziyoffice.model.parseDateInput
-import org.ziyoffice.model.formatNumber
+import org.ziyoffice.model.mergeAt
 import org.ziyoffice.model.parseCsv
+import org.ziyoffice.model.parseDateInput
+import org.ziyoffice.model.rowBands
+import org.ziyoffice.model.rowHeight
+import org.ziyoffice.model.withColumnWidth
+import org.ziyoffice.model.withMergedRange
+import org.ziyoffice.model.withMergesClearedIn
+import org.ziyoffice.model.withRowHeight
 import org.ziyoffice.model.writeCsv
 import org.ziyoffice.export.Printer
 import org.ziyoffice.export.SheetExporter
@@ -144,10 +163,46 @@ import org.ziyoffice.saf.XLSX_MIME_TYPE
 /** A 0-based cell address inside the active sheet. */
 private data class CellPos(val row: Int, val column: Int)
 
+/** Which axis the size dialog is editing. */
+private enum class SizeTarget { COLUMN, ROW }
+
+/** Trims a unit value for the dialog: 15.0 reads as "15", 8.43 stays "8.43". */
+private fun sizeText(value: Float): String =
+    if (value % 1f == 0f) value.toInt().toString() else value.toString()
+
+/** Accepts a dot or the comma key on locales whose keyboards offer one. */
+private fun parseSize(text: String): Float? =
+    text.trim().replace(',', '.').toFloatOrNull()?.takeIf { it.isFinite() }
+
+/** "A1" for a cell, "A1:C3" for a rectangle, for status copy and menus. */
+private fun rangeLabel(range: CellRange): String {
+    val start = columnName(range.left) + (range.top + 1)
+    if (range.rowSpan == 1 && range.columnSpan == 1) return start
+    return "$start:${columnName(range.right)}${range.bottom + 1}"
+}
+
 private val CELL_WIDTH = 76.dp
 private val CELL_HEIGHT = 40.dp
+private val MIN_COLUMN_WIDTH = 24.dp
+private val MAX_COLUMN_WIDTH = 480.dp
+private val MIN_ROW_HEIGHT = 24.dp
+private val MAX_ROW_HEIGHT = 240.dp
 private val ROW_HEADER_WIDTH = 44.dp
 private const val UNDO_LIMIT = 100
+
+/**
+ * Convert spreadsheet units to on-screen sizes. A column width of 8.43 and a
+ * row height of 15 points are the package defaults, so they map to the same
+ * 76 x 40 dp cell the editor has always used. Clamps keep a hostile file from
+ * making one cell take over the screen; the saved value is untouched.
+ */
+private fun Sheet.columnWidthDp(column: Int): Dp =
+    (CELL_WIDTH * (columnWidth(column) / DEFAULT_COLUMN_WIDTH_CHARS))
+        .coerceIn(MIN_COLUMN_WIDTH, MAX_COLUMN_WIDTH)
+
+private fun Sheet.rowHeightDp(row: Int): Dp =
+    (CELL_HEIGHT * (rowHeight(row) / DEFAULT_ROW_HEIGHT_POINTS))
+        .coerceIn(MIN_ROW_HEIGHT, MAX_ROW_HEIGHT)
 
 private val NUMBER_FORMATS: List<Pair<String?, String>> = listOf(
     null to "General",
@@ -195,6 +250,8 @@ fun SheetScreen(
     var loadError by remember(file.uri) { mutableStateOf<String?>(null) }
     var activeSheet by remember(file.uri) { mutableStateOf(0) }
     var selection by remember(file.uri) { mutableStateOf(CellPos(0, 0)) }
+    // The far corner of a rectangular selection. Null means one active cell.
+    var selectionEnd by remember(file.uri) { mutableStateOf<CellPos?>(null) }
     var editText by remember(file.uri) { mutableStateOf("") }
     var editingCell by remember(file.uri) { mutableStateOf(false) }
     var dirty by remember(file.uri) { mutableStateOf(false) }
@@ -208,6 +265,8 @@ fun SheetScreen(
     var showRename by remember { mutableStateOf(false) }
     var showChart by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
+    var sizeTarget by remember { mutableStateOf<SizeTarget?>(null) }
+    var sizeValueText by remember { mutableStateOf("") }
     // Content-loss gate, same contract as the Docs editor: the writer rebuilds
     // the workbook from the model, so parts it cannot reproduce are announced
     // before the first save rather than discovered afterwards.
@@ -332,6 +391,25 @@ fun SheetScreen(
 
     fun currentSheet(): Sheet? = workbook?.sheets?.getOrNull(activeSheet)
 
+    /** The selected rectangle, always including the active cell. */
+    fun selectedRange(): CellRange = CellRange.of(
+        CellRangeCorner(selection.row, selection.column),
+        CellRangeCorner(
+            selectionEnd?.row ?: selection.row,
+            selectionEnd?.column ?: selection.column,
+        ),
+    )
+
+    fun anchorAt(sheet: Sheet, pos: CellPos): CellPos {
+        val merge = sheet.mergeAt(pos.row, pos.column) ?: return pos
+        return CellPos(merge.top, merge.left)
+    }
+
+    fun clampToSheet(sheet: Sheet, pos: CellPos): CellPos = CellPos(
+        row = pos.row.coerceIn(0, (sheet.rowCount - 1).coerceAtLeast(0)),
+        column = pos.column.coerceIn(0, (sheet.columnCount - 1).coerceAtLeast(0)),
+    )
+
     fun rawValueAt(pos: CellPos): String =
         currentSheet()?.cells?.firstOrNull { it.row == pos.row && it.column == pos.column }?.value.orEmpty()
 
@@ -397,28 +475,109 @@ fun SheetScreen(
         if (text != rawValueAt(selection)) writeCell(selection, normaliseInput(text, formatAt(selection)))
     }
 
-
     fun select(pos: CellPos) {
         val target = currentSheet() ?: return
-        val clamped = CellPos(
-            row = pos.row.coerceIn(0, (target.rowCount - 1).coerceAtLeast(0)),
-            column = pos.column.coerceIn(0, (target.columnCount - 1).coerceAtLeast(0)),
-        )
+        val clamped = anchorAt(target, clampToSheet(target, pos))
         if (editingCell && clamped != selection) commitEdit()
         selection = clamped
+        selectionEnd = null
         editText = rawValueAt(clamped)
     }
 
-    fun clearSelectedCell() {
-        val pos = selection
+    /**
+     * Grows the selection from its active cell to [pos]. A long press is the
+     * one-thumb path; Shift+arrow does the same from a hardware keyboard.
+     */
+    fun extendSelectionTo(pos: CellPos) {
+        val target = currentSheet() ?: return
         if (editingCell) commitEdit()
-        if (rawValueAt(pos).isEmpty()) return
-        mutate { target ->
-            target.copy(
-                cells = target.cells.filterNot { it.row == pos.row && it.column == pos.column },
-            )
+        selectionEnd = clampToSheet(target, pos)
+        editText = rawValueAt(selection)
+    }
+
+    /** Moves the far corner, skipping over any merged block it starts inside. */
+    fun extendSelection(rowDelta: Int, columnDelta: Int) {
+        val target = currentSheet() ?: return
+        if (editingCell) commitEdit()
+        val from = selectionEnd ?: selection
+        val merge = target.mergeAt(from.row, from.column)
+        val next = CellPos(
+            row = when {
+                rowDelta < 0 -> (merge?.top ?: from.row) - 1
+                rowDelta > 0 -> (merge?.bottom ?: from.row) + 1
+                else -> from.row
+            },
+            column = when {
+                columnDelta < 0 -> (merge?.left ?: from.column) - 1
+                columnDelta > 0 -> (merge?.right ?: from.column) + 1
+                else -> from.column
+            },
+        )
+        selectionEnd = clampToSheet(target, next)
+    }
+
+    fun clearSelectedCell() {
+        if (editingCell) commitEdit()
+        val range = selectedRange()
+        val target = currentSheet() ?: return
+        val hasContent = target.cells.any {
+            range.contains(it.row, it.column) &&
+                (it.value.isNotEmpty() || it.format != CellFormat())
+        }
+        if (!hasContent) return
+        mutate { sheet ->
+            // Clearing removes the value but keeps deliberate formatting: a
+            // bordered table stays a table when its contents are deleted.
+            val cells = sheet.cells.mapNotNull { cell ->
+                if (!range.contains(cell.row, cell.column)) return@mapNotNull cell
+                when {
+                    cell.format != CellFormat() -> cell.copy(value = "", cached = null)
+                    else -> null
+                }
+            }
+            sheet.copy(cells = cells)
         }
         editText = ""
+    }
+
+    /** Merges the selected rectangle; Excel-style, only the top-left value stays. */
+    fun mergeSelection() {
+        if (editingCell) commitEdit()
+        val range = selectedRange()
+        if (range.rowSpan <= 1 && range.columnSpan <= 1) {
+            scope.launch { snackbarHostState.showSnackbar("Select two or more cells first") }
+            return
+        }
+        val hiddenValues = currentSheet()?.cells?.count { cell ->
+            range.contains(cell.row, cell.column) &&
+                (cell.row != range.top || cell.column != range.left) &&
+                cell.value.isNotEmpty()
+        } ?: 0
+        mutate { it.withMergedRange(range) }
+        selection = CellPos(range.top, range.left)
+        selectionEnd = null
+        editText = rawValueAt(selection)
+        val suffix = if (hiddenValues > 0) " \u00B7 other values cleared" else ""
+        scope.launch {
+            snackbarHostState.showSnackbar("Merged ${rangeLabel(range)}$suffix")
+        }
+    }
+
+    /** Splits every merged block touched by the selection back into ordinary cells. */
+    fun unmergeSelection() {
+        if (editingCell) commitEdit()
+        val range = selectedRange()
+        val target = currentSheet() ?: return
+        val merges = target.mergedRanges.filter { it.intersects(range) }
+        if (merges.isEmpty()) return
+        mutate { it.withMergesClearedIn(range) }
+        editText = rawValueAt(selection)
+        val label = merges.joinToString { rangeLabel(it) }
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                if (merges.size == 1) "Unmerged $label" else "Unmerged ${merges.size} blocks",
+            )
+        }
     }
 
     /** Freezes the rows above the cursor, or clears the freeze when one is set. */
@@ -430,15 +589,58 @@ fun SheetScreen(
         }
     }
 
+    /** Opens the size dialog for every column or row touched by the selection. */
+    fun openSizeDialog(target: SizeTarget) {
+        if (editingCell) commitEdit()
+        val current = currentSheet() ?: return
+        val range = selectedRange()
+        sizeValueText = sizeText(
+            when (target) {
+                SizeTarget.COLUMN -> current.columnWidth(range.left)
+                SizeTarget.ROW -> current.rowHeight(range.top)
+            },
+        )
+        sizeTarget = target
+    }
+
+    fun applySizeDialog() {
+        val target = sizeTarget ?: return
+        val value = parseSize(sizeValueText) ?: return
+        val range = selectedRange()
+        mutate { sheet ->
+            when (target) {
+                SizeTarget.COLUMN -> (range.left..range.right).fold(sheet) { next, column ->
+                    next.withColumnWidth(column, value)
+                }
+                SizeTarget.ROW -> (range.top..range.bottom).fold(sheet) { next, row ->
+                    next.withRowHeight(row, value)
+                }
+            }
+        }
+        sizeTarget = null
+        editText = rawValueAt(selection)
+    }
+
     /**
      * Sorts every used row of the active sheet by the column the cursor is in.
      * The whole used block moves, so rows keep their cells together.
      */
     fun sortBySelection(ascending: Boolean) {
+        if (editingCell) commitEdit()
         val current = currentSheet() ?: return
         val lastRow = current.cells.maxOfOrNull { it.row } ?: return
         if (lastRow < 1) return
-        if (editingCell) commitEdit()
+        val firstRow = current.cells.minOfOrNull { it.row } ?: 0
+        val lastColumn = current.cells.maxOfOrNull { it.column } ?: 0
+        val sortTouchesMerge = current.mergedRanges.any {
+            it.top <= lastRow && it.bottom >= firstRow && it.left <= lastColumn
+        }
+        if (sortTouchesMerge) {
+            // Reordering rows under a vertical merge would move the value away
+            // from the block that owns it. Refuse instead of corrupting the sheet.
+            scope.launch { snackbarHostState.showSnackbar("Unmerge cells before sorting") }
+            return
+        }
 
         val sorted = SheetSort.sort(
             sheet = current,
@@ -452,17 +654,61 @@ fun SheetScreen(
 
     fun applyFormat(transform: (CellFormat) -> CellFormat) {
         if (editingCell) commitEdit()
-        val pos = selection
-        writeCell(pos, rawValueAt(pos), transform(formatAt(pos)))
-        editText = rawValueAt(pos)
+        val range = selectedRange()
+        val anchor = selection
+        mutate { sheet ->
+            val byPosition = sheet.cells.associateBy { it.row to it.column }
+            // Formatting a visible merged cell must reach the cells it hides,
+            // otherwise unmerging would reveal an unstyled block.
+            val positions = buildSet {
+                for (row in range.top..range.bottom) {
+                    for (column in range.left..range.right) add(row to column)
+                }
+                sheet.mergedRanges.filter { it.intersects(range) }.forEach { merge ->
+                    for (row in merge.top..merge.bottom) {
+                        for (column in merge.left..merge.right) add(row to column)
+                    }
+                }
+            }
+            val outside = sheet.cells.filterNot { (it.row to it.column) in positions }
+            val formatted = positions.mapNotNull { (row, column) ->
+                val existing = byPosition[row to column]
+                val format = transform(existing?.format ?: CellFormat())
+                val value = existing?.value.orEmpty()
+                if (value.isNotEmpty() || format != CellFormat()) {
+                    Cell(row, column, value, format, existing?.cached)
+                } else {
+                    null
+                }
+            }
+            sheet.copy(
+                cells = (outside + formatted).sortedWith(compareBy({ it.row }, { it.column })),
+            )
+        }
+        editText = rawValueAt(anchor)
     }
 
     fun moveSelection(rowDelta: Int, columnDelta: Int) {
         if (editingCell) commitEdit()
-        select(CellPos(selection.row + rowDelta, selection.column + columnDelta))
+        val sheet = currentSheet() ?: return
+        val merge = sheet.mergeAt(selection.row, selection.column)
+        val next = CellPos(
+            row = when {
+                rowDelta < 0 -> (merge?.top ?: selection.row) - 1
+                rowDelta > 0 -> (merge?.bottom ?: selection.row) + 1
+                else -> selection.row
+            },
+            column = when {
+                columnDelta < 0 -> (merge?.left ?: selection.column) - 1
+                columnDelta > 0 -> (merge?.right ?: selection.column) + 1
+                else -> selection.column
+            },
+        )
+        select(next)
     }
 
     fun startTyping(character: Char) {
+        selectionEnd = null
         editingCell = true
         editText = character.toString()
         runCatching { formulaFocus.requestFocus() }
@@ -472,10 +718,14 @@ fun SheetScreen(
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isCtrlPressed) return false
         return when (event.key) {
-            Key.DirectionLeft -> { moveSelection(0, -1); true }
-            Key.DirectionRight -> { moveSelection(0, 1); true }
-            Key.DirectionUp -> { moveSelection(-1, 0); true }
-            Key.DirectionDown -> { moveSelection(1, 0); true }
+            Key.DirectionLeft ->
+                if (event.isShiftPressed) { extendSelection(0, -1); true } else { moveSelection(0, -1); true }
+            Key.DirectionRight ->
+                if (event.isShiftPressed) { extendSelection(0, 1); true } else { moveSelection(0, 1); true }
+            Key.DirectionUp ->
+                if (event.isShiftPressed) { extendSelection(-1, 0); true } else { moveSelection(-1, 0); true }
+            Key.DirectionDown ->
+                if (event.isShiftPressed) { extendSelection(1, 0); true } else { moveSelection(1, 0); true }
             Key.Enter -> { moveSelection(1, 0); true }
             Key.Tab -> { moveSelection(0, 1); true }
             Key.Delete -> { clearSelectedCell(); true }
@@ -500,6 +750,7 @@ fun SheetScreen(
         redoStack = (redoStack + current).takeLast(UNDO_LIMIT)
         workbook = previous
         activeSheet = previous.activeSheet.coerceIn(0, (previous.sheets.size - 1).coerceAtLeast(0))
+        selectionEnd = null
         editingCell = false
         editText = rawValueAt(selection)
         dirty = true
@@ -514,6 +765,7 @@ fun SheetScreen(
         undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
         workbook = next
         activeSheet = next.activeSheet.coerceIn(0, (next.sheets.size - 1).coerceAtLeast(0))
+        selectionEnd = null
         editingCell = false
         editText = rawValueAt(selection)
         dirty = true
@@ -622,6 +874,7 @@ fun SheetScreen(
         workbook = current.copy(sheets = sheets)
         activeSheet = sheets.lastIndex
         selection = CellPos(0, 0)
+        selectionEnd = null
         editText = ""
         dirty = true
         writeVersion++
@@ -824,6 +1077,79 @@ fun SheetScreen(
         )
     }
 
+    sizeTarget?.let { target ->
+        val range = selectedRange()
+        val title = when (target) {
+            SizeTarget.COLUMN ->
+                if (range.columnSpan == 1) {
+                    "Column ${columnName(range.left)} width"
+                } else {
+                    "Columns ${columnName(range.left)}\u2013${columnName(range.right)} width"
+                }
+            SizeTarget.ROW ->
+                if (range.rowSpan == 1) {
+                    "Row ${range.top + 1} height"
+                } else {
+                    "Rows ${range.top + 1}\u2013${range.bottom + 1} height"
+                }
+        }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { sizeTarget = null },
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextField(
+                        value = sizeValueText,
+                        onValueChange = { sizeValueText = it },
+                        singleLine = true,
+                        label = {
+                            Text(if (target == SizeTarget.COLUMN) "Width" else "Height")
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Done,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (parseSize(sizeValueText) != null) applySizeDialog()
+                            },
+                        ),
+                    )
+                    Text(
+                        if (target == SizeTarget.COLUMN) {
+                            "Excel character units, 1\u2013255. The default is 8.43."
+                        } else {
+                            "Points, 8\u2013409. The default is 15."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    val count = when (target) {
+                        SizeTarget.COLUMN -> range.columnSpan
+                        SizeTarget.ROW -> range.rowSpan
+                    }
+                    if (count > 1) {
+                        Text(
+                            "Applies to all $count selected " +
+                                if (target == SizeTarget.COLUMN) "columns." else "rows.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = ::applySizeDialog,
+                    enabled = parseSize(sizeValueText) != null,
+                ) { Text("Apply") }
+            },
+            dismissButton = {
+                TextButton(onClick = { sizeTarget = null }) { Text("Cancel") }
+            },
+        )
+    }
+
     if (showChart) {
         // Commit first, in the event handler that opened the sheet — not here.
         // The body below runs on every recomposition while the sheet is open, and
@@ -939,6 +1265,20 @@ fun SheetScreen(
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("Column width\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    openSizeDialog(SizeTarget.COLUMN)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Row height\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    openSizeDialog(SizeTarget.ROW)
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = {
                                     Text(
                                         if ((sheet?.frozenRows ?: 0) > 0) {
@@ -951,6 +1291,39 @@ fun SheetScreen(
                                 onClick = {
                                     menuExpanded = false
                                     toggleFrozenRows()
+                                },
+                            )
+                            val mergeRange = selectedRange()
+                            val canMerge = mergeRange.rowSpan > 1 || mergeRange.columnSpan > 1
+                            DropdownMenuItem(
+                                text = {
+                                    Column {
+                                        Text("Merge cells")
+                                        Text(
+                                            if (canMerge) {
+                                                rangeLabel(mergeRange)
+                                            } else {
+                                                "Long-press a second cell to select a range"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                },
+                                enabled = canMerge,
+                                onClick = {
+                                    menuExpanded = false
+                                    mergeSelection()
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Unmerge cells") },
+                                enabled = sheet?.mergedRanges?.any {
+                                    it.intersects(selectedRange())
+                                } == true,
+                                onClick = {
+                                    menuExpanded = false
+                                    unmergeSelection()
                                 },
                             )
                             DropdownMenuItem(
@@ -995,6 +1368,7 @@ fun SheetScreen(
                         if (editingCell) commitEdit()
                         activeSheet = index
                         selection = CellPos(0, 0)
+                        selectionEnd = null
                         editText = ""
                     },
                     onAdd = ::addSheet,
@@ -1032,11 +1406,13 @@ fun SheetScreen(
             }
             FormulaBar(
                 selection = selection,
+                range = selectedRange(),
                 text = editText,
                 enabled = sheet != null,
                 focusRequester = formulaFocus,
                 onTextChange = {
                     editingCell = true
+                    selectionEnd = null
                     editText = it
                 },
                 onCommit = {
@@ -1056,6 +1432,9 @@ fun SheetScreen(
                     sheet = sheet,
                     cells = cellsByPos,
                     selection = selection,
+                    selectionRange = selectedRange().takeIf {
+                        it.rowSpan > 1 || it.columnSpan > 1
+                    },
                     editing = editingCell,
                     editText = editText,
                     modifier = Modifier
@@ -1065,6 +1444,10 @@ fun SheetScreen(
                         .onPreviewKeyEvent(::handleKey),
                     onSelect = { pos ->
                         select(pos)
+                        runCatching { gridFocus.requestFocus() }
+                    },
+                    onExtendTo = { pos ->
+                        extendSelectionTo(pos)
                         runCatching { gridFocus.requestFocus() }
                     },
                     onStartEdit = { pos ->
@@ -1084,12 +1467,14 @@ fun SheetScreen(
 @Composable
 private fun FormulaBar(
     selection: CellPos,
+    range: CellRange,
     text: String,
     enabled: Boolean,
     focusRequester: FocusRequester,
     onTextChange: (String) -> Unit,
     onCommit: () -> Unit,
 ) {
+    val isRange = range.rowSpan > 1 || range.columnSpan > 1
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
             modifier = Modifier
@@ -1098,14 +1483,21 @@ private fun FormulaBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = columnName(selection.column) + (selection.row + 1),
+                text = rangeLabel(range),
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
-                    .width(56.dp)
+                    .width(if (isRange) 82.dp else 56.dp)
                     // Spoken on the address itself rather than on the field: a
                     // contentDescription on an editable node would replace the
                     // text TalkBack reads back as the user types.
-                    .semantics { contentDescription = "Cell ${columnName(selection.column)}${selection.row + 1}" },
+                    .semantics {
+                        contentDescription = if (isRange) {
+                            "Selected range ${rangeLabel(range)}, active cell " +
+                                "${columnName(selection.column)}${selection.row + 1}"
+                        } else {
+                            "Cell ${columnName(selection.column)}${selection.row + 1}"
+                        }
+                    },
                 maxLines = 1,
             )
             Text(
@@ -1148,17 +1540,40 @@ private fun SheetGrid(
     sheet: Sheet,
     cells: Map<Pair<Int, Int>, Cell>,
     selection: CellPos,
+    selectionRange: CellRange?,
     editing: Boolean,
     editText: String,
     modifier: Modifier = Modifier,
     onSelect: (CellPos) -> Unit,
+    onExtendTo: (CellPos) -> Unit,
     onStartEdit: (CellPos) -> Unit,
 ) {
     // One scroll state shared by the header and every row keeps the frozen row
     // headers aligned with the grid while columns scroll.
     val horizontal = rememberScrollState()
-    val rowCount = sheet.rowCount.coerceAtLeast(1)
+    val density = LocalDensity.current
     val columnCount = sheet.columnCount.coerceAtLeast(1)
+    val rowCount = sheet.rowCount.coerceAtLeast(1)
+    val columnWidths = remember(sheet) { List(columnCount) { sheet.columnWidthDp(it) } }
+    val rowHeights = remember(sheet) { List(rowCount) { sheet.rowHeightDp(it) } }
+    val columnWidthsPx = remember(columnWidths, density) {
+        columnWidths.map { with(density) { it.roundToPx() } }
+    }
+    val rowHeightsPx = remember(rowHeights, density) {
+        rowHeights.map { with(density) { it.roundToPx() } }
+    }
+    val bands = remember(sheet) { sheet.rowBands() }
+    val active = remember(sheet, selection) {
+        val merge = sheet.mergeAt(selection.row, selection.column)
+        if (merge == null) selection else CellPos(merge.top, merge.left)
+    }
+
+    // A band that starts above the freeze line is frozen as a whole. Splitting a
+    // vertical merge at that line would either clip its text or leave half a
+    // cell behind, and a freeze through a merged block is not meaningful.
+    val frozenBands = remember(bands, sheet.frozenRows) {
+        bands.count { it.startRow < sheet.frozenRows }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(modifier = Modifier.height(CELL_HEIGHT)) {
@@ -1177,7 +1592,7 @@ private fun SheetGrid(
                     repeat(columnCount) { column ->
                         Box(
                             modifier = Modifier
-                                .width(CELL_WIDTH)
+                                .width(with(density) { columnWidthsPx[column].toDp() })
                                 .fillMaxHeight()
                                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                                 .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -1194,35 +1609,40 @@ private fun SheetGrid(
             }
         }
 
-        // Rows above frozenRows render outside the list, so they never scroll away.
-        val frozen = sheet.frozenRows.coerceIn(0, rowCount - 1)
-        repeat(frozen) { row ->
-            GridRow(
-                row = row,
-                columnCount = columnCount,
+        // Frozen bands render outside the list, so they never scroll away.
+        bands.take(frozenBands).forEach { band ->
+            GridBand(
+                band = band,
                 cells = cells,
                 sheet = sheet,
-                selection = selection,
+                active = active,
+                selectionRange = selectionRange,
                 editing = editing,
                 editText = editText,
                 horizontal = horizontal,
+                columnWidthsPx = columnWidthsPx,
+                rowHeightsPx = rowHeightsPx,
                 onSelect = onSelect,
+                onExtendTo = onExtendTo,
                 onStartEdit = onStartEdit,
             )
         }
 
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(rowCount - frozen) { index ->
-                GridRow(
-                    row = frozen + index,
-                    columnCount = columnCount,
+            items(bands.drop(frozenBands), key = { it.startRow }) { band ->
+                GridBand(
+                    band = band,
                     cells = cells,
                     sheet = sheet,
-                    selection = selection,
+                    active = active,
+                    selectionRange = selectionRange,
                     editing = editing,
                     editText = editText,
                     horizontal = horizontal,
+                    columnWidthsPx = columnWidthsPx,
+                    rowHeightsPx = rowHeightsPx,
                     onSelect = onSelect,
+                    onExtendTo = onExtendTo,
                     onStartEdit = onStartEdit,
                 )
             }
@@ -1230,74 +1650,163 @@ private fun SheetGrid(
     }
 }
 
+/**
+ * One band of model rows, laid out as an absolute grid rather than a Row.
+ *
+ * Rows have to be bands because a vertically merged cell is taller than one row
+ * and must be measured once, at its full height. Inside the band every placement
+ * is measured at its final size and placed at its grid offset, so merged anchors
+ * and ordinary cells line up without nesting weight rows inside rows.
+ */
 @Composable
-private fun GridRow(
-    row: Int,
-    columnCount: Int,
+private fun GridBand(
+    band: SheetRowBand,
     cells: Map<Pair<Int, Int>, Cell>,
     sheet: Sheet,
-    selection: CellPos,
+    active: CellPos,
+    selectionRange: CellRange?,
     editing: Boolean,
     editText: String,
     horizontal: androidx.compose.foundation.ScrollState,
+    columnWidthsPx: List<Int>,
+    rowHeightsPx: List<Int>,
     onSelect: (CellPos) -> Unit,
+    onExtendTo: (CellPos) -> Unit,
     onStartEdit: (CellPos) -> Unit,
 ) {
-    Row(modifier = Modifier.height(CELL_HEIGHT)) {
-        Box(
+    val placements = remember(sheet, band) { sheet.cellPlacements(band) }
+    val density = LocalDensity.current
+    val bandRowHeights = remember(rowHeightsPx, band) {
+        rowHeightsPx.subList(band.startRow, band.endRow + 1)
+    }
+    val columnOffsets = remember(columnWidthsPx) { prefixSums(columnWidthsPx) }
+    val rowOffsets = remember(bandRowHeights) { prefixSums(bandRowHeights) }
+
+    Row {
+        Column(
             modifier = Modifier
                 .width(ROW_HEADER_WIDTH)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
-            contentAlignment = Alignment.Center,
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
         ) {
-            Text(
-                text = "${row + 1}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            bandRowHeights.forEachIndexed { offset, heightPx ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(with(density) { heightPx.toDp() })
+                        .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "${band.startRow + offset + 1}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
         Box(
             modifier = Modifier
                 .weight(1f)
                 .horizontalScroll(horizontal),
         ) {
-            Row {
-                repeat(columnCount) { col ->
-                    SheetCell(
-                        row = row,
-                        column = col,
-                        cell = cells[row to col],
-                        sheet = sheet,
-                        selected = selection.row == row && selection.column == col,
-                        editing = editing && selection.row == row && selection.column == col,
-                        editText = editText,
-                        onClick = { onSelect(CellPos(row, col)) },
-                        onDoubleClick = { onStartEdit(CellPos(row, col)) },
+            Layout(
+                content = {
+                    placements.forEach { placement ->
+                        val rowOffset = placement.row - band.startRow
+                        val widthPx = columnOffsets[placement.column + placement.columnSpan] -
+                            columnOffsets[placement.column]
+                        val heightPx = rowOffsets[rowOffset + placement.rowSpan] -
+                            rowOffsets[rowOffset]
+                        val selected = selectionRange?.let { range ->
+                            range.intersects(
+                                CellRange(
+                                    top = placement.row,
+                                    left = placement.column,
+                                    bottom = placement.row + placement.rowSpan - 1,
+                                    right = placement.column + placement.columnSpan - 1,
+                                ),
+                            )
+                        } ?: false
+                        SheetCell(
+                            row = placement.row,
+                            column = placement.column,
+                            rowSpan = placement.rowSpan,
+                            columnSpan = placement.columnSpan,
+                            cell = cells[placement.row to placement.column],
+                            sheet = sheet,
+                            selected = selected,
+                            active = active.row == placement.row &&
+                                active.column == placement.column,
+                            editing = editing && active.row == placement.row &&
+                                active.column == placement.column,
+                            editText = editText,
+                            width = with(density) { widthPx.toDp() },
+                            height = with(density) { heightPx.toDp() },
+                            onClick = { onSelect(CellPos(placement.row, placement.column)) },
+                            onLongClick = {
+                                onExtendTo(CellPos(placement.row, placement.column))
+                            },
+                            onDoubleClick = {
+                                onStartEdit(CellPos(placement.row, placement.column))
+                            },
+                        )
+                    }
+                },
+            ) { measurables, _ ->
+                val measured = measurables.mapIndexed { index, measurable ->
+                    val placement = placements[index]
+                    val rowOffset = placement.row - band.startRow
+                    val widthPx = columnOffsets[placement.column + placement.columnSpan] -
+                        columnOffsets[placement.column]
+                    val heightPx = rowOffsets[rowOffset + placement.rowSpan] -
+                        rowOffsets[rowOffset]
+                    measurable.measure(
+                        androidx.compose.ui.unit.Constraints.fixed(widthPx, heightPx),
                     )
+                }
+                layout(columnOffsets.last(), rowOffsets.last()) {
+                    placements.forEachIndexed { index, placement ->
+                        measured[index].placeRelative(
+                            x = columnOffsets[placement.column],
+                            y = rowOffsets[placement.row - band.startRow],
+                        )
+                    }
                 }
             }
         }
     }
 }
 
+/** Prefix sums for the pixel offsets inside one band. */
+private fun prefixSums(values: List<Int>): IntArray {
+    val sums = IntArray(values.size + 1)
+    values.forEachIndexed { index, value -> sums[index + 1] = sums[index] + value }
+    return sums
+}
+
 @Composable
 private fun SheetCell(
     row: Int,
     column: Int,
+    rowSpan: Int,
+    columnSpan: Int,
     cell: Cell?,
     sheet: Sheet,
     selected: Boolean,
+    active: Boolean,
     editing: Boolean,
     editText: String,
+    width: Dp,
+    height: Dp,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onDoubleClick: () -> Unit,
 ) {
     val format = cell?.format ?: CellFormat()
     val text = if (editing) editText else displayValue(cell, sheet)
     val background = when {
-        selected -> MaterialTheme.colorScheme.primaryContainer
+        active -> MaterialTheme.colorScheme.primaryContainer
+        selected -> MaterialTheme.colorScheme.secondaryContainer
         format.fillRgb != null -> Color(0xFF000000.toInt() or format.fillRgb!!)
         else -> MaterialTheme.colorScheme.surface
     }
@@ -1312,10 +1821,15 @@ private fun SheetCell(
 
     // Hoisted so the semantics block reads like the rest of the file: plain
     // values, not assignments captured from receiver-scope properties.
-    val isSelected = selected
+    val isSelected = selected || active
     val label = buildString {
         append(columnName(column))
         append(row + 1)
+        if (rowSpan > 1 || columnSpan > 1) {
+            append(':')
+            append(columnName(column + columnSpan - 1))
+            append(row + rowSpan)
+        }
         val value = if (editing) editText else text.ifEmpty { "empty" }
         append(", ")
         append(value)
@@ -1323,18 +1837,22 @@ private fun SheetCell(
 
     Box(
         modifier = Modifier
-            .width(CELL_WIDTH)
-            .fillMaxHeight()
+            .width(width)
+            .height(height)
             .background(background)
             .border(
-                width = if (selected) 2.dp else 0.5.dp,
-                color = if (selected) {
+                width = if (active) 2.dp else 0.5.dp,
+                color = if (active) {
                     MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.outlineVariant
                 },
             )
-            .combinedClickable(onClick = onClick, onDoubleClick = onDoubleClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+                onDoubleClick = onDoubleClick,
+            )
             .semantics {
                 // Coordinate + value, so a screen-reader user hears "B3, 42"
                 // rather than a bare number with no address.

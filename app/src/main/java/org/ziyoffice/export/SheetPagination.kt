@@ -40,18 +40,30 @@ internal object SheetPagination {
     }
 
     /**
-     * Splits rows `[first, last]` (inclusive sheet indices) into pages of at most
-     * [rowsPerPage] rows. The final page keeps the remainder; no row is dropped.
+     * Splits rows `[first, last]` into pages whose heights fit [availableHeight].
+     * [rowHeights] is indexed from [first]. A row taller than the space still
+     * gets a page of its own; no row is dropped.
      */
-    fun rowPages(first: Int, last: Int, rowsPerPage: Int): List<IntRange> {
+    fun rowPagesByHeight(
+        first: Int,
+        last: Int,
+        rowHeights: List<Float>,
+        availableHeight: Float,
+    ): List<IntRange> {
         if (last < first) return emptyList()
-        val perPage = rowsPerPage.coerceAtLeast(1)
         val pages = mutableListOf<IntRange>()
         var start = first
         while (start <= last) {
-            val end = minOf(last, start + perPage - 1)
-            pages += start..end
-            start = end + 1
+            var end = start
+            var used = 0f
+            while (end <= last) {
+                val height = rowHeights.getOrElse(end - first) { 0f }
+                if (end > start && used + height > availableHeight) break
+                used += height
+                end++
+            }
+            pages += start..(end - 1).coerceAtLeast(start)
+            start = end
         }
         return pages
     }

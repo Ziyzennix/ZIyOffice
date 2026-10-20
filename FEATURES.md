@@ -53,10 +53,12 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | | done |
 | Number/date formatting | yes | | done |
 | Freeze panes, sorting | yes | | done |
+| Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |
+| Column widths and row heights | yes | Resize the selected columns or rows; read and write `.xlsx` `<col>` widths and row `ht` | done |
 | Charts (bar, from a column) | yes | | done |
-| Export to PDF (paginated, header row repeated) | yes | | done |
+| Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths and heights are honoured | done |
 | Print via the system print service | yes | | done |
-| Content a save removes (charts, images, merges, validation, filters, protection) | no | Warned before the first save | done |
+| Content a save removes (charts, images, hidden rows/columns, validation, filters, protection) | no | Warned before the first save | done |
 | Pivot tables | yes | | — |
 | Macros | yes | | — |
 

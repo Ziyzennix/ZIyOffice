@@ -29,7 +29,8 @@ data class DroppedFeature(
  * The scan is intentionally conservative. It reports only content whose loss
  * changes what the document shows or contains, and it never reports a feature
  * the writers do reproduce (text, run formatting, lists, tables, images,
- * formulas, cell formatting, frozen rows, sheet order).
+ * formulas, cell formatting, frozen rows, merged cells, column widths, row
+ * heights, sheet order).
  */
 object ContentAudit {
 
@@ -120,29 +121,34 @@ object ContentAudit {
 
         // Worksheet-level tags: count across every sheet part in the package.
         val sheetTags = mutableMapOf<String, Int>()
+        var hiddenRowsAndColumns = 0
         scan.parts.forEach { (name, part) ->
             if (!name.startsWith("xl/worksheets/") || !name.endsWith(".xml")) return@forEach
             val xml = part.decodeToString()
             listOf(
                 "conditionalFormatting" to "Conditional formatting",
                 "dataValidation" to "Data validation",
-                "mergeCell" to "Merged cells",
                 "autoFilter" to "Auto filters",
                 "sheetProtection" to "Sheet protection",
             ).forEach { (tag, label) ->
                 val count = countTag(xml, tag)
                 if (count > 0) sheetTags[label] = (sheetTags[label] ?: 0) + count
             }
+            // Hidden rows and columns are attributes, not elements; a save
+            // rebuilds them as visible because the model has no hidden flag.
+            hiddenRowsAndColumns += HIDDEN_ATTRIBUTE.findAll(xml).count()
         }
         // Stable, human order rather than map iteration order.
         listOf(
             "Conditional formatting",
             "Data validation",
-            "Merged cells",
             "Auto filters",
             "Sheet protection",
         ).forEach { label ->
             sheetTags[label]?.let { features += DroppedFeature(label, it) }
+        }
+        if (hiddenRowsAndColumns > 0) {
+            features += DroppedFeature("Hidden rows and columns", hiddenRowsAndColumns)
         }
         return features
     }
@@ -193,11 +199,6 @@ object ContentAudit {
     }
 
     /**
-     * Occurrences of element [name] in [xml]. Matches `<name>` and `<name ...`,
-     * so `<w:delText>` does not count as a `<w:del>` and `<m:oMathPara>` is not
-     * mistaken for a second `<m:oMath>` — callers pass both when both matter.
-     */
-    /**
      * The `w:type` of every `w:headerReference`/`w:footerReference` in [xml], in
      * document order. A reference with no type is the default variant and is
      * returned as null, matching how [DocxReader] reads it.
@@ -221,6 +222,11 @@ object ContentAudit {
         }
     }
 
+    /**
+     * Occurrences of element [name] in [xml]. Matches `<name>` and `<name ...`,
+     * so `<w:delText>` does not count as a `<w:del>` and `<m:oMathPara>` is not
+     * mistaken for a second `<m:oMath>` — callers pass both when both matter.
+     */
     private fun countTag(xml: String, name: String): Int {
         val needle = "<$name"
         var count = 0
@@ -233,6 +239,10 @@ object ContentAudit {
             from = at + needle.length
         }
     }
+
+    /** `hidden="1"`/`hidden="true"` on a `<row>` or `<col>`. */
+    private val HIDDEN_ATTRIBUTE =
+        Regex("""\bhidden\s*=\s*["'](?:1|true)["']""", RegexOption.IGNORE_CASE)
 
     private const val DOCUMENT_PART = "word/document.xml"
     private const val COMMENTS_PART = "word/comments.xml"

@@ -20,7 +20,7 @@ Version 0.5 is early development — expect bugs. If something breaks,
 
 ZiyOffice also appears in Android's "Open with" and share sheets for these formats, so a document attached to a mail or chat message opens straight in the editor. A file shared that way usually arrives with a one-shot grant that Android will not let an app keep, so it opens for the session without joining the recent list — "Save as copy" is how you keep the result.
 
-Documents support bold, italic, underline and strikethrough, font size and colour, headings, lists, alignment, line spacing, page breaks, tables with addable rows and columns, inserted pictures, find and replace, word count, undo and redo, and PDF export. Spreadsheets support arithmetic, cell references, ranges, `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `IF` and `VLOOKUP`, number and date formats, frozen rows, sorting, charts from a column, and CSV import and export. Slides keep slide text, adding, deleting and reordering slides, speaker notes, a present mode, and PDF export; images and shapes on a slide are preserved untouched but cannot be edited yet. PDF work includes highlighting, freehand ink, text notes, a drawn signature, rotation, reordering and deletion of pages, merging pages from another file, page-range split, and redaction that removes the content underneath rather than covering it. Printing goes through Android's print service with no permission needed.
+Documents support bold, italic, underline and strikethrough, font size and colour, headings, lists, alignment, line spacing, page breaks, tables with addable rows and columns, inserted pictures, find and replace, word count, undo and redo, and PDF export. Spreadsheets support arithmetic, cell references, ranges, `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `IF` and `VLOOKUP`, number and date formats, frozen rows, sorting, merged cells with range selection, adjustable column widths and row heights, charts from a column, and CSV import and export. Slides keep slide text, adding, deleting and reordering slides, speaker notes, a present mode, and PDF export; images and shapes on a slide are preserved untouched but cannot be edited yet. PDF work includes highlighting, freehand ink, text notes, a drawn signature, rotation, reordering and deletion of pages, merging pages from another file, page-range split, and redaction that removes the content underneath rather than covering it. Printing goes through Android's print service with no permission needed.
 
 ## Privacy
 
@@ -35,7 +35,7 @@ The About screen lists the permissions the installed app declares.
 
 ## Known limitations
 
-Saving rebuilds each file from ZiyOffice's own document model, so parts it does not model are dropped: comments, tracked changes, charts, merged cells in spreadsheets, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
+Saving rebuilds each file from ZiyOffice's own document model, so parts it does not model are dropped: comments, tracked changes, charts, hidden rows and columns, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
 
 Not implemented yet: encrypted vault, OCR, handwriting notes, slide shapes and images, PDF form filling, macros, pivot tables.
 

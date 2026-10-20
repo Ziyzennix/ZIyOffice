@@ -14,7 +14,12 @@ class SheetPaginationTest {
 
     @Test
     fun longSheetContinuesOntoFurtherPagesWithoutLosingRows() {
-        val pages = SheetPagination.rowPages(first = 0, last = 44, rowsPerPage = 10)
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 0,
+            last = 44,
+            rowHeights = List(45) { 18f },
+            availableHeight = 180f,
+        )
         assertEquals(listOf(0..9, 10..19, 20..29, 30..39, 40..44), pages)
         // Every row appears exactly once, in order.
         assertEquals((0..44).toList(), pages.flatMap { it.toList() })
@@ -22,15 +27,49 @@ class SheetPaginationTest {
 
     @Test
     fun singlePageWhenEverythingFits() {
-        assertEquals(listOf(0..4), SheetPagination.rowPages(0, 4, rowsPerPage = 40))
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 0,
+            last = 4,
+            rowHeights = List(5) { 18f },
+            availableHeight = 200f,
+        )
+        assertEquals(listOf(0..4), pages)
     }
 
     @Test
     fun rowsStartingBelowZeroIndexAreKept() {
         // Sheets can start at row 5 when the first rows are empty; the range must
         // not be rebased to 0 and print the wrong row numbers.
-        val pages = SheetPagination.rowPages(first = 5, last = 12, rowsPerPage = 4)
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 5,
+            last = 12,
+            rowHeights = List(8) { 18f },
+            availableHeight = 72f,
+        )
         assertEquals(listOf(5..8, 9..12), pages)
+    }
+
+    @Test
+    fun tallRowsGetTheirOwnSpaceAndChangeTheBreak() {
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 0,
+            last = 5,
+            rowHeights = listOf(18f, 18f, 60f, 18f, 18f, 18f),
+            availableHeight = 70f,
+        )
+        assertEquals(listOf(0..1, 2..2, 3..5), pages)
+        assertEquals((0..5).toList(), pages.flatMap { it.toList() })
+    }
+
+    @Test
+    fun rowTallerThanThePageStillGetsAPage() {
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 0,
+            last = 2,
+            rowHeights = listOf(500f, 18f, 18f),
+            availableHeight = 100f,
+        )
+        assertEquals(listOf(0..0, 1..2), pages)
     }
 
     @Test
@@ -51,12 +90,18 @@ class SheetPaginationTest {
     @Test
     fun emptySheetHasNoPages() {
         assertTrue(SheetPagination.columnPages(emptyList(), 20f, 200f).isEmpty())
-        assertTrue(SheetPagination.rowPages(3, 2, 10).isEmpty())
+        assertTrue(SheetPagination.rowPagesByHeight(3, 2, emptyList(), 100f).isEmpty())
     }
 
     @Test
-    fun zeroRowsPerPageStillTerminates() {
-        // Defensive: a page height smaller than one row must not loop forever.
-        assertEquals(listOf(0..0, 1..1, 2..2), SheetPagination.rowPages(0, 2, rowsPerPage = 0))
+    fun aZeroHeightRowStillTerminates() {
+        // Defensive: malformed heights must not loop forever.
+        val pages = SheetPagination.rowPagesByHeight(
+            first = 0,
+            last = 2,
+            rowHeights = listOf(0f, 0f, 0f),
+            availableHeight = 100f,
+        )
+        assertEquals(listOf(0..2), pages)
     }
 }

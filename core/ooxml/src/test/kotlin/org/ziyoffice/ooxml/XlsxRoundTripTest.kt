@@ -8,10 +8,15 @@ import kotlin.test.assertTrue
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellFormat
+import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.CellValue
+import org.ziyoffice.model.ColumnWidth
+import org.ziyoffice.model.DEFAULT_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
+import org.ziyoffice.model.columnWidth
 import org.ziyoffice.model.evaluateFormula
+import org.ziyoffice.model.rowHeight
 
 class XlsxRoundTripTest {
 
@@ -182,6 +187,87 @@ class XlsxRoundTripTest {
         val out = reader().read(ByteArrayInputStream(bytes)).sheets.single()
 
         assertEquals(0, out.frozenRows)
+    }
+
+    @Test
+    fun mergedCellsSurviveRoundTrip() {
+        val sheet = Sheet(
+            name = "Merged",
+            cells = listOf(
+                Cell(row = 0, column = 0, value = "Quarterly report"),
+                Cell(row = 2, column = 0, value = "left"),
+            ),
+            mergedRanges = listOf(
+                CellRange(0, 0, 1, 3),
+                CellRange(2, 0, 3, 0),
+            ),
+        )
+        val out = reader().read(
+            ByteArrayInputStream(XlsxWriter().write(Workbook(listOf(sheet)))),
+        ).sheets.single()
+
+        assertEquals(
+            listOf(
+                CellRange(0, 0, 1, 3),
+                CellRange(2, 0, 3, 0),
+            ),
+            out.mergedRanges,
+        )
+        assertEquals("Quarterly report", out.cellAt(0, 0)?.value)
+        assertTrue(out.rowCount >= 4)
+        assertTrue(out.columnCount >= 4)
+    }
+
+    @Test
+    fun emptyMergedRangeSurvivesRoundTrip() {
+        val sheet = Sheet(
+            name = "Merged",
+            cells = emptyList(),
+            rowCount = 2,
+            columnCount = 2,
+            mergedRanges = listOf(CellRange(1, 1, 4, 2)),
+        )
+        val out = reader().read(
+            ByteArrayInputStream(XlsxWriter().write(Workbook(listOf(sheet)))),
+        ).sheets.single()
+
+        assertEquals(listOf(CellRange(1, 1, 4, 2)), out.mergedRanges)
+        assertTrue(out.rowCount >= 5)
+        assertTrue(out.columnCount >= 3)
+    }
+
+    @Test
+    fun columnWidthsAndRowHeightsSurviveRoundTrip() {
+        val sheet = Sheet(
+            name = "Sized",
+            cells = listOf(
+                Cell(row = 0, column = 0, value = "Header"),
+                Cell(row = 1, column = 0, value = "Body"),
+            ),
+            columnWidths = listOf(
+                ColumnWidth(0, 0, 24.5f),
+                ColumnWidth(2, 4, 11f),
+            ),
+            rowHeights = mapOf(
+                0 to 30f,
+                // A height without any cells still belongs to the sheet.
+                6 to 22f,
+            ),
+        )
+        val out = reader().read(
+            ByteArrayInputStream(XlsxWriter().write(Workbook(listOf(sheet)))),
+        ).sheets.single()
+
+        assertEquals(
+            listOf(ColumnWidth(0, 0, 24.5f), ColumnWidth(2, 4, 11f)),
+            out.columnWidths,
+        )
+        assertEquals(24.5f, out.columnWidth(0), 0.001f)
+        assertEquals(11f, out.columnWidth(3), 0.001f)
+        assertEquals(30f, out.rowHeight(0), 0.001f)
+        assertEquals(22f, out.rowHeight(6), 0.001f)
+        assertEquals(DEFAULT_ROW_HEIGHT_POINTS, out.rowHeight(1), 0.001f)
+        assertTrue(out.rowCount >= 7)
     }
 
     @Test

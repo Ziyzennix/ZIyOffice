@@ -9,9 +9,15 @@ import org.xmlpull.v1.XmlPullParserFactory
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellFormat
+import org.ziyoffice.model.CellRange
+import org.ziyoffice.model.ColumnWidth
+import org.ziyoffice.model.MAX_ROW_HEIGHT_POINTS
+import org.ziyoffice.model.MIN_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnIndex
+import org.ziyoffice.model.normaliseColumnWidths
+import org.ziyoffice.model.normaliseMerges
 
 /** The SpreadsheetML namespace, as defined by ECMA-376 / ISO 29500. */
 const val SPREADSHEETML_NAMESPACE =
@@ -25,8 +31,9 @@ const val SPREADSHEETML_NAMESPACE =
  *  - `workbook.xml`: sheet names, order and the active tab
  *  - `sharedStrings.xml`: the shared string table (rich runs flattened to text)
  *  - `worksheets/sheetN.xml`: cell values (numbers, strings, booleans, errors,
- *    inline strings), formulas (`<f>`), and basic cell formatting (`s` -> `xf`
- *    -> `cellXfs`/`fonts`/`fills`/`numFmts`)
+ *    inline strings), formulas (`<f>`), basic cell formatting (`s` -> `xf`
+ *    -> `cellXfs`/`fonts`/`fills`/`numFmts`), frozen rows, merged ranges,
+ *    column widths and row heights
  *
  * Unsupported content is skipped, never faked: styles beyond the basics,
  * conditional formatting, charts, pivot tables, images, comments.
@@ -377,6 +384,9 @@ class XlsxReader(
         styles: StyleTable,
     ): Sheet {
         val cells = mutableListOf<Cell>()
+        val mergedRanges = mutableListOf<CellRange>()
+        val columnWidths = mutableListOf<ColumnWidth>()
+        val rowHeights = mutableMapOf<Int, Float>()
         var rowCount = 0
         var columnCount = 0
         var frozenRows = 0
@@ -417,9 +427,35 @@ class XlsxReader(
                             frozenRows = attribute(parser, "ySplit")?.toIntOrNull() ?: 0
                         }
                     }
+                    event == XmlPullParser.START_TAG && parser.name == "col" -> {
+                        val first = attribute(parser, "min")?.toIntOrNull()?.minus(1)
+                        val last = attribute(parser, "max")?.toIntOrNull()?.minus(1)
+                        val width = attribute(parser, "width")?.toFloatOrNull()
+                        if (first != null && last != null && width != null) {
+                            columnWidths += ColumnWidth(first, last, width)
+                        }
+                    }
                     event == XmlPullParser.START_TAG && parser.name == "row" -> {
                         val rowIndex = attribute(parser, "r")?.toIntOrNull()
-                        if (rowIndex != null) rowCount = maxOf(rowCount, rowIndex)
+                        if (rowIndex != null) {
+                            rowCount = maxOf(rowCount, rowIndex)
+                            attribute(parser, "ht")?.toFloatOrNull()?.let { height ->
+                                if (rowIndex > 0 && height > 0f) {
+                                    rowHeights[rowIndex - 1] = height.coerceIn(
+                                        MIN_ROW_HEIGHT_POINTS,
+                                        MAX_ROW_HEIGHT_POINTS,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    event == XmlPullParser.START_TAG && parser.name == "mergeCell" -> {
+                        val range = attribute(parser, "ref")?.let(CellRange::parse)
+                        if (range != null) {
+                            mergedRanges += range
+                            rowCount = maxOf(rowCount, range.bottom + 1)
+                            columnCount = maxOf(columnCount, range.right + 1)
+                        }
                     }
                     event == XmlPullParser.START_TAG && parser.name == "c" -> {
                         cellRef = attribute(parser, "r")
@@ -472,6 +508,9 @@ class XlsxReader(
             rowCount = maxOf(rowCount, MIN_ROWS),
             columnCount = maxOf(columnCount, MIN_COLUMNS),
             frozenRows = frozenRows.coerceAtMost(rowCount),
+            mergedRanges = mergedRanges.normaliseMerges(),
+            columnWidths = columnWidths.normaliseColumnWidths(),
+            rowHeights = rowHeights,
         )
     }
 

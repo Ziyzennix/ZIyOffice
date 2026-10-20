@@ -6,9 +6,11 @@ import java.util.zip.ZipOutputStream
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellFormat
+import org.ziyoffice.model.MAX_SHEET_COLUMNS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnName
+import org.ziyoffice.model.normaliseMerges
 
 /**
  * Writes the ZiyOffice [Workbook] model back into an `.xlsx` package using only
@@ -100,10 +102,19 @@ class XlsxWriter {
     /* ---------------------------- worksheet ---------------------------- */
 
     private fun sheetXml(sheet: Sheet, styles: StylePlan): String = buildString {
+        val lastRow = maxOf(
+            sheet.rowCount,
+            sheet.mergedRanges.maxOfOrNull { it.bottom + 1 } ?: 0,
+            (sheet.rowHeights.keys.maxOrNull() ?: -1) + 1,
+        ).coerceAtLeast(1)
+        val lastColumn = maxOf(
+            sheet.columnCount,
+            sheet.mergedRanges.maxOfOrNull { it.right + 1 } ?: 0,
+        ).coerceAtLeast(1)
         append(XML_HEADER)
         append("<worksheet xmlns=\"$SPREADSHEETML_NAMESPACE\">")
-        append("<dimension ref=\"A1:").append(columnName(sheet.columnCount - 1))
-            .append(sheet.rowCount).append("\"/>")
+        append("<dimension ref=\"A1:").append(columnName(lastColumn - 1))
+            .append(lastRow).append("\"/>")
         if (sheet.frozenRows > 0) {
             // pane + selection is the minimum Excel needs to reopen with rows locked.
             append("<sheetViews><sheetView workbookViewId=\"0\">")
@@ -113,6 +124,28 @@ class XlsxWriter {
             append("<selection pane=\"bottomLeft\"/>")
             append("</sheetView></sheetViews>")
         }
+
+        // Column widths precede sheetData in the schema. A run is written as one
+        // <col> so a default width covering every column does not become 16k tags.
+        val widths = sheet.columnWidths
+            .filter {
+                it.firstColumn in 0 until MAX_SHEET_COLUMNS &&
+                    it.lastColumn >= it.firstColumn &&
+                    it.width > 0f && it.width.isFinite()
+            }
+            .sortedWith(compareBy({ it.firstColumn }, { it.lastColumn }))
+        if (widths.isNotEmpty()) {
+            append("<cols>")
+            widths.forEach { column ->
+                append("<col min=\"").append(column.firstColumn + 1)
+                append("\" max=\"")
+                    .append(minOf(column.lastColumn, MAX_SHEET_COLUMNS - 1) + 1)
+                append("\" width=\"").append(column.width)
+                append("\" customWidth=\"1\"/>")
+            }
+            append("</cols>")
+        }
+
         append("<sheetData>")
 
         val byRow = sheet.cells
@@ -122,13 +155,38 @@ class XlsxWriter {
             .groupBy { it.row }
             .toSortedMap()
 
-        byRow.forEach { (row, cells) ->
-            append("<row r=\"").append(row + 1).append("\">")
-            cells.sortedBy { it.column }.forEach { cell -> appendCell(cell, styles) }
+        // Rows can carry a height without carrying cells; keep those too.
+        val rows = (byRow.keys + sheet.rowHeights.keys)
+            .filter { it >= 0 }
+            .distinct()
+            .sorted()
+        rows.forEach { row ->
+            append("<row r=\"").append(row + 1).append('"')
+            sheet.rowHeights[row]?.takeIf { it.isFinite() && it > 0f }?.let { height ->
+                append(" ht=\"").append(height).append("\" customHeight=\"1\"")
+            }
+            append('>')
+            byRow[row]?.sortedBy { it.column }?.forEach { cell -> appendCell(cell, styles) }
             append("</row>")
         }
 
-        append("</sheetData></worksheet>")
+        append("</sheetData>")
+
+        // Merges sit after sheetData in the schema. Their anchors keep their
+        // value; the covered cells keep whatever the file held, so a save never
+        // invents or destroys data behind a merge.
+        val merges = sheet.mergedRanges.normaliseMerges()
+        if (merges.isNotEmpty()) {
+            append("<mergeCells count=\"").append(merges.size).append("\">")
+            merges.forEach { range ->
+                append("<mergeCell ref=\"")
+                append(columnName(range.left)).append(range.top + 1).append(':')
+                append(columnName(range.right)).append(range.bottom + 1)
+                append("\"/>")
+            }
+            append("</mergeCells>")
+        }
+        append("</worksheet>")
     }
 
     private fun StringBuilder.appendCell(cell: Cell, styles: StylePlan) {

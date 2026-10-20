@@ -100,10 +100,25 @@ class ContentAuditTest {
                 "Drawings" to 1,
                 "Images" to 1,
                 "Conditional formatting" to 1,
-                "Merged cells" to 1,
                 "Auto filters" to 1,
             ),
             features.map { it.label to it.count },
+        )
+    }
+
+    @Test
+    fun xlsxReportsHiddenRowsAndColumnsThatASaveWouldReveal() {
+        val packageBytes = zip(
+            mapOf(
+                "xl/worksheets/sheet1.xml" to
+                    "<worksheet><cols><col min=\"1\" max=\"1\" width=\"0\" hidden=\"1\"/></cols>" +
+                    "<sheetData><row r=\"2\" hidden=\"true\"/></sheetData></worksheet>",
+            ),
+        )
+
+        assertEquals(
+            listOf("Hidden rows and columns" to 2),
+            ContentAudit.xlsx(packageBytes).map { it.label to it.count },
         )
     }
 

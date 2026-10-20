@@ -56,6 +56,12 @@ data class Sheet(
     val columnCount: Int = 26,
     /** Rows above this index stay put while the rest scrolls; 0 = no frozen rows. */
     val frozenRows: Int = 0,
+    /** Blocks of cells drawn as one cell; the top-left cell holds the value. */
+    val mergedRanges: List<CellRange> = emptyList(),
+    /** Explicit column widths; uncovered columns use [DEFAULT_COLUMN_WIDTH_CHARS]. */
+    val columnWidths: List<ColumnWidth> = emptyList(),
+    /** Explicit row heights in points; missing rows use [DEFAULT_ROW_HEIGHT_POINTS]. */
+    val rowHeights: Map<Int, Float> = emptyMap(),
 )
 
 data class Workbook(
