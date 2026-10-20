@@ -816,6 +816,8 @@ fun SheetScreen(
             return
         }
         mutate { result.sheet }
+        // The cell under the cursor may be one of the ones that changed.
+        editText = rawValueAt(selection)
         scope.launch {
             snackbarHostState.showSnackbar(
                 "Replaced ${result.occurrences} " +
