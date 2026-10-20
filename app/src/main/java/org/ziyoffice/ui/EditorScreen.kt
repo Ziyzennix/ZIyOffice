@@ -1641,7 +1641,7 @@ private fun rememberDocxPreviewState(file: RecentFile): MutableState<DocxPreview
                 // The audit reads the same bytes the reader just consumed, so the
                 // warning describes exactly this file and costs no second read of
                 // the user's provider.
-                val dropped = runCatching { ContentAudit.docx(bytes) }.getOrDefault(emptyList())
+                val dropped = ContentAudit.docx(bytes)
                 val document = DocxReader().read(ByteArrayInputStream(bytes))
                 val bitmaps = document.blocks
                     .flatMap(::collectImages)
@@ -2102,8 +2102,12 @@ private fun countWords(blocks: List<Block>): Int = blocks.sumOf { block ->
 
 /** "report.docx" -> "report.pdf" for the export dialog's suggested name. */
 private fun pdfFileName(displayName: String): String {
-    val base = displayName.substringBeforeLast('.', displayName)
-    return "$base.pdf"
+    return if (displayName.endsWith(".pdf", ignoreCase = true)) {
+        displayName
+    } else {
+        val base = displayName.substringBeforeLast('.', displayName)
+        "$base.pdf"
+    }
 }
 
 @Composable
@@ -2218,7 +2222,7 @@ private fun InlineImages(images: List<ImageBitmap?>) {
 }
 
 private val DocumentTextStyle: TextStyle
-    @Composable get() = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp, lineHeight = 16.sp)
+    @Composable get() = MaterialTheme.typography.bodyMedium.copy(lineHeight = 16.sp)
 
 /**
  * The document text style with the paragraph's line spacing applied: the base

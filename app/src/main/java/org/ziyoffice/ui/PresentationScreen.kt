@@ -513,16 +513,12 @@ private fun SlideStrip(
                         Text(
                             slide.title.ifBlank { "Slide ${index + 1}" },
                             style = MaterialTheme.typography.labelMedium,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
                         )
                         slide.body.firstOrNull()?.takeIf { it.isNotBlank() }?.let { line ->
                             Text(
                                 line,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

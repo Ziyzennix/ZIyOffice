@@ -40,14 +40,17 @@ fun AboutScreen(onBack: () -> Unit) {
                 .requestedPermissions
                 ?.toList()
                 .orEmpty()
-        }.getOrDefault(emptyList())
+        }
     }
 
-    val permissionSummary = if (declaredPermissions.isEmpty()) {
-        "None. So Android itself makes it impossible for ZIyOffice to reach the network."
-    } else {
-        declaredPermissions.joinToString(", ")
+    val permissionSummary = when {
+        declaredPermissions.isFailure -> "Could not read permissions."
+        declaredPermissions.getOrDefault(emptyList()).isEmpty() -> {
+            "None. So Android itself makes it impossible for ZIyOffice to reach the network."
+        }
+        else -> declaredPermissions.getOrDefault(emptyList()).joinToString(", ")
     }
+
 
     Scaffold(
         topBar = {

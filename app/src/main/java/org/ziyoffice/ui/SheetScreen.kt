@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
@@ -106,10 +105,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.io.ByteArrayInputStream
-import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.floor
-import kotlin.math.roundToLong
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -239,11 +235,9 @@ fun SheetScreen(
                     val dropped = if (isCsv(file.displayName)) {
                         emptyList()
                     } else {
-                        runCatching {
-                            context.contentResolver.openInputStream(Uri.parse(file.uri))
-                                ?.use { stream -> ContentAudit.xlsx(stream.readBytes()) }
-                                .orEmpty()
-                        }.getOrDefault(emptyList())
+                        context.contentResolver.openInputStream(Uri.parse(file.uri))
+                            ?.use { stream -> ContentAudit.xlsx(stream.readBytes()) }
+                            .orEmpty()
                     }
                     Triple(XlsxReader().read(ByteArrayInputStream(draft)), true, dropped)
                 } else if (isCsv(file.displayName)) {
@@ -261,7 +255,7 @@ fun SheetScreen(
                     // One read serves both the model and the audit, so the warning
                     // describes exactly this file.
                     val bytes = stream.use { it.readBytes() }
-                    val dropped = runCatching { ContentAudit.xlsx(bytes) }.getOrDefault(emptyList())
+                    val dropped = ContentAudit.xlsx(bytes)
                     Triple(XlsxReader().read(ByteArrayInputStream(bytes)), false, dropped)
                 }
             }

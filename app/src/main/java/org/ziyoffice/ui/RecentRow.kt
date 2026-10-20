@@ -55,8 +55,6 @@ internal fun RecentRow(file: RecentFile, onClick: () -> Unit) {
             Text(
                 file.displayName,
                 style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 listOfNotNull(
@@ -72,7 +70,7 @@ internal fun RecentRow(file: RecentFile, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun KindBadge(file: RecentFile, size: Dp = 44.dp) {
+internal fun KindBadge(file: RecentFile, size: Dp = 48.dp) {
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = kindColor(file.kind),

@@ -72,7 +72,7 @@ fun ZiyOfficeApp() {
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    val tab = runCatching { ZiyTab.valueOf(tabName) }.getOrDefault(ZiyTab.HOME)
+    val tab = ZiyTab.entries.firstOrNull { it.name == tabName } ?: ZiyTab.HOME
 
     val openPicker = rememberDocumentPicker { uri: Uri ->
         val entry = store.remember(uri)
