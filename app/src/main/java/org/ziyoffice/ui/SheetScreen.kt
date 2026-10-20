@@ -187,6 +187,46 @@ private data class CellPos(val row: Int, val column: Int)
 /** Which axis the size dialog is editing. */
 private enum class SizeTarget { COLUMN, ROW }
 
+/** The axis a structural edit works on: rows or columns. */
+private enum class SheetAxis(val noun: String) {
+    ROWS("row"),
+    COLUMNS("column");
+
+    /** How many rows or columns the selection covers. */
+    fun spanOf(range: CellRange): Int = when (this) {
+        ROWS -> range.rowSpan
+        COLUMNS -> range.columnSpan
+    }
+
+    /** The first selected row or column. */
+    fun firstOf(range: CellRange): Int = when (this) {
+        ROWS -> range.top
+        COLUMNS -> range.left
+    }
+
+    /** The last selected row or column. */
+    fun lastOf(range: CellRange): Int = when (this) {
+        ROWS -> range.bottom
+        COLUMNS -> range.right
+    }
+
+    /** How many rows or columns the sheet has. */
+    fun sizeOf(sheet: Sheet): Int = when (this) {
+        ROWS -> sheet.rowCount
+        COLUMNS -> sheet.columnCount
+    }
+
+    fun insertInto(sheet: Sheet, at: Int, count: Int): Sheet = when (this) {
+        ROWS -> sheet.insertRows(at, count)
+        COLUMNS -> sheet.insertColumns(at, count)
+    }
+
+    fun deleteFrom(sheet: Sheet, range: CellRange, count: Int): Sheet = when (this) {
+        ROWS -> sheet.deleteRows(range.top, count)
+        COLUMNS -> sheet.deleteColumns(range.left, count)
+    }
+}
+
 /** How thick a border line is drawn on screen. */
 private fun borderWidth(style: BorderStyle): Dp = when (style) {
     BorderStyle.THIN, BorderStyle.DASHED, BorderStyle.DOTTED -> 1.5.dp
@@ -211,7 +251,7 @@ private fun rangeLabel(range: CellRange): String {
 }
 
 /** "1 row", "3 rows", for snackbars and bottom-sheet actions. */
-private fun countLabel(count: Int, singular: String): String =
+internal fun countLabel(count: Int, singular: String): String =
     "$count $singular" + if (count == 1) "" else "s"
 
 private val CELL_WIDTH = 76.dp
@@ -678,93 +718,77 @@ fun SheetScreen(
         editText = rawValueAt(selection)
     }
 
-    fun insertSelectedRows(above: Boolean) {
+    /**
+     * Inserts rows or columns at the edge of the selection. [before] puts them
+     * above the first selected row, or left of the first selected column.
+     */
+    fun insertSelected(axis: SheetAxis, before: Boolean) {
         if (editingCell) commitEdit()
-        val before = currentSheet() ?: return
+        val sheet = currentSheet() ?: return
         val range = selectedRange()
-        val count = range.rowSpan
-        val at = if (above) range.top else range.bottom + 1
-        val after = before.insertRows(at, count)
-        if (after == before) {
-            showStructure = false
-            scope.launch { snackbarHostState.showSnackbar("There is no room to insert more rows") }
-            return
-        }
-        mutate { it.insertRows(at, count) }
-        settleAfterStructure(after, CellPos(at, range.left))
-        showStructure = false
-        val inserted = after.rowCount - before.rowCount
-        scope.launch {
-            snackbarHostState.showSnackbar(
-                "Inserted ${countLabel(inserted, "row")} " +
-                    if (above) "above row ${at + 1}" else "below row ${at}",
-            )
-        }
-    }
-
-    fun deleteSelectedRows() {
-        if (editingCell) commitEdit()
-        val before = currentSheet() ?: return
-        val range = selectedRange()
-        if (range.rowSpan >= before.rowCount) {
+        val count = axis.spanOf(range)
+        val at = if (before) axis.firstOf(range) else axis.lastOf(range) + 1
+        val after = axis.insertInto(sheet, at, count)
+        if (after == sheet) {
             showStructure = false
             scope.launch {
-                snackbarHostState.showSnackbar("A sheet keeps at least one row; clear the cells instead")
+                snackbarHostState.showSnackbar("There is no room to insert more ${axis.noun}s")
             }
             return
         }
-        val after = before.deleteRows(range.top, range.rowSpan)
-        if (after == before) return
-        mutate { it.deleteRows(range.top, range.rowSpan) }
-        settleAfterStructure(after, CellPos(range.top, range.left))
+        mutate { axis.insertInto(it, at, count) }
+        val target = when (axis) {
+            SheetAxis.ROWS -> CellPos(at, range.left)
+            SheetAxis.COLUMNS -> CellPos(range.top, at)
+        }
+        settleAfterStructure(after, target)
         showStructure = false
+        val inserted = axis.sizeOf(after) - axis.sizeOf(sheet)
         scope.launch {
-            snackbarHostState.showSnackbar("Deleted ${countLabel(range.rowSpan, "row")}")
+            val where = when (axis) {
+                SheetAxis.ROWS ->
+                    if (before) "above row ${at + 1}" else "below row ${at}"
+                SheetAxis.COLUMNS ->
+                    if (before) "to the left of ${columnName(at)}" else "to the right of ${columnName(at - 1)}"
+            }
+            snackbarHostState.showSnackbar("Inserted ${countLabel(inserted, axis.noun)} $where")
         }
     }
 
-    fun insertSelectedColumns(left: Boolean) {
+    /** Deletes the rows or columns the selection covers. */
+    fun deleteSelected(axis: SheetAxis) {
         if (editingCell) commitEdit()
-        val before = currentSheet() ?: return
+        val sheet = currentSheet() ?: return
         val range = selectedRange()
-        val count = range.columnSpan
-        val at = if (left) range.left else range.right + 1
-        val after = before.insertColumns(at, count)
-        if (after == before) {
-            showStructure = false
-            scope.launch { snackbarHostState.showSnackbar("There is no room to insert more columns") }
-            return
-        }
-        mutate { it.insertColumns(at, count) }
-        settleAfterStructure(after, CellPos(range.top, at))
-        showStructure = false
-        val inserted = after.columnCount - before.columnCount
-        scope.launch {
-            snackbarHostState.showSnackbar(
-                "Inserted ${countLabel(inserted, "column")} " +
-                    if (left) "to the left of ${columnName(at)}" else "to the right of ${columnName(at - 1)}",
-            )
-        }
-    }
-
-    fun deleteSelectedColumns() {
-        if (editingCell) commitEdit()
-        val before = currentSheet() ?: return
-        val range = selectedRange()
-        if (range.columnSpan >= before.columnCount) {
+        val count = axis.spanOf(range)
+        if (count >= axis.sizeOf(sheet)) {
             showStructure = false
             scope.launch {
-                snackbarHostState.showSnackbar("A sheet keeps at least one column; clear the cells instead")
+                snackbarHostState.showSnackbar(
+                    "A sheet keeps at least one ${axis.noun}; clear the cells instead",
+                )
             }
             return
         }
-        val after = before.deleteColumns(range.left, range.columnSpan)
-        if (after == before) return
-        mutate { it.deleteColumns(range.left, range.columnSpan) }
+        val after = axis.deleteFrom(sheet, range, count)
+        if (after == sheet) return
+        mutate { axis.deleteFrom(it, range, count) }
         settleAfterStructure(after, CellPos(range.top, range.left))
         showStructure = false
         scope.launch {
-            snackbarHostState.showSnackbar("Deleted ${countLabel(range.columnSpan, "column")}")
+            snackbarHostState.showSnackbar("Deleted ${countLabel(count, axis.noun)}")
+        }
+    }
+
+    /** Routes an action from the rows-and-columns panel. */
+    fun runStructureAction(action: StructureAction) {
+        when (action) {
+            StructureAction.INSERT_ROWS_ABOVE -> insertSelected(SheetAxis.ROWS, before = true)
+            StructureAction.INSERT_ROWS_BELOW -> insertSelected(SheetAxis.ROWS, before = false)
+            StructureAction.DELETE_ROWS -> deleteSelected(SheetAxis.ROWS)
+            StructureAction.INSERT_COLUMNS_LEFT -> insertSelected(SheetAxis.COLUMNS, before = true)
+            StructureAction.INSERT_COLUMNS_RIGHT -> insertSelected(SheetAxis.COLUMNS, before = false)
+            StructureAction.DELETE_COLUMNS -> deleteSelected(SheetAxis.COLUMNS)
         }
     }
 
@@ -846,6 +870,15 @@ fun SheetScreen(
                     " in ${result.cells} " +
                     (if (result.cells == 1) "cell" else "cells"),
             )
+        }
+    }
+
+    /** Routes an action from the find panel. */
+    fun runFindAction(action: FindAction) {
+        when (action) {
+            FindAction.NEXT -> findNext()
+            FindAction.REPLACE -> replaceCurrent()
+            FindAction.REPLACE_ALL -> replaceAll()
         }
     }
 
@@ -1443,166 +1476,46 @@ fun SheetScreen(
     }
 
     if (showListDialog) {
-        val range = selectedRange()
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showListDialog = false },
-            title = { Text("Dropdown choices") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextField(
-                        value = listChoicesText,
-                        onValueChange = { listChoicesText = it },
-                        singleLine = true,
-                        label = { Text("Choices") },
-                    )
-                    Text(
-                        "Applies to ${rangeLabel(range)}. The cell offers these values " +
-                            "when it is edited.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = ::applyListDialog) { Text("Apply") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = ::clearListDialog) { Text("Clear") }
-                    TextButton(onClick = { showListDialog = false }) { Text("Cancel") }
-                }
-            },
+        SheetListDialog(
+            choices = listChoicesText,
+            rangeLabel = rangeLabel(selectedRange()),
+            onChoicesChange = { listChoicesText = it },
+            onApply = ::applyListDialog,
+            onClear = ::clearListDialog,
+            onDismiss = { showListDialog = false },
         )
     }
 
     if (showFind) {
-        ModalBottomSheet(onDismissRequest = { showFind = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text("Find and replace", style = MaterialTheme.typography.titleLarge)
-                TextField(
-                    value = findQuery,
-                    onValueChange = {
-                        findQuery = it
-                        findCursor = 0
-                    },
-                    singleLine = true,
-                    label = { Text("Find") },
-                )
-                TextField(
-                    value = findReplacement,
-                    onValueChange = { findReplacement = it },
-                    singleLine = true,
-                    label = { Text("Replace with") },
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    FilterChip(
-                        selected = findMatchCase,
-                        onClick = { findMatchCase = !findMatchCase },
-                        label = { Text("Match case") },
-                    )
-                    Text(
-                        when (findHits.size) {
-                            0 -> "No matches"
-                            1 -> "1 match"
-                            else -> "${findHits.size} matches"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    TextButton(onClick = ::findNext) { Text("Find next") }
-                    TextButton(
-                        onClick = ::replaceCurrent,
-                        enabled = findHits.isNotEmpty(),
-                    ) { Text("Replace") }
-                    TextButton(
-                        onClick = ::replaceAll,
-                        enabled = findHits.isNotEmpty(),
-                    ) { Text("Replace all") }
-                }
-                Text(
-                    "A formula is searched through the text it quotes, so references and " +
-                        "function names are never rewritten.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
+        SheetFindPanel(
+            query = findQuery,
+            replacement = findReplacement,
+            matchCase = findMatchCase,
+            matchCount = findHits.size,
+            onQueryChange = {
+                findQuery = it
+                findCursor = 0
+            },
+            onReplacementChange = { findReplacement = it },
+            onMatchCaseToggle = { findMatchCase = !findMatchCase },
+            onAction = ::runFindAction,
+            onDismiss = { showFind = false },
+        )
     }
 
     if (showStructure) {
         val structureSheet = currentSheet()
         if (structureSheet != null) {
             val range = selectedRange()
-            val rows = countLabel(range.rowSpan, "row")
-            val columns = countLabel(range.columnSpan, "column")
-            ModalBottomSheet(onDismissRequest = { showStructure = false }) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
-                ) {
-                    Text(
-                        "Rows and columns",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                    Text(
-                        "${rangeLabel(range)} \u00B7 $rows \u00D7 $columns",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 12.dp),
-                    )
-                    Text(
-                        "Rows",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    StructureAction("Insert $rows above") { insertSelectedRows(above = true) }
-                    StructureAction("Insert $rows below") { insertSelectedRows(above = false) }
-                    StructureAction(
-                        label = "Delete $rows",
-                        destructive = true,
-                        enabled = range.rowSpan < structureSheet.rowCount,
-                        onClick = ::deleteSelectedRows,
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
-                    Text(
-                        "Columns",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    StructureAction("Insert $columns to the left") { insertSelectedColumns(left = true) }
-                    StructureAction("Insert $columns to the right") { insertSelectedColumns(left = false) }
-                    StructureAction(
-                        label = "Delete $columns",
-                        destructive = true,
-                        enabled = range.columnSpan < structureSheet.columnCount,
-                        onClick = ::deleteSelectedColumns,
-                    )
-                    Text(
-                        "Cells move with the edit. Merged ranges, sizes and formula references adjust; " +
-                            "a deleted reference becomes #REF!.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-            }
+            SheetStructurePanel(
+                rangeLabel = rangeLabel(range),
+                rowCount = range.rowSpan,
+                columnCount = range.columnSpan,
+                canDeleteRows = range.rowSpan < structureSheet.rowCount,
+                canDeleteColumns = range.columnSpan < structureSheet.columnCount,
+                onAction = ::runStructureAction,
+                onDismiss = { showStructure = false },
+            )
         }
     }
 
@@ -1989,8 +1902,6 @@ fun SheetScreen(
     }
 }
 
-/* ------------------------------- formula bar ------------------------------- */
-
 @Composable
 private fun FormulaBar(
     selection: CellPos,
@@ -2059,8 +1970,6 @@ private fun FormulaBar(
         }
     }
 }
-
-/* ---------------------------------- grid ---------------------------------- */
 
 @Composable
 private fun SheetGrid(
@@ -2427,8 +2336,7 @@ private fun SheetCell(
             CellAlignment.GENERAL -> Alignment.CenterStart
         },
     ) {
-        // The cell's own borders are drawn edge by edge, on top of the grid
-        // lines every cell carries.
+        // the cell's own borders, drawn over the grid lines
         val borders = format.borders
         if (!borders.isEmpty) {
             val lineColor = MaterialTheme.colorScheme.onSurface
@@ -2493,8 +2401,6 @@ private fun SheetCell(
         )
     }
 }
-
-/* ------------------------------ formatting bar ----------------------------- */
 
 @Composable
 private fun SheetFormatBar(
@@ -2696,28 +2602,6 @@ private fun SheetMoreSheet(
 }
 
 @Composable
-private fun StructureAction(
-    label: String,
-    destructive: Boolean = false,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.bodyLarge,
-        color = when {
-            !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
-            destructive -> MaterialTheme.colorScheme.error
-            else -> MaterialTheme.colorScheme.onSurface
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(vertical = 14.dp),
-    )
-}
-
-@Composable
 private fun SheetAction(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
@@ -2786,8 +2670,6 @@ internal fun fillColourName(rgb: Int?): String = when (rgb) {
     0xEDEDED -> "Grey fill"
     else -> "Fill colour"
 }
-
-/* ---------------------------------- tabs ---------------------------------- */
 
 @Composable
 private fun SheetTabs(
@@ -2867,8 +2749,6 @@ private fun CenteredNotice(title: String, detail: String?) {
         }
     }
 }
-
-/* -------------------------------- formatting ------------------------------- */
 
 /** What the grid shows for a cell: computed formula results, never the formula itself. */
 private fun displayValue(cell: Cell?, sheet: Sheet): String {
