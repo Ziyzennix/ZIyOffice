@@ -1,9 +1,9 @@
-# ZIyOffice — Feature matrix vs WPS Office
+# ZiyOffice — Feature matrix vs WPS Office
 
 Living checklist. `Status` values: `done` · `in progress` · `planned` · `—` (not planned yet).
 The rule for this file: only mark `done` what a user can actually do on a phone today.
 
-**Content preservation.** Saving rebuilds each package from ZIyOffice's own model, so
+**Content preservation.** Saving rebuilds each package from ZiyOffice's own model, so
 content the readers do not model is *removed* by a save, not preserved. The editors
 audit the file on open and warn before the first write that would do this; "Save as
 copy" leaves the original untouched. See the per-format rows below for exactly what is
@@ -11,7 +11,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## Foundations (M0)
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Opens documents from user folders (SAF) | yes | yes | done |
 | Recent files list, local only | yes | yes | done |
@@ -26,7 +26,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## Documents — M1
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Open/edit/save `.docx` | yes | | done |
 | Bold/italic/underline/strike, colors, sizes | yes | | done |
@@ -45,7 +45,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## Sheets — M2
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Open/edit/save `.xlsx`, CSV import/export | yes | | done |
 | Grid with touch + keyboard editing | yes | | done |
@@ -61,7 +61,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## PDF — M3
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Viewer (page render, page list) | yes | | done |
 | Annotate (highlight, ink, notes) | yes | | done |
@@ -75,7 +75,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## Slides — M4
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Open/edit/save `.pptx` text (preserve other package parts) | yes | | done |
 | Slide strip + text editing | yes | | done |
@@ -86,7 +86,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 
 ## Privacy & freedom (the "beat WPS" list) — M5
 
-| Feature | WPS | ZIyOffice | Status |
+| Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Encrypted vault + biometric lock | no | | planned |
 | Metadata scrub on share/export | no | Implemented by construction — writers rebuild every package from the model, so no `docProps/`, `core.xml`, or `app.xml` parts are ever written (verified by `MetadataScrubTest`) | done |

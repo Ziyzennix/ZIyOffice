@@ -46,7 +46,7 @@ fun AboutScreen(onBack: () -> Unit) {
     val permissionSummary = when {
         declaredPermissions.isFailure -> "Could not read permissions."
         declaredPermissions.getOrDefault(emptyList()).isEmpty() -> {
-            "None. So Android itself makes it impossible for ZIyOffice to reach the network."
+            "None. So Android itself makes it impossible for ZiyOffice to reach the network."
         }
         else -> declaredPermissions.getOrDefault(emptyList()).joinToString(", ")
     }
@@ -71,7 +71,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("ZIyOffice", style = MaterialTheme.typography.headlineSmall)
+            Text("ZiyOffice", style = MaterialTheme.typography.headlineSmall)
             Text(
                 "Version ${BuildConfig.VERSION_NAME} \u00B7 Documents, Sheets, Slides and PDF \u2014 offline",
                 style = MaterialTheme.typography.bodyMedium,

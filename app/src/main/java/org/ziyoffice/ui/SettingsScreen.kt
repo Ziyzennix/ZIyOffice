@@ -55,7 +55,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
         )
         Text(
             "Documents are opened through the system file picker and stay in the folders you choose. " +
-                "ZIyOffice keeps a local list of recent files and a local recovery copy of unsaved " +
+                "ZiyOffice keeps a local list of recent files and a local recovery copy of unsaved " +
                 "edits \u2014 no cloud, no uploads, no account. If a file lives in a folder that another " +
                 "app syncs (for example a cloud drive folder), that app may still sync it on its own.",
             style = MaterialTheme.typography.bodyMedium,
@@ -77,10 +77,10 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 48.dp)
-                // One merged node: TalkBack reads "About ZIyOffice, button"
+                // One merged node: TalkBack reads "About ZiyOffice, button"
                 // instead of the label alone with no hint that it navigates.
                 .semantics(mergeDescendants = true) {
-                    contentDescription = "About ZIyOffice"
+                    contentDescription = "About ZiyOffice"
                     role = Role.Button
                 }
                 .clickable(onClick = onOpenAbout)
@@ -88,7 +88,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "About ZIyOffice",
+                "About ZiyOffice",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f),
             )

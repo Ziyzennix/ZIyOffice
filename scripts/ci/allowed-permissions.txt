@@ -2,6 +2,6 @@
 #
 # Every entry needs an explicit review decision and a comment here explaining why.
 # android.permission.INTERNET is hard-banned by the check script and can never be
-# added by this list: ZIyOffice must remain technically unable to use the network.
+# added by this list: ZiyOffice must remain technically unable to use the network.
 #
-# Currently empty on purpose: ZIyOffice declares ZERO permissions (milestone M0).
+# Currently empty on purpose: ZiyOffice declares ZERO permissions (milestone M0).

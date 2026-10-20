@@ -151,7 +151,7 @@ import org.ziyoffice.ooxml.DocxWriter
 import org.ziyoffice.ooxml.DroppedFeature
 
 /**
- * The editor: reads the document with the ZIyOffice OOXML layer, renders it with
+ * The editor: reads the document with the ZiyOffice OOXML layer, renders it with
  * styles/lists/tables/images, and — with the pencil toggle — lets the user edit
  * paragraph text and formatting, then save the whole document back in place as a
  * real `.docx` (own writer, no third-party code).
@@ -179,7 +179,7 @@ fun EditorScreen(
     var writeVersion by remember(file.uri) { mutableStateOf(0L) }
     var showExitDialog by remember(file.uri) { mutableStateOf(false) }
     // Content-loss gate: shown once per open, before the first write that would
-    // delete parts of the file ZIyOffice cannot reproduce.
+    // delete parts of the file ZiyOffice cannot reproduce.
     var showLossWarning by remember(file.uri) { mutableStateOf(false) }
     var lossAccepted by remember(file.uri) { mutableStateOf(false) }
     var pendingAfterLoss by remember(file.uri) { mutableStateOf<(() -> Unit)?>(null) }

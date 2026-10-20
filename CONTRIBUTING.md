@@ -1,4 +1,4 @@
-# Contributing to ZIyOffice
+# Contributing to ZiyOffice
 
 Thanks for helping build an office suite that respects its users. This file covers the
 ground rules and the practical workflow.

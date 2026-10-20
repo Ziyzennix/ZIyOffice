@@ -69,7 +69,7 @@ fun UnsupportedScreen(
                 style = MaterialTheme.typography.titleLarge,
             )
             Text(
-                "ZIyOffice opens Word (.docx), Excel (.xlsx, .csv), " +
+                "ZiyOffice opens Word (.docx), Excel (.xlsx, .csv), " +
                     "PowerPoint (.pptx) and PDF files today. ${file.kind.label} support is not built yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

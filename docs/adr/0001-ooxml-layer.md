@@ -5,7 +5,7 @@
 
 ## Context
 
-ZIyOffice must read and write `.docx`, `.xlsx` and `.pptx`. These are ZIP archives of XML
+ZiyOffice must read and write `.docx`, `.xlsx` and `.pptx`. These are ZIP archives of XML
 (plus binary parts) defined by the OOXML specifications. Rendering and layout are ours by
 design; this ADR is only about the *parsing/serialisation layer*: going from file bytes to
 a document model and back.

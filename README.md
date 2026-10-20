@@ -1,11 +1,11 @@
-# ZIyOffice
+# ZiyOffice
 
 An Android office suite for documents, spreadsheets, slides and PDFs. It works offline, needs no account, and has no network permission, so it cannot send your files anywhere.
 
 Free and open source under GPL-3.0. No subscription, no ads, no tracking.
 
 Version 0.5 is early development — expect bugs. If something breaks,
-[open an issue](https://github.com/Ziyzennix/ZIyOffice/issues).
+[open an issue](https://github.com/Ziyzennix/ZiyOffice/issues).
 
 [![](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ziyzenix)   
 
@@ -26,20 +26,20 @@ Four guarantees, each checked by the build:
 
 1. **No network permission.** The manifest declares no `android.permission.INTERNET`, so Android blocks network access. A CI check fails the build if a permission is added without review.
 2. **No ads, analytics or crash reporting.** A CI check fails the build if such a dependency is declared.
-3. **Local-only storage.** Files stay in the folders you pick with Android's file picker. ZIyOffice stores a list of recent files and local copies of unsaved edits.
+3. **Local-only storage.** Files stay in the folders you pick with Android's file picker. ZiyOffice stores a list of recent files and local copies of unsaved edits.
 4. **Free forever.** GPL-3.0 means nobody can take this, close it, and sell it back to you.
 
 The About screen lists the permissions the installed app declares.
 
 ## Known limitations
 
-Saving rebuilds each file from ZIyOffice's own document model, so parts it does not model are dropped: headers, comments, tracked changes, charts, merged cells, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
+Saving rebuilds each file from ZiyOffice's own document model, so parts it does not model are dropped: headers, comments, tracked changes, charts, merged cells, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
 
 Not implemented yet: encrypted vault, OCR, handwriting notes, slide shapes and images, PDF form filling, headers and footers, macros, pivot tables.
 
 ## Install
 
-Download the APK from [Releases](https://github.com/Ziyzennix/ZIyOffice/releases) and open it on your phone. Android asks you to allow installing from this source. Requires Android 8.0 (API 26) or newer. The release APK is about 1.6 MB.
+Download the APK from [Releases](https://github.com/Ziyzennix/ZiyOffice/releases) and open it on your phone. Android asks you to allow installing from this source. Requires Android 8.0 (API 26) or newer. The release APK is about 1.6 MB.
 
 ## How it is built
 
@@ -111,7 +111,7 @@ Include:
 - the file type you were working on (not the file itself, unless you want to share it)
 - your Android version and phone model
 
-Open an issue at https://github.com/Ziyzennix/ZIyOffice/issues.
+Open an issue at https://github.com/Ziyzennix/ZiyOffice/issues.
 
 ## Contributing
 

@@ -1,10 +1,10 @@
-# ZIyOffice Privacy Charter
+# ZiyOffice Privacy Charter
 
 This document is the project's plain-language promise, followed by how each promise is
 enforced in the code and build system. If any of it stops being true, that is a bug of the
 highest severity.
 
-## What ZIyOffice never does
+## What ZiyOffice never does
 
 1. **It never connects to the internet.** The app declares zero permissions, including no
    `android.permission.INTERNET`. Without that permission, the Android operating system

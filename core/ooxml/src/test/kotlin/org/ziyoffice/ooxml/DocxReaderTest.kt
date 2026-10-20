@@ -28,14 +28,14 @@ class DocxReaderTest {
         val bytes = docx(
             document(
                 """
-                <w:p><w:r><w:t>Hello ZIyOffice</w:t></w:r></w:p>
+                <w:p><w:r><w:t>Hello ZiyOffice</w:t></w:r></w:p>
                 <w:p><w:r><w:t>Second paragraph</w:t></w:r></w:p>
                 """.trimIndent(),
             ),
         )
 
         assertEquals(
-            listOf("Hello ZIyOffice", "Second paragraph"),
+            listOf("Hello ZiyOffice", "Second paragraph"),
             paragraphTexts(bytes),
         )
     }

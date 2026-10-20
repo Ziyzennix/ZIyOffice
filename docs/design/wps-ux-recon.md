@@ -93,13 +93,13 @@ Privacy Sandbox), `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`,
 `USE_FINGERPRINT`, `FOREGROUND_SERVICE*`, `WAKE_LOCK`, `VIBRATE`, `WRITE_SYNC_SETTINGS`,
 `REORDER_TASKS`, `BIND_QUICK_SETTINGS_TILE`, and more.
 
-ZIyOffice: **0.** Everything WPS needs those permissions for, we either do with scoped
+ZiyOffice: **0.** Everything WPS needs those permissions for, we either do with scoped
 user consent (SAF file access) or deliberately do not do (ads, cloud, location, contacts,
 background services).
 
 ## What we adopt (structure and interaction patterns)
 
-| Pattern | ZIyOffice implementation |
+| Pattern | ZiyOffice implementation |
 |---|---|
 | Coloured type tiles with labels (Docs/Slides/Sheets/PDF) | Same idea, our own vector glyphs from the Material Symbols set (Apache-2.0), our own type colours. |
 | Card-based sections with generous corner radius on a dark background | Our Material 3 `surfaceContainer*` roles; 18 dp corners; same visual rhythm. |
@@ -116,7 +116,7 @@ background services).
 
 ## What we reject (with reason)
 
-| WPS pattern | Why ZIyOffice will not have it |
+| WPS pattern | Why ZiyOffice will not have it |
 |---|---|
 | Sign-in wall (Google/Facebook/Email) | No accounts exist. There is nothing to sign in to. |
 | Cloud storage promos and Drive/OneDrive connectors | No cloud. Files live in the user's own folders. |

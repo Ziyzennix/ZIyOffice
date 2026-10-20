@@ -26,4 +26,4 @@ fi
 echo "Installing on device..."
 adb install -r "$apk"
 adb shell am start -n org.ziyoffice/.MainActivity
-echo "Done. ZIyOffice is running on the device."
+echo "Done. ZiyOffice is running on the device."

@@ -1,4 +1,4 @@
-# ZIyOffice Accessibility Audit — Punch List
+# ZiyOffice Accessibility Audit — Punch List
 
 **Status (2026-10-20):** items 1–10, 12–15 below are addressed in code; item 11
 (HomeScreen.kt CreateTile icon Surface ≥48 dp) still needs a code change. The device
@@ -221,7 +221,7 @@ Hardcoded `.sp` / fixed sizes / `maxLines` that will clip at largest system font
 
 ## SECTION 5 — TalkBack on the home screen
 
-- "ZIyOffice" headline (line 77): announces as text, meaningful.
+- "ZiyOffice" headline (line 77): announces as text, meaningful.
 - Subtitle (line 79): announces as text, meaningful.
 - Search field (line 87-95): OutlinedTextField with placeholder "Search recent files" — TalkBack announces field role + placeholder. Leading search icon has contentDescription=null (decorative) — correct.
 - "Open a file" button (line 99): announces button + label — meaningful.
@@ -237,7 +237,7 @@ Hardcoded `.sp` / fixed sizes / `maxLines` that will clip at largest system font
 
 ## SECTION 6 — contentDescription = null on Icons that carry meaning
 
-- SettingsScreen.kt:82-84: ArrowForward icon on the About row — contentDescription=null. This icon is the only visual indicator that the row navigates to About (no text says "About" on the icon; text says "About ZIyOffice" but the icon carries the forward/chevron meaning). TalkBack user hears the row text but the icon adds no info — the row itself has no contentDescription either (line 72), so the forward gesture is not announced. CONFIRMED PROBLEM.
+- SettingsScreen.kt:82-84: ArrowForward icon on the About row — contentDescription=null. This icon is the only visual indicator that the row navigates to About (no text says "About" on the icon; text says "About ZiyOffice" but the icon carries the forward/chevron meaning). TalkBack user hears the row text but the icon adds no info — the row itself has no contentDescription either (line 72), so the forward gesture is not announced. CONFIRMED PROBLEM.
 - TableActions.kt:43,47,51,55,59,63: All six Add/Delete icons have contentDescription=null, BUT each is paired with a Text label in the same TextButton. The text label is the accessible name; null is acceptable for redundant decorative icons.
 - HomeScreen.kt:92: Search leadingIcon contentDescription=null — decorative inside a search field with placeholder — acceptable.
 - FilesScreen.kt:92: InsertDriveFile empty-state icon contentDescription=null — decorative — acceptable.

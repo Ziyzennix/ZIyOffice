@@ -20,7 +20,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ZIyOffice"
+rootProject.name = "ZiyOffice"
 
 include(":app")
 include(":core:design")

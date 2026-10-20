@@ -1,7 +1,7 @@
 package org.ziyoffice.model
 
 /**
- * Formula evaluation for ZIyOffice Sheets.
+ * Formula evaluation for ZiyOffice Sheets.
  *
  * Pure Kotlin, no Android classes — evaluates formula strings against a [Sheet]
  * and returns [CellValue] results. Supports cell references (A1, $A$1), ranges

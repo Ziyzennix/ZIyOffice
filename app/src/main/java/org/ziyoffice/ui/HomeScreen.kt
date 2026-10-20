@@ -79,7 +79,7 @@ fun HomeScreen(
     ) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("ZIyOffice", style = MaterialTheme.typography.headlineMedium)
+                Text("ZiyOffice", style = MaterialTheme.typography.headlineMedium)
                 Text(
                     "Your files, your device \u2014 no account, no cloud, no ads.",
                     style = MaterialTheme.typography.bodySmall,
@@ -216,7 +216,7 @@ fun HomeScreen(
 
         item {
             Text(
-                "Offline by design \u2014 ZIyOffice has no network permission, no ads and no accounts.",
+                "Offline by design \u2014 ZiyOffice has no network permission, no ads and no accounts.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

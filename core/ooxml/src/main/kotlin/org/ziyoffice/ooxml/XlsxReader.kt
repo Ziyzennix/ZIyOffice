@@ -18,7 +18,7 @@ const val SPREADSHEETML_NAMESPACE =
     "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 
 /**
- * Reads an `.xlsx` package into the ZIyOffice [Workbook] model using only
+ * Reads an `.xlsx` package into the ZiyOffice [Workbook] model using only
  * platform APIs (`java.util.zip` + `org.xmlpull`). No Apache POI.
  *
  * Supported subset:

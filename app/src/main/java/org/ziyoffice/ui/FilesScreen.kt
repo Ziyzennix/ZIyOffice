@@ -35,7 +35,7 @@ private val FILE_FILTERS = listOf("All", "Docs", "Sheets", "Slides", "PDF", "Oth
 
 /**
  * The "Files" tab: a category tab strip (the pattern WPS uses on its document list)
- * over the same local recents list. No permission banner is needed \u2014 ZIyOffice
+ * over the same local recents list. No permission banner is needed \u2014 ZiyOffice
  * only ever sees files the user has explicitly opened.
  *
  * The heading and the empty state both say "recent": this is not a scan of device
@@ -60,7 +60,7 @@ fun FilesScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text("Recent files", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Files you have opened in ZIyOffice",
+                    "Files you have opened in ZiyOffice",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -106,7 +106,7 @@ fun FilesScreen(
                     Text(
                         if (recents.isEmpty()) {
                             "Files you open appear here. They stay in your folders \u2014 " +
-                                "ZIyOffice does not copy or upload them."
+                                "ZiyOffice does not copy or upload them."
                         } else {
                             "Try another category, or choose a file with \u201CBrowse device\u201D above."
                         },

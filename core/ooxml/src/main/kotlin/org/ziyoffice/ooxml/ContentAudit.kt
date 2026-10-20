@@ -6,7 +6,7 @@ import java.io.IOException
 import java.util.zip.ZipInputStream
 
 /**
- * A feature the source package contains but ZIyOffice cannot write back.
+ * A feature the source package contains but ZiyOffice cannot write back.
  * Saving through [DocxWriter] or [XlsxWriter] removes it, so the user is told
  * before the file changes rather than after.
  */

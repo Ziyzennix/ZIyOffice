@@ -16,7 +16,7 @@ import org.ziyoffice.model.Run
 import org.ziyoffice.model.Table
 
 /**
- * Writes the ZIyOffice document model back into a `.docx` package, using only
+ * Writes the ZiyOffice document model back into a `.docx` package, using only
  * platform APIs (`java.util.zip`). The counterpart of [DocxReader], and the
  * foundation of editing: read → edit → write → reopen keeps working.
  *

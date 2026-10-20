@@ -24,7 +24,7 @@ const val WORDPROCESSINGML_NAMESPACE =
     "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 /**
- * Reads a .docx package into the ZIyOffice document model using only platform
+ * Reads a .docx package into the ZiyOffice document model using only platform
  * APIs: `java.util.zip` for the container and an XML pull parser (`org.xmlpull`,
  * present on Android since API 1) for the parts. No Apache POI, no xmlbeans.
  *

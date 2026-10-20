@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    ZIyOffice manifest.
+    ZiyOffice manifest.
 
     PRIVACY CONTRACT: this app declares ZERO permissions.
     In particular there is no android.permission.INTERNET, so the Android
-    operating system makes it impossible for ZIyOffice to open a network
+    operating system makes it impossible for ZiyOffice to open a network
     connection — regardless of any code in the app.
 
     CI (scripts/ci/check-manifest.sh) fails the build if any permission
@@ -19,7 +19,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ZIyOffice"
+        android:theme="@style/Theme.ZiyOffice"
         android:usesCleartextTraffic="false">
 
         <activity

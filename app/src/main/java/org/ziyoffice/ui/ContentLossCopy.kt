@@ -5,7 +5,7 @@ import org.ziyoffice.ooxml.DroppedFeature
 /**
  * Copy for the "saving this file will drop content" warning.
  *
- * The writers rebuild each package from ZIyOffice's model, so anything the
+ * The writers rebuild each package from ZiyOffice's model, so anything the
  * readers skip is gone after a save. That is an acceptable limitation for an
  * honest subset implementation; doing it silently is not. This text is shared by
  * Docs and Sheets and is unit-tested so the wording cannot drift into vagueness.
@@ -29,11 +29,11 @@ internal object ContentLossCopy {
      * understands the loss happens in the file, not just on screen.
      */
     fun body(features: List<DroppedFeature>, formatName: String): String = buildString {
-        append("Saving as $formatName removes content ZIyOffice cannot write back:\n")
+        append("Saving as $formatName removes content ZiyOffice cannot write back:\n")
         // One item per line: a phone dialog that wraps a comma-separated list into
         // a paragraph is not read, and this list is the point of the warning.
         features.forEach { append("\n\u2022  ").append(it.label) }
-        append("\n\nThis copy keeps only what ZIyOffice can edit. To keep the original ")
+        append("\n\nThis copy keeps only what ZiyOffice can edit. To keep the original ")
         append("intact, use \u201CSave as copy\u201D instead, or close without saving.")
     }
 

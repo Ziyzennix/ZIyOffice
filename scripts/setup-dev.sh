@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verifies the development toolchain for ZIyOffice and prints next steps.
+# Verifies the development toolchain for ZiyOffice and prints next steps.
 # This script only inspects and reports; it never installs or changes anything.
 set -euo pipefail
 
@@ -10,7 +10,7 @@ note() { printf '  %s\n' "$1"; }
 ok()   { printf '\033[32mOK\033[0m   %s\n' "$1"; }
 bad()  { printf '\033[31mMISS\033[0m %s\n' "$1"; problems=$((problems + 1)); }
 
-echo "ZIyOffice toolchain check"
+echo "ZiyOffice toolchain check"
 echo
 
 # Java 17+

@@ -1,7 +1,7 @@
 package org.ziyoffice.model
 
 /**
- * The document families ZIyOffice recognises.
+ * The document families ZiyOffice recognises.
  *
  * This model is deliberately platform-independent (plain Kotlin, no Android classes)
  * so it can be unit-tested fast and reused by future non-Android front-ends.

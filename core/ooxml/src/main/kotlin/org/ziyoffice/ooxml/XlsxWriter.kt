@@ -11,7 +11,7 @@ import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnName
 
 /**
- * Writes the ZIyOffice [Workbook] model back into an `.xlsx` package using only
+ * Writes the ZiyOffice [Workbook] model back into an `.xlsx` package using only
  * platform APIs. The counterpart of [XlsxReader].
  *
  * Emits a minimal, standards-valid package: content types, package and workbook

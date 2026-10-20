@@ -12,7 +12,7 @@ import android.print.PrintManager
 import java.io.ByteArrayOutputStream
 
 /**
- * Prints any ZIyOffice document through Android's own print service.
+ * Prints any ZiyOffice document through Android's own print service.
  *
  * No permission is involved: the app renders the pages into a PDF in memory and
  * hands the bytes to [PrintManager], so the system print dialog shows a real

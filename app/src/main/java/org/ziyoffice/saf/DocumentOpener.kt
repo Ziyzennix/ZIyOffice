@@ -6,7 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 
 /**
- * MIME types ZIyOffice offers in the system file picker.
+ * MIME types ZiyOffice offers in the system file picker.
  *
  * The picker is a Storage Access Framework flow: the user chooses a real file
  * in a real folder, and the app receives a revocable grant — no broad storage

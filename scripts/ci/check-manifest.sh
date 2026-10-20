@@ -25,7 +25,7 @@ fail=0
 
 if printf '%s\n' "$declared" | grep -qx "INTERNET"; then
   echo "FAIL: android.permission.INTERNET is present." >&2
-  echo "      ZIyOffice must be unable to use the network. This is never acceptable." >&2
+  echo "      ZiyOffice must be unable to use the network. This is never acceptable." >&2
   fail=1
 fi
 

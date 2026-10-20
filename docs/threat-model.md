@@ -1,4 +1,4 @@
-# ZIyOffice Threat Model
+# ZiyOffice Threat Model
 
 ## What we are protecting
 
@@ -20,7 +20,7 @@
 | Device thief | Read documents from a stolen phone | M5 encrypted vault with hardware-backed keys; file-level encryption at rest. |
 | OEM / OS vendor | Collect usage stats about installed apps | We request no permissions and store nothing identifier-like; there is nothing to collect. |
 | Supply chain (dependencies) | Introduce trackers or backdoors via a dependency | Short pinned dependency list, allowlist review at milestone gates, banned-pattern CI scan, F-Droid source builds for distribution. |
-| The ZIyOffice project itself (us) | A future maintainer adds tracking | GPL-3.0 keeps the source auditable and forkable; CI guardrails must be removed in public, visible commits; F-Droid rebuilds from source. |
+| The ZiyOffice project itself (us) | A future maintainer adds tracking | GPL-3.0 keeps the source auditable and forkable; CI guardrails must be removed in public, visible commits; F-Droid rebuilds from source. |
 
 ## Trust boundaries
 
