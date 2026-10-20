@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -131,6 +132,7 @@ import org.ziyoffice.model.DEFAULT_COLUMN_WIDTH_CHARS
 import org.ziyoffice.model.DEFAULT_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Sheet
+import org.ziyoffice.model.SheetMatch
 import org.ziyoffice.model.SheetRowBand
 import org.ziyoffice.model.SheetSort
 import org.ziyoffice.model.Workbook
@@ -141,6 +143,7 @@ import org.ziyoffice.model.columnWidth
 import org.ziyoffice.model.deleteColumns
 import org.ziyoffice.model.deleteRows
 import org.ziyoffice.model.evaluateFormula
+import org.ziyoffice.model.findMatches
 import org.ziyoffice.model.formatCellValue
 import org.ziyoffice.model.formatNumber
 import org.ziyoffice.model.generalNumber
@@ -150,6 +153,8 @@ import org.ziyoffice.model.isDateFormat
 import org.ziyoffice.model.mergeAt
 import org.ziyoffice.model.parseCsv
 import org.ziyoffice.model.parseDateInput
+import org.ziyoffice.model.replaceInCell
+import org.ziyoffice.model.replaceText
 import org.ziyoffice.model.rowBands
 import org.ziyoffice.model.rowHeight
 import org.ziyoffice.model.withColumnWidth
@@ -274,6 +279,13 @@ fun SheetScreen(
     var showRename by remember { mutableStateOf(false) }
     var showChart by remember { mutableStateOf(false) }
     var showStructure by remember { mutableStateOf(false) }
+    var showFind by remember { mutableStateOf(false) }
+    var findQuery by remember { mutableStateOf("") }
+    var findReplacement by remember { mutableStateOf("") }
+    var findMatchCase by remember { mutableStateOf(false) }
+    var findCursor by remember { mutableStateOf(0) }
+    // The row the grid should bring into view, set when a match is selected.
+    var scrollTargetRow by remember { mutableStateOf<Int?>(null) }
     var renameText by remember { mutableStateOf("") }
     var sizeTarget by remember { mutableStateOf<SizeTarget?>(null) }
     var sizeValueText by remember { mutableStateOf("") }
@@ -291,6 +303,13 @@ fun SheetScreen(
     val sheet = workbook?.sheets?.getOrNull(activeSheet)
     val cellsByPos = remember(sheet) {
         sheet?.cells?.associateBy { it.row to it.column }.orEmpty()
+    }
+    val findHits = remember(sheet, findQuery, findMatchCase) {
+        if (findQuery.isEmpty() || sheet == null) {
+            emptyList()
+        } else {
+            sheet.findMatches(findQuery, ignoreCase = !findMatchCase)
+        }
     }
 
     LaunchedEffect(file.uri) {
@@ -725,6 +744,85 @@ fun SheetScreen(
         showStructure = false
         scope.launch {
             snackbarHostState.showSnackbar("Deleted ${countLabel(range.columnSpan, "column")}")
+        }
+    }
+
+    /** Moves the cursor to a match and brings its row into view. */
+    fun selectHit(hit: SheetMatch) {
+        findCursor = findHits.indexOfFirst { it.row == hit.row && it.column == hit.column }
+        selection = CellPos(hit.row, hit.column)
+        selectionEnd = null
+        scrollTargetRow = hit.row
+        editText = rawValueAt(selection)
+    }
+
+    /** The first match after [position], wrapping around to the start. */
+    fun firstHitAfter(hits: List<SheetMatch>, position: CellPos): SheetMatch? {
+        val index = hits.indexOfFirst {
+            it.row > position.row || (it.row == position.row && it.column > position.column)
+        }
+        return if (index < 0) hits.firstOrNull() else hits[index]
+    }
+
+    fun findNext() {
+        val hits = findHits
+        if (hits.isEmpty()) {
+            scope.launch { snackbarHostState.showSnackbar("No cell holds \u201C$findQuery\u201D") }
+            return
+        }
+        val current = hits.indexOfFirst { it.row == selection.row && it.column == selection.column }
+        val next = if (current < 0) {
+            firstHitAfter(hits, selection) ?: hits.first()
+        } else {
+            hits[(current + 1) % hits.size]
+        }
+        selectHit(next)
+    }
+
+    fun replaceCurrent() {
+        val hit = findHits.getOrNull(findCursor)
+        if (hit == null) {
+            findNext()
+            return
+        }
+        val before = currentSheet() ?: return
+        val (updated, count) = before.replaceInCell(
+            row = hit.row,
+            column = hit.column,
+            query = findQuery,
+            replacement = findReplacement,
+            ignoreCase = !findMatchCase,
+        )
+        if (count == 0) {
+            findNext()
+            return
+        }
+        mutate { updated }
+        // The match list changed, so the next hit is looked up in the new sheet.
+        val hits = updated.findMatches(findQuery, ignoreCase = !findMatchCase)
+        val next = firstHitAfter(hits, CellPos(hit.row, hit.column))
+        if (next != null) selectHit(next) else editText = rawValueAt(selection)
+    }
+
+    fun replaceAll() {
+        val before = currentSheet() ?: return
+        val result = before.replaceText(
+            query = findQuery,
+            replacement = findReplacement,
+            ignoreCase = !findMatchCase,
+        )
+        if (result.occurrences == 0) {
+            scope.launch { snackbarHostState.showSnackbar("Nothing to replace") }
+            return
+        }
+        mutate { result.sheet }
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                "Replaced ${result.occurrences} " +
+                    (if (result.occurrences == 1) "occurrence" else "occurrences") +
+                    " in ${result.cells} " +
+                    (if (result.cells == 1) "cell" else "cells"),
+            )
         }
     }
 
@@ -1261,6 +1359,74 @@ fun SheetScreen(
         )
     }
 
+    if (showFind) {
+        ModalBottomSheet(onDismissRequest = { showFind = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("Find and replace", style = MaterialTheme.typography.titleLarge)
+                TextField(
+                    value = findQuery,
+                    onValueChange = {
+                        findQuery = it
+                        findCursor = 0
+                    },
+                    singleLine = true,
+                    label = { Text("Find") },
+                )
+                TextField(
+                    value = findReplacement,
+                    onValueChange = { findReplacement = it },
+                    singleLine = true,
+                    label = { Text("Replace with") },
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilterChip(
+                        selected = findMatchCase,
+                        onClick = { findMatchCase = !findMatchCase },
+                        label = { Text("Match case") },
+                    )
+                    Text(
+                        when (findHits.size) {
+                            0 -> "No matches"
+                            1 -> "1 match"
+                            else -> "${findHits.size} matches"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    TextButton(onClick = ::findNext) { Text("Find next") }
+                    TextButton(
+                        onClick = ::replaceCurrent,
+                        enabled = findHits.isNotEmpty(),
+                    ) { Text("Replace") }
+                    TextButton(
+                        onClick = ::replaceAll,
+                        enabled = findHits.isNotEmpty(),
+                    ) { Text("Replace all") }
+                }
+                Text(
+                    "A formula is searched through the text it quotes, so references and " +
+                        "function names are never rewritten.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+
     if (showStructure) {
         val structureSheet = currentSheet()
         if (structureSheet != null) {
@@ -1436,6 +1602,15 @@ fun SheetScreen(
                                     menuExpanded = false
                                     renameText = currentSheet()?.name.orEmpty()
                                     showRename = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Find and replace\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (editingCell) commitEdit()
+                                    findCursor = 0
+                                    showFind = true
                                 },
                             )
                             DropdownMenuItem(
@@ -1619,6 +1794,7 @@ fun SheetScreen(
                     },
                     editing = editingCell,
                     editText = editText,
+                    scrollTargetRow = scrollTargetRow,
                     modifier = Modifier
                         .weight(1f)
                         .focusRequester(gridFocus)
@@ -1726,6 +1902,7 @@ private fun SheetGrid(
     editing: Boolean,
     editText: String,
     modifier: Modifier = Modifier,
+    scrollTargetRow: Int? = null,
     onSelect: (CellPos) -> Unit,
     onExtendTo: (CellPos) -> Unit,
     onStartEdit: (CellPos) -> Unit,
@@ -1733,6 +1910,7 @@ private fun SheetGrid(
     // One scroll state shared by the header and every row keeps the frozen row
     // headers aligned with the grid while columns scroll.
     val horizontal = rememberScrollState()
+    val vertical = rememberLazyListState()
     val density = LocalDensity.current
     val columnCount = sheet.columnCount.coerceAtLeast(1)
     val rowCount = sheet.rowCount.coerceAtLeast(1)
@@ -1755,6 +1933,15 @@ private fun SheetGrid(
     // cell behind, and a freeze through a merged block is not meaningful.
     val frozenBands = remember(bands, sheet.frozenRows) {
         bands.count { it.startRow < sheet.frozenRows }
+    }
+
+    // Find & replace moves the cursor to a match, so the grid follows it.
+    LaunchedEffect(scrollTargetRow, bands) {
+        val row = scrollTargetRow ?: return@LaunchedEffect
+        val index = bands.indexOfFirst { row in it.startRow..it.endRow }
+        if (index >= frozenBands) {
+            vertical.animateScrollToItem(index - frozenBands)
+        }
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -1810,7 +1997,7 @@ private fun SheetGrid(
             )
         }
 
-        LazyColumn(modifier = Modifier.weight(1f)) {
+        LazyColumn(modifier = Modifier.weight(1f), state = vertical) {
             items(bands.drop(frozenBands), key = { it.startRow }) { band ->
                 GridBand(
                     band = band,

@@ -34,7 +34,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Headings, lists, alignment, line spacing | yes | | done |
 | Images (insert/resize) | yes | | done |
 | Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn and kept by a save | done |
-| Find & replace | yes | | done |
+| Find & replace | yes | Find the next match, replace one match or replace all; a formula is searched through the text it quotes, never through its references | done |
 | Undo/redo, word count | yes | | done |
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
