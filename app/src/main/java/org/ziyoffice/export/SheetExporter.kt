@@ -1,11 +1,15 @@
 package org.ziyoffice.export
 
+import android.graphics.Canvas
+import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.text.TextPaint
 import java.io.OutputStream
+import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
+import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.DEFAULT_COLUMN_WIDTH_CHARS
 import org.ziyoffice.model.DEFAULT_ROW_HEIGHT_POINTS
@@ -27,6 +31,10 @@ import org.ziyoffice.model.rowHeight
  * spreadsheet prints. Values are the same computed strings the grid shows, so a
  * formula prints its result, not `=SUM(A1:A9)`. Explicit column widths and row
  * heights scale onto the page while staying proportional to each other.
+ *
+ * The page shows what the grid shows: the cell fill, the faint line every cell
+ * carries, the borders the format asks for, the text colour and the alignment.
+ * A bordered table that loses its borders in the PDF is not a faithful export.
  *
  * A sheet too wide or too long for one page continues onto further pages with
  * the column header repeated and every row printed exactly once. Nothing is
@@ -69,11 +77,17 @@ object SheetExporter {
             val boldCellPaint = TextPaint(cellPaint).apply {
                 typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             }
-            val rulePaint = Paint().apply {
+            // The faint line under the column headers and around every cell.
+            val gridPaint = Paint().apply {
                 color = 0xFFC4CCC8.toInt()
                 strokeWidth = 0.5f
                 style = Paint.Style.STROKE
             }
+            val borderPaints = BorderStyle.entries
+                .filter { it != BorderStyle.NONE }
+                .associateWith { style -> borderPaint(style) }
+            val fillPaint = Paint().apply { style = Paint.Style.FILL }
+            val textPaints = mutableMapOf<Pair<Boolean, Int>, TextPaint>()
             var pageNumber = 0
             sheets.forEach { sheet ->
                 val bounds = usedBounds(sheet) ?: return@forEach
@@ -183,7 +197,7 @@ object SheetExporter {
                             canvas.drawText(columnName(column.index), x + CELL_PADDING, y, headerPaint)
                             x += column.width
                         }
-                        canvas.drawLine(MARGIN, y + 4f, x, y + 4f, rulePaint)
+                        canvas.drawLine(MARGIN, y + 4f, x, y + 4f, gridPaint)
                         y += ROW_HEIGHT
 
                         for (row in rowStart..rowEnd) {
@@ -198,24 +212,54 @@ object SheetExporter {
                             )
                             x += gutter
                             columns.subList(start, end).forEach { column ->
+                                val cell = byPos[row to column.index]
+                                val format = cell?.format ?: CellFormat()
+                                // A merged anchor owns the width of its whole
+                                // block. Without this a title spanning A:C
+                                // would be clipped back to column A.
+                                val merge = anchors[row to column.index]
+                                var spanWidth = column.width
+                                if (merge != null) {
+                                    var index = start + (column.index - columns[start].index)
+                                    while (index + 1 < end &&
+                                        columns[index + 1].index <= merge.right
+                                    ) {
+                                        index++
+                                        spanWidth += columns[index].width
+                                    }
+                                }
+                                val isCovered = row to column.index in covered
+                                if (!isCovered) {
+                                    // Fill, grid and borders are drawn for the
+                                    // cell itself; a cell hidden behind a merge
+                                    // is part of its anchor's block and must
+                                    // not draw a line through it.
+                                    drawCellBackground(
+                                        canvas = canvas,
+                                        format = format,
+                                        left = x,
+                                        top = y,
+                                        right = x + spanWidth,
+                                        bottom = y + printHeight,
+                                        fillPaint = fillPaint,
+                                        gridPaint = gridPaint,
+                                        borderPaints = borderPaints,
+                                    )
+                                }
                                 val text = texts[row to column.index]
                                 if (text != null) {
-                                    val cell = byPos[row to column.index]
-                                    val paint =
-                                        if (cell?.format?.bold == true) boldCellPaint else cellPaint
-                                    // A merged anchor owns the width of its whole
-                                    // block. Without this a title spanning A:C
-                                    // would be clipped back to column A.
-                                    val merge = anchors[row to column.index]
-                                    var spanWidth = column.width
-                                    if (merge != null) {
-                                        var index = start + (column.index - columns[start].index)
-                                        while (index + 1 < end &&
-                                            columns[index + 1].index <= merge.right
-                                        ) {
-                                            index++
-                                            spanWidth += columns[index].width
-                                        }
+                                    val paint = textPaintFor(
+                                        format = format,
+                                        plain = cellPaint,
+                                        boldPaint = boldCellPaint,
+                                        cache = textPaints,
+                                    )
+                                    val textX = when (format.alignment) {
+                                        CellAlignment.CENTER ->
+                                            x + (spanWidth - paint.measureText(text)) / 2f
+                                        CellAlignment.RIGHT ->
+                                            x + spanWidth - CELL_PADDING - paint.measureText(text)
+                                        else -> x + CELL_PADDING
                                     }
                                     canvas.save()
                                     // Clip so a long value cannot spill into its
@@ -226,7 +270,7 @@ object SheetExporter {
                                         x + spanWidth,
                                         y + printHeight,
                                     )
-                                    canvas.drawText(text, x + CELL_PADDING, baseline, paint)
+                                    canvas.drawText(text, textX, baseline, paint)
                                     canvas.restore()
                                 }
                                 x += column.width
@@ -260,6 +304,81 @@ object SheetExporter {
     private fun printColumnWidth(sheet: Sheet, column: Int): Float =
         (DEFAULT_PRINT_COLUMN_WIDTH * (sheet.columnWidth(column) / DEFAULT_COLUMN_WIDTH_CHARS))
             .coerceIn(MIN_PRINT_COLUMN_WIDTH, MAX_PRINT_COLUMN_WIDTH)
+
+    /**
+     * Draws what the cell looks like on screen: its fill, the faint grid every
+     * cell carries, and the borders the format asks for.
+     */
+    private fun drawCellBackground(
+        canvas: Canvas,
+        format: CellFormat,
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+        fillPaint: Paint,
+        gridPaint: Paint,
+        borderPaints: Map<BorderStyle, Paint>,
+    ) {
+        format.fillRgb?.let { rgb ->
+            fillPaint.color = 0xFF000000.toInt() or rgb
+            canvas.drawRect(left, top, right, bottom, fillPaint)
+        }
+        // The faint line every cell carries on screen, so an empty table still
+        // reads as a table.
+        canvas.drawRect(left, top, right, bottom, gridPaint)
+
+        val borders = format.borders
+        if (borders.isEmpty) return
+        borders.top.takeIf { it != BorderStyle.NONE }?.let { style ->
+            canvas.drawLine(left, top, right, top, borderPaints.getValue(style))
+        }
+        borders.bottom.takeIf { it != BorderStyle.NONE }?.let { style ->
+            canvas.drawLine(left, bottom, right, bottom, borderPaints.getValue(style))
+        }
+        borders.left.takeIf { it != BorderStyle.NONE }?.let { style ->
+            canvas.drawLine(left, top, left, bottom, borderPaints.getValue(style))
+        }
+        borders.right.takeIf { it != BorderStyle.NONE }?.let { style ->
+            canvas.drawLine(right, top, right, bottom, borderPaints.getValue(style))
+        }
+    }
+
+    /** A paint for the cell's own border style. */
+    private fun borderPaint(lineStyle: BorderStyle): Paint = Paint().apply {
+        color = 0xFF191C1B.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = when (lineStyle) {
+            BorderStyle.MEDIUM -> 1.5f
+            BorderStyle.THICK -> 2.25f
+            else -> 0.75f
+        }
+        when (lineStyle) {
+            BorderStyle.DASHED -> {
+                pathEffect = DashPathEffect(floatArrayOf(4f, 3f), 0f)
+            }
+            BorderStyle.DOTTED -> {
+                pathEffect = DashPathEffect(floatArrayOf(1f, 2f), 0f)
+                strokeCap = Paint.Cap.ROUND
+            }
+            else -> Unit
+        }
+    }
+
+    /** The paint a cell's text is drawn with, honouring bold and colour. */
+    private fun textPaintFor(
+        format: CellFormat,
+        plain: TextPaint,
+        boldPaint: TextPaint,
+        cache: MutableMap<Pair<Boolean, Int>, TextPaint>,
+    ): TextPaint {
+        val colour = format.colorRgb ?: return if (format.bold) boldPaint else plain
+        return cache.getOrPut(format.bold to colour) {
+            TextPaint(if (format.bold) boldPaint else plain).apply {
+                this.color = 0xFF000000.toInt() or colour
+            }
+        }
+    }
 
     /** Worksheet row points mapped onto the PDF's default 18-point row. */
     private fun printRowHeight(sheet: Sheet, row: Int): Float =

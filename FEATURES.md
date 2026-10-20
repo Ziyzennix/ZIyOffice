@@ -61,7 +61,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Dropdown lists in cells | yes | Give a range a list of choices and pick one with a tap; a plain list survives a save, a rule that points at another range is warned about | done |
 | Insert and delete rows and columns | yes | Insert above/below or left/right and delete from the selected range; cells, merged ranges, sizes, the freeze line and formula references follow the edit, and a deleted reference becomes `#REF!` | done |
 | Charts (bar, from a column) | yes | | done |
-| Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths and heights are honoured | done |
+| Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths, heights, fills, borders and alignment are honoured | done |
 | Print via the system print service | yes | | done |
 | Content a save removes (charts, images, hidden rows/columns, validation, filters, protection) | no | Warned before the first save | done |
 | Pivot tables | yes | | — |
