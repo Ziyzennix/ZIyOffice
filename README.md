@@ -7,7 +7,7 @@ Free and open source under GPL-3.0. No subscription, no ads, no tracking.
 Version 0.5 is early development — expect bugs. If something breaks,
 [open an issue](https://github.com/Ziyzennix/ZIyOffice/issues).
 
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-support-ff5e5b?logo=kofi&logoColor=white)](https://ko-fi.com/ziyzenix)
+[![](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/ziyzenix)   
 
 ## What it does
 
