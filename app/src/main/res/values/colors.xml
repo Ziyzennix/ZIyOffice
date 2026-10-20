@@ -1,4 +1,5 @@
 <resources>
-    <color name="ic_launcher_background">#0E5A4E</color>
+    <!-- Matches the artwork's own field, so the inset plate blends into it. -->
+    <color name="ic_launcher_background">#000000</color>
     <color name="window_background">#FAF9F6</color>
 </resources>
