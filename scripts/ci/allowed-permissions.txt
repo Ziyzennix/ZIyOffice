@@ -1,0 +1,7 @@
+# Permissions allowed in the merged Android manifest, one per line.
+#
+# Every entry needs an explicit review decision and a comment here explaining why.
+# android.permission.INTERNET is hard-banned by the check script and can never be
+# added by this list: ZIyOffice must remain technically unable to use the network.
+#
+# Currently empty on purpose: ZIyOffice declares ZERO permissions (milestone M0).

@@ -1,0 +1,30 @@
+# Build outputs
+*.apk
+*.aab
+build/
+.gradle/
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Local machine config (contains SDK path)
+local.properties
+
+# OS cruft
+.DS_Store
+Thumbs.db
+*.swp
+
+# The WPS reference APK is intentionally NOT part of this repository.
+# It is kept on disk only as a UX reference; never copy code or assets from it.
+*.crdownload
+Unconfirmed*
+
+/keystore.properties
+
+# Local agent tooling state (brainstorm server pids/logs, critique output).
+/.superpowers/
+/.impeccable/
