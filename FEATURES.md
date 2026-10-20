@@ -74,6 +74,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Viewer (page render, page list) | yes | | done |
 | Annotate (highlight, ink, notes) | yes | | done |
 | Merge / split / rotate / reorder | yes (paid) | | done |
+| Page labels and text stamps | yes | Stamp text on a page, and number the pages of a saved or printed copy | done |
 | Fill forms | yes (paid) | Fill the fields and save the filled document | planned |
 | Digital signature (handwritten ink — drawn, not cryptographic) | yes (paid) | | done |
 | True redaction (content removed, not black boxes) | partial (paid) | | done |

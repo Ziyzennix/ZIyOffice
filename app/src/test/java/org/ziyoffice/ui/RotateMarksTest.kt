@@ -51,4 +51,13 @@ class RotateMarksTest {
     fun zeroDegreesIsANoOp() {
         assertEquals(listOf<PdfMark>(highlight), rotateMarks(listOf(highlight), 0, 0, 0))
     }
+
+    @Test
+    fun textStampsRotateWithThePage() {
+        val stamp = PdfMark.Text(doc = 0, page = 0, x = 0.2f, y = 0.1f, text = "Draft")
+        val rotated = rotateMarks(listOf(stamp), 0, 0, 90).single() as PdfMark.Text
+        assertEquals(0.9f, rotated.x, 0.0001f)
+        assertEquals(0.2f, rotated.y, 0.0001f)
+        assertEquals("Draft", rotated.text)
+    }
 }

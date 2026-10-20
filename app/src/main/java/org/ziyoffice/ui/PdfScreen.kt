@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EditNote
@@ -142,6 +143,9 @@ fun PdfScreen(
     var markMode by remember(file.uri) { mutableStateOf(MarkMode.HIGHLIGHT) }
     var noteTarget by remember { mutableStateOf<Triple<PageKey, Float, Float>?>(null) }
     var noteText by remember { mutableStateOf("") }
+    /** Where a text stamp goes, and what it says. */
+    var textTarget by remember { mutableStateOf<Triple<PageKey, Float, Float>?>(null) }
+    var textValue by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
     var exportProgress by remember(file.uri) { mutableStateOf<Float?>(null) }
     /** null = idle; set for the lifetime of one export so it can be cancelled. */
@@ -153,6 +157,8 @@ fun PdfScreen(
     var showMarks by remember { mutableStateOf(false) }
     var showSplit by remember { mutableStateOf(false) }
     var moreMenuOpen by remember { mutableStateOf(false) }
+    /** Stamps "3 / 12" on every page of a saved or printed copy. */
+    var stampPageNumbers by remember(file.uri) { mutableStateOf(false) }
     var splitRange by remember { mutableStateOf("") }
     /** Pages chosen by [splitRange]; null until the user starts a split. */
     var splitPages by remember { mutableStateOf<List<Int>>(emptyList()) }
@@ -183,12 +189,19 @@ fun PdfScreen(
                 val result = withContext(Dispatchers.IO) {
                     runCatching {
                         val wrote = context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                            PdfDocument.exportTo(out, documents, order, marks) { done, total ->
-                                // Snapshot state is thread-safe, so the blocking
-                                // page loop can report progress straight through.
-                                exportProgress = if (total == 0) 1f else done.toFloat() / total
-                                if (exportCancelled) throw ExportCancelled()
-                            }
+                            PdfDocument.exportTo(
+                                out,
+                                documents,
+                                order,
+                                marks,
+                                pageNumbers = stampPageNumbers,
+                                onProgress = { done, total ->
+                                    // Snapshot state is thread-safe, so the blocking
+                                    // page loop can report progress straight through.
+                                    exportProgress = if (total == 0) 1f else done.toFloat() / total
+                                    if (exportCancelled) throw ExportCancelled()
+                                },
+                            )
                             true
                         } ?: error("the file could not be written")
                         if (!wrote) error("nothing was written to $destination")
@@ -267,7 +280,13 @@ fun PdfScreen(
             val bytes = withContext(Dispatchers.IO) {
                 runCatching {
                     val buffer = java.io.ByteArrayOutputStream()
-                    PdfDocument.exportTo(buffer, documents, order, marks)
+                    PdfDocument.exportTo(
+                        buffer,
+                        documents,
+                        order,
+                        marks,
+                        pageNumbers = stampPageNumbers,
+                    )
                     buffer.toByteArray()
                 }.getOrNull()
             }
@@ -494,6 +513,18 @@ fun PdfScreen(
                                     },
                                 )
                                 DropdownMenuItem(
+                                    text = { Text("Page numbers") },
+                                    leadingIcon = {
+                                        if (stampPageNumbers) {
+                                            Icon(Icons.Filled.Check, contentDescription = null)
+                                        }
+                                    },
+                                    onClick = {
+                                        moreMenuOpen = false
+                                        stampPageNumbers = !stampPageNumbers
+                                    },
+                                )
+                                DropdownMenuItem(
                                     text = { Text("Marks (${marks.size})") },
                                     enabled = marks.isNotEmpty(),
                                     onClick = {
@@ -699,6 +730,10 @@ fun PdfScreen(
                                                 noteTarget = Triple(page.key, x, y)
                                                 noteText = ""
                                             },
+                                            onTextAt = { x, y ->
+                                                textTarget = Triple(page.key, x, y)
+                                                textValue = ""
+                                            },
                                         )
                                     }
                                 }
@@ -855,6 +890,34 @@ fun PdfScreen(
             },
         )
     }
+    val stampTarget = textTarget
+    if (stampTarget != null) {
+        AlertDialog(
+            onDismissRequest = { textTarget = null },
+            title = { Text("Stamp text on the page") },
+            text = {
+                OutlinedTextField(
+                    value = textValue,
+                    onValueChange = { textValue = it },
+                    label = { Text("Text") },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val (key, x, y) = stampTarget
+                        if (textValue.isNotBlank()) {
+                            marks = marks + PdfMark.Text(key.doc, key.source, x, y, textValue)
+                        }
+                        textTarget = null
+                    },
+                ) { Text("Add") }
+            },
+            dismissButton = {
+                TextButton(onClick = { textTarget = null }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
 /** A short human name for a mark, used in the mark list and its remove action. */
@@ -862,6 +925,7 @@ private fun markLabel(mark: PdfMark): String = when (mark) {
     is PdfMark.Highlight -> "Highlight"
     is PdfMark.Ink -> if (mark.isSignature) "Signature" else "Ink stroke"
     is PdfMark.Note -> "Note \u201C${mark.text.take(40)}\u201D"
+    is PdfMark.Text -> "Text \u201C${mark.text.take(40)}\u201D"
     is PdfMark.Redaction -> "Redaction"
 }
 

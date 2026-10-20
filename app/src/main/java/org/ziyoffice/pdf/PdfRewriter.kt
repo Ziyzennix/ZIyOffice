@@ -3,6 +3,7 @@ package org.ziyoffice.pdf
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.pdf.PdfDocument as AndroidPdfDocument
 import android.graphics.pdf.PdfRenderer
 import java.io.OutputStream
@@ -40,14 +41,18 @@ object PdfRewriter {
         output: OutputStream,
         onProgress: ((done: Int, total: Int) -> Unit)? = null,
         drawOn: ((page: PageRef, canvas: Canvas) -> Unit)? = null,
+        pageNumbers: Boolean = false,
     ) {
         val document = AndroidPdfDocument()
         try {
             pages.forEachIndexed { outputIndex, ref ->
                 val bitmap = render(renderers[ref.documentIndex], ref)
-                if (drawOn != null) {
+                if (drawOn != null || pageNumbers) {
                     val canvas = Canvas(bitmap)
-                    drawOn(ref, canvas)
+                    drawOn?.invoke(ref, canvas)
+                    if (pageNumbers) {
+                        drawPageNumber(canvas, outputIndex + 1, pages.size)
+                    }
                 }
 
                 val info = AndroidPdfDocument.PageInfo.Builder(
@@ -67,6 +72,24 @@ object PdfRewriter {
         } finally {
             document.close()
         }
+    }
+
+    /**
+     * The "3 / 12" footer. Drawn after the marks so it is never covered by a
+     * highlight or a redaction box.
+     */
+    private fun drawPageNumber(canvas: Canvas, index: Int, total: Int) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(0x99, 0x33, 0x33, 0x33)
+            textSize = 18f
+            textAlign = Paint.Align.RIGHT
+        }
+        canvas.drawText(
+            "$index / $total",
+            canvas.width - 24f,
+            canvas.height - 18f,
+            paint,
+        )
     }
 
     /** Renders one source page to a bitmap at its native pixel size. */

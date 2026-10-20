@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
 
@@ -56,6 +57,15 @@ sealed interface PdfMark {
         val text: String,
     ) : PdfMark
 
+    /** Text stamped onto the page at a point, like a label or a signature block. */
+    data class Text(
+        override val doc: Int,
+        override val page: Int,
+        val x: Float,
+        val y: Float,
+        val text: String,
+    ) : PdfMark
+
     /** An opaque black box; on export it paints over and destroys what is underneath. */
     data class Redaction(
         override val doc: Int,
@@ -72,6 +82,7 @@ enum class MarkMode(val label: String) {
     HIGHLIGHT("Highlight"),
     INK("Ink"),
     NOTE("Note"),
+    TEXT("Text"),
     REDACTION("Redact"),
     SIGNATURE("Sign"),
 }
@@ -92,6 +103,7 @@ fun MarkLayer(
     modifier: Modifier = Modifier,
     onAdd: (PdfMark) -> Unit,
     onNoteAt: (Float, Float) -> Unit,
+    onTextAt: (Float, Float) -> Unit,
 ) {
     var drag = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<List<Pair<Float, Float>>>(emptyList()) }
     val inkColor = if (mode == MarkMode.SIGNATURE) ComposeColor(0xFF1A1C1B) else ComposeColor(0xFF1A73E8)
@@ -114,6 +126,8 @@ fun MarkLayer(
                             val y = offset.y / size.height
                             when (mode) {
                                 MarkMode.NOTE -> onNoteAt(x, y)
+
+                                MarkMode.TEXT -> onTextAt(x, y)
 
                                 MarkMode.HIGHLIGHT -> onAdd(
                                     PdfMark.Highlight(
@@ -223,6 +237,17 @@ fun MarkLayer(
                             style = Stroke(width = 2f),
                         )
                     }
+
+                    is PdfMark.Text -> {
+                        drawContext.canvas.nativeCanvas.drawText(                            mark.text,
+                            mark.x * size.width,
+                            mark.y * size.height,
+                            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                                color = android.graphics.Color.rgb(0x1A, 0x1C, 0x1B)
+                                textSize = 12f * density
+                            },
+                        )
+                    }
                 }
             }
 
@@ -313,6 +338,10 @@ fun rotateMarks(
                 val (x, y) = point(mark.x, mark.y)
                 mark.copy(x = x, y = y)
             }
+            is PdfMark.Text -> {
+                val (x, y) = point(mark.x, mark.y)
+                mark.copy(x = x, y = y)
+            }
         }
     }
 }
@@ -338,6 +367,10 @@ fun bakeMarks(canvas: Canvas, doc: Int, page: Int, marks: List<PdfMark>) {
         strokeJoin = Paint.Join.ROUND
     }
     val redactionPaint = paint(Color.BLACK, 0f, Paint.Style.FILL)
+    val textPaint = Paint().apply {
+        color = Color.rgb(0x1A, 0x1C, 0x1B)
+        textSize = 36f
+    }
 
     val pageMarks = marks.filter { it.doc == doc && it.page == page }
 
@@ -365,6 +398,13 @@ fun bakeMarks(canvas: Canvas, doc: Int, page: Int, marks: List<PdfMark>) {
             // Notes are not drawn: a note is a comment for the reader's list, and
             // stamping its text onto the page would change the document's content.
             is PdfMark.Note -> Unit
+
+            is PdfMark.Text -> canvas.drawText(
+                mark.text,
+                mark.x * width,
+                mark.y * height,
+                textPaint,
+            )
 
             is PdfMark.Redaction -> Unit
         }

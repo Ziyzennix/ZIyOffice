@@ -61,15 +61,18 @@ class PdfDocument private constructor(
             pages: List<PdfRewriter.PageRef>,
             marks: List<PdfMark>,
             onProgress: ((done: Int, total: Int) -> Unit)? = null,
+            pageNumbers: Boolean = false,
         ) {
             PdfRewriter.export(
                 renderers = documents.map { it.renderer },
                 pages = pages,
                 output = output,
                 onProgress = onProgress,
-            ) { ref, canvas ->
-                bakeMarks(canvas, ref.documentIndex, ref.sourceIndex, marks)
-            }
+                pageNumbers = pageNumbers,
+                drawOn = { ref, canvas ->
+                    bakeMarks(canvas, ref.documentIndex, ref.sourceIndex, marks)
+                },
+            )
         }
 
         /**
