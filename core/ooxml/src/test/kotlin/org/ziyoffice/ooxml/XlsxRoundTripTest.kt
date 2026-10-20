@@ -5,8 +5,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
+import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.CellValue
@@ -67,6 +69,49 @@ class XlsxRoundTripTest {
         val sum = evaluateFormula(out, "=A3").value
         assertEquals(CellValue.Number(5.0), sum)
         assertEquals(CellValue.Number(10.0), evaluateFormula(out, "=A4").value)
+    }
+
+    @Test
+    fun cellBordersSurviveRoundTrip() {
+        val sheet = Sheet(
+            name = "Bordered",
+            cells = listOf(
+                Cell(
+                    row = 0,
+                    column = 0,
+                    value = "Header",
+                    format = CellFormat(
+                        borders = CellBorders(
+                            top = BorderStyle.MEDIUM,
+                            bottom = BorderStyle.THICK,
+                        ),
+                    ),
+                ),
+                Cell(
+                    row = 1,
+                    column = 0,
+                    value = "Body",
+                    format = CellFormat(
+                        borders = CellBorders(
+                            left = BorderStyle.DASHED,
+                            right = BorderStyle.DOTTED,
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val bytes = XlsxWriter().write(Workbook(listOf(sheet)))
+        val out = reader().read(ByteArrayInputStream(bytes)).sheets.single()
+
+        assertEquals(
+            CellBorders(top = BorderStyle.MEDIUM, bottom = BorderStyle.THICK),
+            out.cellAt(0, 0)?.format?.borders,
+        )
+        assertEquals(
+            CellBorders(left = BorderStyle.DASHED, right = BorderStyle.DOTTED),
+            out.cellAt(1, 0)?.format?.borders,
+        )
     }
 
     @Test

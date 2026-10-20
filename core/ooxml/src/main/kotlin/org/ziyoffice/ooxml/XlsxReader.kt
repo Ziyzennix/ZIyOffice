@@ -6,8 +6,10 @@ import java.io.InputStream
 import java.util.zip.ZipInputStream
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
+import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
+import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.ColumnWidth
@@ -207,9 +209,11 @@ class XlsxReader(
         val numberFormats = mutableMapOf<Int, String>()
         val fonts = mutableListOf<CellFormat>()
         val fills = mutableListOf<Int?>()
+        val borders = mutableListOf<CellBorders>()
         val xfFontIds = mutableListOf<Int>()
         val xfFillIds = mutableListOf<Int>()
         val xfNumFmtIds = mutableListOf<Int>()
+        val xfBorderIds = mutableListOf<Int>()
         val xfAlignments = mutableListOf<CellAlignment>()
 
         var section = ""
@@ -227,10 +231,12 @@ class XlsxReader(
                         }
                         "fonts" -> if (parser.name == "font") fonts += parseFont(parser)
                         "fills" -> if (parser.name == "fill") fills += parseFillColor(parser)
+                        "borders" -> if (parser.name == "border") borders += parseBorder(parser)
                         "cellXfs" -> if (parser.name == "xf") {
                             xfFontIds += attribute(parser, "fontId")?.toIntOrNull() ?: 0
                             xfFillIds += attribute(parser, "fillId")?.toIntOrNull() ?: 0
                             xfNumFmtIds += attribute(parser, "numFmtId")?.toIntOrNull() ?: 0
+                            xfBorderIds += attribute(parser, "borderId")?.toIntOrNull() ?: 0
                             // Alignment lives in the child <alignment> element.
                             xfAlignments += parseXfAlignment(parser)
                         }
@@ -248,6 +254,7 @@ class XlsxReader(
                 fillRgb = fill,
                 alignment = xfAlignments.getOrElse(i) { CellAlignment.GENERAL },
                 numberFormat = builtinOrCustomFormat(numFmtId, numberFormats),
+                borders = borders.getOrElse(xfBorderIds.getOrElse(i) { 0 }) { CellBorders() },
             )
         }
         return StyleTable(formats)
@@ -284,6 +291,38 @@ class XlsxReader(
             sizePt = sizePt,
             colorRgb = colorRgb,
         )
+    }
+
+    /** The four edges of one `<border>` element. */
+    private fun parseBorder(parser: XmlPullParser): CellBorders {
+        var top = BorderStyle.NONE
+        var bottom = BorderStyle.NONE
+        var left = BorderStyle.NONE
+        var right = BorderStyle.NONE
+        val depth = parser.depth
+        var event = parser.next()
+        while (!(event == XmlPullParser.END_TAG && parser.depth == depth)) {
+            if (event == XmlPullParser.START_TAG && parser.namespace == SPREADSHEETML_NAMESPACE) {
+                val style = borderStyleOf(attribute(parser, "style"))
+                when (parser.name) {
+                    "top" -> top = style
+                    "bottom" -> bottom = style
+                    "left" -> left = style
+                    "right" -> right = style
+                }
+            }
+            event = parser.next()
+        }
+        return CellBorders(top = top, bottom = bottom, left = left, right = right)
+    }
+
+    private fun borderStyleOf(style: String?): BorderStyle = when (style?.lowercase()) {
+        "thin" -> BorderStyle.THIN
+        "medium" -> BorderStyle.MEDIUM
+        "thick" -> BorderStyle.THICK
+        "dashed" -> BorderStyle.DASHED
+        "dotted" -> BorderStyle.DOTTED
+        else -> BorderStyle.NONE
     }
 
     private fun parseFillColor(parser: XmlPullParser): Int? {

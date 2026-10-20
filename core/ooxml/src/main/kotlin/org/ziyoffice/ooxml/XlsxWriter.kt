@@ -3,8 +3,10 @@ package org.ziyoffice.ooxml
 import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
+import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.MAX_SHEET_COLUMNS
 import org.ziyoffice.model.Sheet
@@ -240,6 +242,8 @@ class XlsxWriter {
     private class StylePlan(
         private val formats: List<CellFormat>,
         private val index: Map<CellFormat, Int>,
+        private val borders: List<CellBorders>,
+        private val borderIndex: Map<CellBorders, Int>,
     ) {
         fun indexOf(format: CellFormat): Int {
             val normalized = format.copy(sizePt = format.sizePt, numberFormat = format.numberFormat)
@@ -279,7 +283,18 @@ class XlsxWriter {
             }
             append("</fills>")
 
-            append("<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>")
+            // Borders: index 0 is the empty border every sheet starts with.
+            append("<borders count=\"").append(borders.size).append("\">")
+            borders.forEach { border ->
+                append("<border>")
+                append("<left").append(borderStyle(border.left)).append("/>")
+                append("<right").append(borderStyle(border.right)).append("/>")
+                append("<top").append(borderStyle(border.top)).append("/>")
+                append("<bottom").append(borderStyle(border.bottom)).append("/>")
+                append("<diagonal/>")
+                append("</border>")
+            }
+            append("</borders>")
 
             // Number formats: custom ids start at 164.
             val customFormats = formats.mapNotNull { it.numberFormat }.distinct()
@@ -298,7 +313,9 @@ class XlsxWriter {
                 append("<xf numFmtId=\"").append(numberFormatId(format, customFormats))
                 append("\" fontId=\"").append(i)
                 append("\" fillId=\"").append(i + 2)
-                append("\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"")
+                append("\" borderId=\"").append(borderIndex[format.borders] ?: 0).append("\" xfId=\"0\"")
+                append(" applyFont=\"1\" applyFill=\"1\"")
+                if (!format.borders.isEmpty) append(" applyBorder=\"1\"")
                 if (format.numberFormat != null) append(" applyNumberFormat=\"1\"")
                 if (format.alignment != CellAlignment.GENERAL) {
                     append(" applyAlignment=\"1\"><alignment horizontal=\"")
@@ -327,6 +344,16 @@ class XlsxWriter {
             return builtinNumberFormatId(code)
         }
 
+        /** The XML for one edge: a style attribute, or nothing for a plain edge. */
+        private fun borderStyle(style: BorderStyle): String = when (style) {
+            BorderStyle.NONE -> ""
+            BorderStyle.THIN -> " style=\"thin\""
+            BorderStyle.MEDIUM -> " style=\"medium\""
+            BorderStyle.THICK -> " style=\"thick\""
+            BorderStyle.DASHED -> " style=\"dashed\""
+            BorderStyle.DOTTED -> " style=\"dotted\""
+        }
+
         private fun builtinNumberFormatId(code: String): Int = when (code) {
             "0" -> 1
             "0.00" -> 2
@@ -347,11 +374,21 @@ class XlsxWriter {
                 // Index 0 is always the default format: a cell with s="0" and a
                 // cell without s both mean "no direct formatting".
                 val distinct = linkedSetOf(CellFormat())
+                val distinctBorders = linkedSetOf(CellBorders())
                 sheets.forEach { sheet ->
-                    sheet.cells.forEach { cell -> distinct += cell.format }
+                    sheet.cells.forEach { cell ->
+                        distinct += cell.format
+                        distinctBorders += cell.format.borders
+                    }
                 }
                 val formats = distinct.toList()
-                return StylePlan(formats, formats.withIndex().associate { (i, f) -> f to i })
+                val borderList = distinctBorders.toList()
+                return StylePlan(
+                    formats = formats,
+                    index = formats.withIndex().associate { (i, f) -> f to i },
+                    borders = borderList,
+                    borderIndex = borderList.withIndex().associate { (i, b) -> b to i },
+                )
             }
         }
     }

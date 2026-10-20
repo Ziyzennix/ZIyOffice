@@ -34,6 +34,8 @@ data class CellFormat(
     val alignment: CellAlignment = CellAlignment.GENERAL,
     /** Number format pattern, e.g. "0.00", "0.0%", "$#,##0.00". null = general. */
     val numberFormat: String? = null,
+    /** The lines drawn around the cell. */
+    val borders: CellBorders = CellBorders(),
 )
 
 enum class CellAlignment { GENERAL, LEFT, CENTER, RIGHT }

@@ -123,8 +123,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.ziyoffice.data.DraftStore
 import org.ziyoffice.data.RecentFilesStore
+import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
+import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.CellRangeCorner
@@ -175,6 +177,17 @@ private data class CellPos(val row: Int, val column: Int)
 
 /** Which axis the size dialog is editing. */
 private enum class SizeTarget { COLUMN, ROW }
+
+/** The edges a border action draws. */
+private enum class BorderKind { NONE, TOP, BOTTOM, LEFT, RIGHT, ALL, BOX }
+
+/** How thick a border line is drawn on screen. */
+private fun borderWidth(style: BorderStyle): Dp = when (style) {
+    BorderStyle.THIN, BorderStyle.DASHED, BorderStyle.DOTTED -> 1.dp
+    BorderStyle.MEDIUM -> 2.dp
+    BorderStyle.THICK -> 3.dp
+    BorderStyle.NONE -> 0.dp
+}
 
 /** Trims a unit value for the dialog: 15.0 reads as "15", 8.43 stays "8.43". */
 private fun sizeText(value: Float): String =
@@ -826,6 +839,39 @@ fun SheetScreen(
                     (if (result.cells == 1) "cell" else "cells"),
             )
         }
+    }
+
+    /**
+     * Draws borders around the selected cells. "Box" draws the outline of the
+     * selection, "all" draws every edge of every cell in it.
+     */
+    fun applyBorders(kind: BorderKind) {
+        if (editingCell) commitEdit()
+        val range = selectedRange()
+        val anchor = selection
+        mutate { sheet ->
+            val byPosition = sheet.cells.associateBy { it.row to it.column }
+            val positions = buildSet {
+                for (row in range.top..range.bottom) {
+                    for (column in range.left..range.right) add(row to column)
+                }
+            }
+            val outside = sheet.cells.filterNot { (it.row to it.column) in positions }
+            val bordered = positions.mapNotNull { (row, column) ->
+                val existing = byPosition[row to column]
+                val format = (existing?.format ?: CellFormat()).copy(
+                    borders = bordersFor(kind, row, column, range),
+                )
+                val value = existing?.value.orEmpty()
+                if (value.isNotEmpty() || format != CellFormat()) {
+                    Cell(row, column, value, format, existing?.cached)
+                } else {
+                    null
+                }
+            }
+            sheet.copy(cells = (outside + bordered).sortedWith(compareBy({ it.row }, { it.column })))
+        }
+        editText = rawValueAt(anchor)
     }
 
     /**
@@ -1719,6 +1765,7 @@ fun SheetScreen(
                 SheetFormatBar(
                     format = formatAt(selection),
                     onFormat = ::applyFormat,
+                    onBorders = ::applyBorders,
                 )
                 SheetTabs(
                     sheets = workbook?.sheets.orEmpty(),
@@ -2230,8 +2277,7 @@ private fun SheetCell(
                 this.contentDescription = label
                 this.selected = isSelected
                 role = Role.Button
-            }
-            .padding(horizontal = 4.dp),
+            },
         contentAlignment = when (format.alignment) {
             CellAlignment.LEFT -> Alignment.CenterStart
             CellAlignment.CENTER -> Alignment.Center
@@ -2239,10 +2285,55 @@ private fun SheetCell(
             CellAlignment.GENERAL -> Alignment.CenterStart
         },
     ) {
+        // The cell's own borders are drawn edge by edge, on top of the grid
+        // lines every cell carries.
+        val borders = format.borders
+        if (!borders.isEmpty) {
+            val lineColor = MaterialTheme.colorScheme.onSurface
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (borders.top != BorderStyle.NONE) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(borderWidth(borders.top))
+                            .background(lineColor),
+                    )
+                }
+                if (borders.bottom != BorderStyle.NONE) {
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(borderWidth(borders.bottom))
+                            .background(lineColor),
+                    )
+                }
+                if (borders.left != BorderStyle.NONE) {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterStart)
+                            .fillMaxHeight()
+                            .width(borderWidth(borders.left))
+                            .background(lineColor),
+                    )
+                }
+                if (borders.right != BorderStyle.NONE) {
+                    Box(
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .width(borderWidth(borders.right))
+                            .background(lineColor),
+                    )
+                }
+            }
+        }
         Text(
             text = text,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 4.dp),
             style = TextStyle(
                 // sp follows the system font scale; the 13 pt fallback is the
                 // cell's own size, not a screen-density guess.
@@ -2268,6 +2359,7 @@ private fun SheetCell(
 private fun SheetFormatBar(
     format: CellFormat,
     onFormat: ((CellFormat) -> CellFormat) -> Unit,
+    onBorders: (BorderKind) -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
@@ -2327,6 +2419,7 @@ private fun SheetFormatBar(
                 SheetMoreSheet(
                     format = format,
                     onFormat = onFormat,
+                    onBorders = onBorders,
                     onDismiss = { moreOpen = false },
                 )
             }
@@ -2343,6 +2436,7 @@ private fun SheetFormatBar(
 private fun SheetMoreSheet(
     format: CellFormat,
     onFormat: ((CellFormat) -> CellFormat) -> Unit,
+    onBorders: (BorderKind) -> Unit,
     onDismiss: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -2438,6 +2532,22 @@ private fun SheetMoreSheet(
                     }
                 }
             }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Borders", style = MaterialTheme.typography.titleSmall)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    BORDER_ACTIONS.forEach { (kind, label) ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { onBorders(kind) },
+                            label = { Text(label) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -2461,6 +2571,32 @@ private fun StructureAction(
             .fillMaxWidth()
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(vertical = 14.dp),
+    )
+}
+
+/** The edges one cell of the selection carries for a border action. */
+private fun bordersFor(
+    kind: BorderKind,
+    row: Int,
+    column: Int,
+    range: CellRange,
+): CellBorders = when (kind) {
+    BorderKind.NONE -> CellBorders()
+    BorderKind.TOP -> CellBorders(top = BorderStyle.THIN)
+    BorderKind.BOTTOM -> CellBorders(bottom = BorderStyle.THIN)
+    BorderKind.LEFT -> CellBorders(left = BorderStyle.THIN)
+    BorderKind.RIGHT -> CellBorders(right = BorderStyle.THIN)
+    BorderKind.ALL -> CellBorders(
+        top = BorderStyle.THIN,
+        bottom = BorderStyle.THIN,
+        left = BorderStyle.THIN,
+        right = BorderStyle.THIN,
+    )
+    BorderKind.BOX -> CellBorders(
+        top = if (row == range.top) BorderStyle.THIN else BorderStyle.NONE,
+        bottom = if (row == range.bottom) BorderStyle.THIN else BorderStyle.NONE,
+        left = if (column == range.left) BorderStyle.THIN else BorderStyle.NONE,
+        right = if (column == range.right) BorderStyle.THIN else BorderStyle.NONE,
     )
 }
 
@@ -2508,8 +2644,18 @@ private fun SheetDivider() {
     )
 }
 
-private val FILL_OPTIONS: List<Int?> = listOf(
-    null, 0xFFF2CC, 0xD8F3E4, 0xDCE7FF, 0xFBD9D9, 0xEFE4FF, 0xEDEDED,
+/** The border actions offered in the formatting sheet. */
+private val BORDER_ACTIONS: List<Pair<BorderKind, String>> = listOf(
+    BorderKind.NONE to "None",
+    BorderKind.TOP to "Top",
+    BorderKind.BOTTOM to "Bottom",
+    BorderKind.LEFT to "Left",
+    BorderKind.RIGHT to "Right",
+    BorderKind.ALL to "All",
+    BorderKind.BOX to "Box",
+)
+
+private val FILL_OPTIONS: List<Int?> = listOf(    null, 0xFFF2CC, 0xD8F3E4, 0xDCE7FF, 0xFBD9D9, 0xEFE4FF, 0xEDEDED,
 )
 
 /** The spoken name of a fill swatch; the colour alone is not enough for TalkBack. */
