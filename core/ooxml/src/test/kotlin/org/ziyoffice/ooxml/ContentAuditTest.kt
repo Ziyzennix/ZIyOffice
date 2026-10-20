@@ -60,7 +60,6 @@ class ContentAuditTest {
                 "Comments" to 1,
                 "Tracked changes" to 2,
                 "Hyperlinks" to 1,
-                "Vertically merged cells" to 1,
                 "Equations" to 1,
                 "Section breaks" to 1,
             ),

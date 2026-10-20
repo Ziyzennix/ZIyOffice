@@ -18,6 +18,7 @@ import org.ziyoffice.model.Run
 import org.ziyoffice.model.Table
 import org.ziyoffice.model.TableCell
 import org.ziyoffice.model.TableRow
+import org.ziyoffice.model.VerticalMerge
 
 /** The WordprocessingML namespace, as defined by ECMA-376 / ISO 29500. */
 const val WORDPROCESSINGML_NAMESPACE =
@@ -529,6 +530,7 @@ class DocxReader(
         private fun parseTableCell(cellBorders: BorderSink): TableCell {
             val depth = parser.depth
             var columnSpan = 1
+            var verticalMerge = VerticalMerge.NONE
             val blocks = mutableListOf<Block>()
 
             var event = parser.next()
@@ -539,6 +541,14 @@ class DocxReader(
                     when (parser.name) {
                         "gridSpan" -> columnSpan =
                             (attribute(parser, "val")?.toIntOrNull() ?: 1).coerceAtLeast(1)
+                        // `w:vMerge w:val="restart"` opens a merge; a bare
+                        // `w:vMerge` (or val="continue") continues the one above.
+                        "vMerge" -> verticalMerge =
+                            if (attribute(parser, "val")?.lowercase() == "restart") {
+                                VerticalMerge.RESTART
+                            } else {
+                                VerticalMerge.CONTINUE
+                            }
                         "tcBorders" -> if (parseBorders()) cellBorders.drawn = true
                         "p" -> blocks += parseParagraph()
                         "tbl" -> blocks += parseTable()
@@ -546,7 +556,7 @@ class DocxReader(
                 }
                 event = parser.next()
             }
-            return TableCell(blocks, columnSpan)
+            return TableCell(blocks, columnSpan, verticalMerge)
         }
 
         private fun isWord(): Boolean = parser.namespace == WORDPROCESSINGML_NAMESPACE

@@ -33,7 +33,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Bold/italic/underline/strike, colors, sizes | yes | | done |
 | Headings, lists, alignment, line spacing | yes | | done |
 | Images (insert/resize) | yes | | done |
-| Tables (insert, add/remove rows/cols) | yes | | done |
+| Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn and kept by a save | done |
 | Find & replace | yes | | done |
 | Undo/redo, word count | yes | | done |
 | Autosave + crash recovery | yes | | done |

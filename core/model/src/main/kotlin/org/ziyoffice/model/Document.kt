@@ -82,7 +82,27 @@ data class TableCell(
     val blocks: List<Block>,
     /** `w:gridSpan` — how many grid columns this cell spans. */
     val columnSpan: Int = 1,
+    /** `w:vMerge` — whether this cell starts, continues or ignores a vertical merge. */
+    val verticalMerge: VerticalMerge = VerticalMerge.NONE,
 )
+
+/**
+ * A cell's part in a vertical merge.
+ *
+ * Word stores a vertical merge on every cell it covers: the top cell restarts
+ * it and holds the content, and each cell below it continues the merge with no
+ * content of its own. Modelling both states is what lets a save put the same
+ * structure back; dropping the continuation cells would silently un-merge the
+ * table on the next save.
+ */
+enum class VerticalMerge {
+    /** Not vertically merged. */
+    NONE,
+    /** `w:vMerge w:val="restart"`: the top cell, which holds the content. */
+    RESTART,
+    /** `w:vMerge` with no value (or "continue"): covered by the cell above. */
+    CONTINUE,
+}
 
 /**
  * A paragraph's list membership, already resolved through `numbering.xml`

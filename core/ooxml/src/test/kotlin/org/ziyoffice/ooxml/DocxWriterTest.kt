@@ -15,6 +15,7 @@ import org.ziyoffice.model.Run
 import org.ziyoffice.model.Table
 import org.ziyoffice.model.TableCell
 import org.ziyoffice.model.TableRow
+import org.ziyoffice.model.VerticalMerge
 
 /**
  * Round-trip tests: what the writer emits must come back identical through the
@@ -244,6 +245,40 @@ class DocxWriterTest {
         )
         assertNull(reRead.header)
         assertNull(reRead.footer)
+    }
+
+    @Test
+    fun roundTripsVerticallyMergedCells() {
+        val document = Document(
+            blocks = listOf(
+                Table(
+                    rows = listOf(
+                        TableRow(
+                            listOf(
+                                TableCell(listOf(Paragraph(listOf(Run("spans")))), verticalMerge = VerticalMerge.RESTART),
+                                TableCell(listOf(Paragraph(listOf(Run("a"))))),
+                            ),
+                        ),
+                        TableRow(
+                            listOf(
+                                TableCell(listOf(Paragraph()), verticalMerge = VerticalMerge.CONTINUE),
+                                TableCell(listOf(Paragraph(listOf(Run("b"))))),
+                            ),
+                        ),
+                    ),
+                    columnCount = 2,
+                    borders = true,
+                ),
+            ),
+        )
+
+        val table = roundTrip(document).blocks.single() as Table
+
+        assertEquals(VerticalMerge.RESTART, table.rows[0].cells[0].verticalMerge)
+        assertEquals(VerticalMerge.CONTINUE, table.rows[1].cells[0].verticalMerge)
+        assertEquals(VerticalMerge.NONE, table.rows[0].cells[1].verticalMerge)
+        assertEquals("spans", (table.rows[0].cells[0].blocks.single() as Paragraph).text())
+        assertEquals("b", (table.rows[1].cells[1].blocks.single() as Paragraph).text())
     }
 
     private fun Paragraph.text(): String = runs.joinToString("") { it.text }

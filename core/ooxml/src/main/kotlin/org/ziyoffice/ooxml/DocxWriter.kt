@@ -14,6 +14,7 @@ import org.ziyoffice.model.Paragraph
 import org.ziyoffice.model.ParagraphAlignment
 import org.ziyoffice.model.Run
 import org.ziyoffice.model.Table
+import org.ziyoffice.model.VerticalMerge
 
 /**
  * Writes the ZiyOffice document model back into a `.docx` package, using only
@@ -211,6 +212,11 @@ class DocxWriter {
                 sb.append("<w:tc><w:tcPr>")
                 if (cell.columnSpan > 1) {
                     sb.append("<w:gridSpan w:val=\"").append(cell.columnSpan).append("\"/>")
+                }
+                when (cell.verticalMerge) {
+                    VerticalMerge.RESTART -> sb.append("<w:vMerge w:val=\"restart\"/>")
+                    VerticalMerge.CONTINUE -> sb.append("<w:vMerge/>")
+                    VerticalMerge.NONE -> Unit
                 }
                 sb.append("</w:tcPr>")
                 if (cell.blocks.isEmpty()) {

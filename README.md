@@ -35,9 +35,9 @@ The About screen lists the permissions the installed app declares.
 
 ## Known limitations
 
-Saving rebuilds each file from ZiyOffice's own document model, so parts it does not model are dropped: headers, comments, tracked changes, charts, merged cells, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
+Saving rebuilds each file from ZiyOffice's own document model, so parts it does not model are dropped: comments, tracked changes, charts, merged cells in spreadsheets, pivot tables and similar. When you open such a file, the app lists what a save will remove before the first write. Use "Save as copy" to keep the original untouched.
 
-Not implemented yet: encrypted vault, OCR, handwriting notes, slide shapes and images, PDF form filling, headers and footers, macros, pivot tables.
+Not implemented yet: encrypted vault, OCR, handwriting notes, slide shapes and images, PDF form filling, macros, pivot tables.
 
 ## Install
 

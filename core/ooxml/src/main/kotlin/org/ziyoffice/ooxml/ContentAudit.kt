@@ -79,9 +79,6 @@ object ContentAudit {
             tags("w:hyperlink").takeIf { it > 0 }?.let {
                 features += DroppedFeature("Hyperlinks", it)
             }
-            tags("w:vMerge").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Vertically merged cells", it)
-            }
             tags("w:txbxContent").takeIf { it > 0 }?.let {
                 features += DroppedFeature("Text boxes", it)
             }

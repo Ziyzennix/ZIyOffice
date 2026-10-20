@@ -81,16 +81,21 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -109,6 +114,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -126,6 +132,7 @@ import org.ziyoffice.data.RecentFilesStore
 import org.ziyoffice.model.Block
 import org.ziyoffice.model.Document
 import org.ziyoffice.model.blocksIn
+import org.ziyoffice.model.placedCells
 import org.ziyoffice.model.withParagraphRemovedAt
 import org.ziyoffice.model.withParagraphAddedAfter
 import org.ziyoffice.model.DocumentRegion
@@ -2297,85 +2304,203 @@ private fun TableBlock(
     onSplitParagraph: (FocusPath, String, String) -> Unit,
     findQuery: String = "",
 ) {
-    val lines = table.borders
-    Column(
+    val placed = remember(table) { table.placedCells() }
+    // Written during layout and read by the draw phase, which always runs
+    // afterwards. Plain fields rather than state: changing state from inside
+    // measure would schedule a second composition for every table layout.
+    val geometry = remember(table) { CellGeometry() }
+    val lineColor = GridLineColor
+    val lineWidth = with(LocalDensity.current) { 1.dp.toPx() }
+
+    Layout(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .then(
-                if (lines) Modifier.border(BorderStroke(1.dp, GridLineColor), RectangleShape)
-                else Modifier,
-            ),
-    ) {
-        table.rows.forEachIndexed { rowIndex, row ->
-            if (rowIndex > 0 && lines) {
-                HorizontalDivider(color = GridLineColor, thickness = 1.dp)
-            }
-            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                row.cells.forEachIndexed { cellIndex, cell ->
-                    if (cellIndex > 0 && lines) {
-                        VerticalDivider(
-                            color = GridLineColor,
-                            thickness = 1.dp,
-                            modifier = Modifier.fillMaxHeight(),
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(cell.columnSpan.toFloat())
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            cell.blocks.forEachIndexed { blockIndex, block ->
-                                when (block) {
-                                    is Paragraph -> {
-                                        val path = FocusPath(tableBlockIndex, rowIndex, cellIndex, blockIndex)
-                                        val displayLine = block.toDisplayLine(
-                                            counters = mutableMapOf(),
-                                            bitmaps = bitmaps,
-                                            defaultSpacingTwips = 0,
-                                            searchQuery = findQuery,
-                                        )
-                                        if (editing) {
-                                            EditableParagraph(
-                                                paragraph = block,
-                                                line = displayLine,
-                                                isFocused = focusedTarget == path,
-                                                onFocus = { onFocusTarget(path) },
-                                                onTextChange = { text -> onTextChange(path, text) },
-                                                onSelectionChange = onSelectionChange,
-                                                onSplitParagraph = { before, after ->
-                                                    onSplitParagraph(path, before, after)
-                                                },
-                                                findQuery = findQuery,
-                                            )
-                                        } else {
-                                            ParagraphLine(
-                                                line = displayLine,
-                                                onClick = { onFocusTarget(path) },
-                                            )
-                                        }
-                                    }
-                                    is Table -> TableBlock(
-                                        table = block,
-                                        tableBlockIndex = -1,
-                                        bitmaps = bitmaps,
-                                        editing = false,
-                                        focusedTarget = null,
-                                        onFocusTarget = {},
-                                        onTextChange = { _, _ -> },
-                                        onSelectionChange = {},
-                                        onSplitParagraph = { _, _, _ -> },
+            .drawBehind {
+                if (table.borders) drawGridLines(geometry.rects, lineColor, lineWidth)
+            },
+        content = {
+            placed.forEach { item ->
+                Box(modifier = Modifier.padding(CELL_HORIZONTAL, CELL_VERTICAL)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        item.cell.blocks.forEachIndexed { blockIndex, block ->
+                            when (block) {
+                                is Paragraph -> {
+                                    // The path keeps the model's own coordinates
+                                    // (row index, cell index) rather than the grid
+                                    // ones, so an edit lands in the cell it came
+                                    // from even when merges shift the columns.
+                                    val path = FocusPath(
+                                        blockIndex = tableBlockIndex,
+                                        cellRow = item.rowIndex,
+                                        cellColumn = item.cellIndex,
+                                        cellParagraph = blockIndex,
                                     )
+                                    val displayLine = block.toDisplayLine(
+                                        counters = mutableMapOf(),
+                                        bitmaps = bitmaps,
+                                        defaultSpacingTwips = 0,
+                                        searchQuery = findQuery,
+                                    )
+                                    if (editing) {
+                                        EditableParagraph(
+                                            paragraph = block,
+                                            line = displayLine,
+                                            isFocused = focusedTarget == path,
+                                            onFocus = { onFocusTarget(path) },
+                                            onTextChange = { text -> onTextChange(path, text) },
+                                            onSelectionChange = onSelectionChange,
+                                            onSplitParagraph = { before, after ->
+                                                onSplitParagraph(path, before, after)
+                                            },
+                                            findQuery = findQuery,
+                                        )
+                                    } else {
+                                        ParagraphLine(
+                                            line = displayLine,
+                                            onClick = { onFocusTarget(path) },
+                                        )
+                                    }
                                 }
+                                is Table -> TableBlock(
+                                    table = block,
+                                    tableBlockIndex = -1,
+                                    bitmaps = bitmaps,
+                                    editing = false,
+                                    focusedTarget = null,
+                                    onFocusTarget = {},
+                                    onTextChange = { _, _ -> },
+                                    onSelectionChange = {},
+                                    onSplitParagraph = { _, _, _ -> },
+                                )
                             }
                         }
                     }
                 }
             }
+        },
+    ) { measurables, constraints ->
+        val columns = table.columnCount.coerceAtLeast(1)
+        val width = constraints.maxWidth
+
+        // Equal shares per grid column, with the remainder given to the last
+        // column so the widths always sum to the available width exactly.
+        val base = width / columns
+        val columnWidths = IntArray(columns) { base }
+        columnWidths[columns - 1] = width - base * (columns - 1)
+
+        val columnLefts = IntArray(columns)
+        var running = 0
+        columnWidths.forEachIndexed { index, w ->
+            columnLefts[index] = running
+            running += w
+        }
+
+        val cellWidths = placed.map { item ->
+            val firstColumn = item.column.coerceIn(0, columns - 1)
+            val lastColumn = (item.column + item.columnSpan.coerceAtLeast(1) - 1)
+                .coerceIn(0, columns - 1)
+            columnLefts[lastColumn] + columnWidths[lastColumn] - columnLefts[firstColumn]
+        }
+
+        // A cell is measured exactly once, at its final width: measuring twice
+        // would wrap the text at a different width than the one drawn.
+        val measured = placed.mapIndexed { index, _ ->
+            val cellWidth = cellWidths[index].coerceAtLeast(1)
+            measurables[index].measure(
+                Constraints(minWidth = cellWidth, maxWidth = cellWidth),
+            )
+        }
+
+        val rowHeights = IntArray(table.rows.size)
+        measured.forEachIndexed { index, placeable ->
+            val item = placed[index]
+            // The measured box contains its own padding, so its height is the
+            // whole height the row needs.
+            val needed = placeable.height.coerceAtLeast(1)
+            val last = (item.rowIndex + item.rowSpan).coerceAtMost(rowHeights.size)
+            if (last <= item.rowIndex) return@forEachIndexed
+            if (item.rowSpan <= 1) {
+                rowHeights[item.rowIndex] = maxOf(rowHeights[item.rowIndex], needed)
+            } else {
+                // A vertically merged cell must fit across the rows it covers,
+                // so spread its height over them without rounding down.
+                val rowsCovered = last - item.rowIndex
+                val shared = (needed + rowsCovered - 1) / rowsCovered
+                for (r in item.rowIndex until last) {
+                    rowHeights[r] = maxOf(rowHeights[r], shared)
+                }
+            }
+        }
+
+        val rowTops = IntArray(rowHeights.size)
+        var y = 0
+        rowHeights.forEachIndexed { index, h ->
+            rowTops[index] = y
+            y += h
+        }
+        val totalHeight = maxOf(y, 1)
+
+        val rects = placed.map { item ->
+            val firstColumn = item.column.coerceIn(0, columns - 1)
+            val lastColumn = (item.column + item.columnSpan - 1).coerceIn(0, columns - 1)
+            val firstRow = item.rowIndex.coerceIn(0, rowHeights.size - 1)
+            val lastRow = (item.rowIndex + item.rowSpan - 1).coerceIn(0, rowHeights.size - 1)
+            CellRect(
+                left = columnLefts[firstColumn],
+                top = rowTops[firstRow],
+                right = columnLefts[lastColumn] + columnWidths[lastColumn],
+                bottom = rowTops[lastRow] + rowHeights[lastRow],
+            )
+        }
+        geometry.rects = rects
+
+        layout(width, totalHeight) {
+            measured.forEachIndexed { index, placeable ->
+                val rect = rects[index]
+                placeable.placeRelative(rect.left, rect.top)
+            }
         }
     }
 }
+
+/** A cell's rectangle inside the rendered grid, in pixels. */
+private data class CellRect(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+/** The rectangles the last layout produced, for the grid to draw. */
+private class CellGeometry {
+    var rects: List<CellRect> = emptyList()
+}
+
+/**
+ * Draws the table grid from the rectangles the layout produced, instead of
+ * giving every cell its own border. A cell that spans rows or columns then
+ * contributes only its real edges, so no rule runs through its middle and
+ * neighbouring cells share one line rather than stacking two.
+ */
+private fun DrawScope.drawGridLines(rects: List<CellRect>, color: Color, thickness: Float) {
+    if (rects.isEmpty()) return
+    // Inset by half the stroke so the outer rules are fully inside the table's
+    // bounds instead of being clipped by the layout node's edge.
+    val inset = thickness / 2
+    rects.forEach { rect ->
+        val left = rect.left.toFloat() + inset
+        val right = rect.right.toFloat() - inset
+        val top = rect.top.toFloat() + inset
+        val bottom = rect.bottom.toFloat() - inset
+        if (right >= left) {
+            drawLine(color, Offset(left, top), Offset(right, top), thickness)
+            drawLine(color, Offset(left, bottom), Offset(right, bottom), thickness)
+        }
+        if (bottom >= top) {
+            drawLine(color, Offset(left, top), Offset(left, bottom), thickness)
+            drawLine(color, Offset(right, top), Offset(right, bottom), thickness)
+        }
+    }
+}
+
+private val CELL_HORIZONTAL = 8.dp
+private val CELL_VERTICAL = 6.dp
 
 /**
  * A header or footer shown as a labelled band above/below the body.
