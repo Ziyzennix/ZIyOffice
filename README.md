@@ -1,7 +1,5 @@
 # ZIyOffice
 
-![ZIyOffice](docs/images/icon.png)
-
 An Android office suite for documents, spreadsheets, slides and PDFs. It works offline, needs no account, and has no network permission, so it cannot send your files anywhere.
 
 Free and open source under GPL-3.0. No subscription, no ads, no tracking.
@@ -91,7 +89,6 @@ CI runs the tests, the debug build, Android lint, and two guardrail scripts: one
 | `core/ooxml/` | DOCX / XLSX / PPTX readers and writers |
 | `scripts/ci/` | Privacy guardrails |
 | `docs/` | Threat model, architecture decisions, feature matrix |
-| `docs/images/` | Launcher icon and screenshots |
 
 `FEATURES.md` lists what works today against WPS Office. `docs/threat-model.md` says what the privacy claims do and do not cover. `docs/adr/` records the decisions behind the format layer and the toolchain.
 
