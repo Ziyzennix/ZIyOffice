@@ -194,9 +194,33 @@ private fun bool(value: Boolean): CellValue = CellValue.Bool(value)
 
 /* ----------------------------- tokens ----------------------------- */
 
-private enum class TokenType { NUMBER, TEXT, NAME, OPERATOR, LPAREN, RPAREN, COMMA, COLON, EOF }
+private enum class TokenType {
+    NUMBER,
+    TEXT,
+    NAME,
+    OPERATOR,
+    ERROR,
+    LPAREN,
+    RPAREN,
+    COMMA,
+    COLON,
+    EOF,
+}
 
 private data class Token(val type: TokenType, val lexeme: String, val position: Int)
+
+/** Error literals that may appear in a formula, including the ones this app emits. */
+private val ERROR_LITERALS = listOf(
+    "#REF!",
+    "#DIV/0!",
+    "#VALUE!",
+    "#NAME?",
+    "#N/A",
+    "#NUM!",
+    "#NULL!",
+    "#CIRCULAR!",
+    "#DEPTH!",
+)
 
 private fun tokenize(body: String): List<Token> {
     val tokens = mutableListOf<Token>()
@@ -257,6 +281,19 @@ private fun tokenize(body: String): List<Token> {
             ch == ',' -> { tokens += Token(TokenType.COMMA, ",", start); i++ }
             ch == ':' -> { tokens += Token(TokenType.COLON, ":", start); i++ }
 
+            ch == '#' -> {
+                val literal = ERROR_LITERALS.firstOrNull {
+                    body.regionMatches(i, it, 0, it.length, ignoreCase = true)
+                }
+                if (literal == null) {
+                    tokens += Token(TokenType.OPERATOR, "#", start)
+                    i += 1
+                } else {
+                    tokens += Token(TokenType.ERROR, literal, start)
+                    i += literal.length
+                }
+            }
+
             else -> {
                 // Two-character operators first.
                 val two = if (i + 1 < body.length) body.substring(i, i + 2) else ""
@@ -316,7 +353,13 @@ private class Parser(
         while (matchOperator("=", "<>", "<", ">", "<=", ">=")) {
             val op = previous().lexeme
             val right = parseConcat()
-            left = Operand.Scalar(bool(compare(op, resolver.scalar(left), resolver.scalar(right))))
+            val leftValue = resolver.scalar(left)
+            val rightValue = resolver.scalar(right)
+            left = when {
+                leftValue is CellValue.Error -> Operand.Scalar(leftValue)
+                rightValue is CellValue.Error -> Operand.Scalar(rightValue)
+                else -> Operand.Scalar(bool(compare(op, leftValue, rightValue)))
+            }
         }
         return left
     }
@@ -325,11 +368,16 @@ private class Parser(
         var left = parseAdditive()
         while (matchOperator("&")) {
             val right = parseAdditive()
-            val lt = asText(resolver.scalar(left))
-            val rt = asText(resolver.scalar(right))
-            left = Operand.Scalar(
-                if (lt == null || rt == null) CellValue.Error("#VALUE!") else CellValue.Text(lt + rt),
-            )
+            val leftValue = resolver.scalar(left)
+            val rightValue = resolver.scalar(right)
+            val lt = asText(leftValue)
+            val rt = asText(rightValue)
+            left = when {
+                leftValue is CellValue.Error -> Operand.Scalar(leftValue)
+                rightValue is CellValue.Error -> Operand.Scalar(rightValue)
+                lt == null || rt == null -> Operand.Scalar(CellValue.Error("#VALUE!"))
+                else -> Operand.Scalar(CellValue.Text(lt + rt))
+            }
         }
         return left
     }
@@ -365,7 +413,9 @@ private class Parser(
 
     private fun parseUnary(): Operand {
         if (matchOperator("-")) {
-            val number = asNumberOrZero(resolver.scalar(parseUnary()))
+            val operand = resolver.scalar(parseUnary())
+            if (operand is CellValue.Error) return Operand.Scalar(operand)
+            val number = asNumberOrZero(operand)
                 ?: return Operand.Scalar(CellValue.Error("#VALUE!"))
             return Operand.Scalar(CellValue.Number(-number))
         }
@@ -377,7 +427,9 @@ private class Parser(
     private fun parsePostfix(): Operand {
         var operand = parsePrimary()
         while (matchOperator("%")) {
-            val number = asNumberOrZero(resolver.scalar(operand))
+            val value = resolver.scalar(operand)
+            if (value is CellValue.Error) return Operand.Scalar(value)
+            val number = asNumberOrZero(value)
                 ?: return Operand.Scalar(CellValue.Error("#VALUE!"))
             operand = Operand.Scalar(CellValue.Number(number / 100.0))
         }
@@ -394,6 +446,10 @@ private class Parser(
             TokenType.TEXT -> {
                 advance()
                 Operand.Scalar(CellValue.Text(token.lexeme))
+            }
+            TokenType.ERROR -> {
+                advance()
+                Operand.Scalar(CellValue.Error(token.lexeme))
             }
             TokenType.NAME -> {
                 advance()
@@ -473,6 +529,10 @@ private class Parser(
     /* --------------------------- operations --------------------------- */
 
     private fun arithmetic(op: String, left: CellValue, right: CellValue): CellValue {
+        // An error operand wins: `=#REF!+1` stays #REF! instead of becoming a
+        // value the reader cannot explain.
+        if (left is CellValue.Error) return left
+        if (right is CellValue.Error) return right
         val l = asNumberOrZero(left) ?: return CellValue.Error("#VALUE!")
         val r = asNumberOrZero(right) ?: return CellValue.Error("#VALUE!")
         return when (op) {
@@ -516,42 +576,86 @@ private class Parser(
 
     /* ---------------------------- functions ---------------------------- */
 
+    /**
+     * The first error among the arguments, if any. A function that receives
+     * `#REF!` reports it instead of quietly returning a number.
+     */
+    private fun firstError(args: List<Operand>): CellValue.Error? =
+        args.firstNotNullOfOrNull { arg ->
+            when (arg) {
+                is Operand.Scalar -> arg.value as? CellValue.Error
+                is Operand.Range -> resolver.range(arg).firstOrNull { it is CellValue.Error }
+                    as? CellValue.Error
+            }
+        }
+
     private fun applyFunction(name: String, args: List<Operand>): CellValue = when (name) {
         "SUM" -> {
-            val numbers = args.flatMap { resolver.numbers(it) }
-            CellValue.Number(numbers.sum())
+            val error = firstError(args)
+            if (error != null) {
+                error
+            } else {
+                val numbers = args.flatMap { resolver.numbers(it) }
+                CellValue.Number(numbers.sum())
+            }
         }
 
         "AVERAGE" -> {
-            val numbers = args.flatMap { resolver.numbers(it) }
-            if (numbers.isEmpty()) CellValue.Error("#DIV/0!") else CellValue.Number(numbers.average())
+            val error = firstError(args)
+            if (error != null) {
+                error
+            } else {
+                val numbers = args.flatMap { resolver.numbers(it) }
+                if (numbers.isEmpty()) CellValue.Error("#DIV/0!") else CellValue.Number(numbers.average())
+            }
         }
 
         "COUNT" -> {
-            val count = args.sumOf { arg ->
-                when (arg) {
-                    is Operand.Range -> resolver.range(arg).count { it is CellValue.Number }
-                    is Operand.Scalar -> if (arg.value is CellValue.Number) 1 else 0
+            val error = firstError(args)
+            if (error != null) {
+                error
+            } else {
+                val count = args.sumOf { arg ->
+                    when (arg) {
+                        is Operand.Range -> resolver.range(arg).count { it is CellValue.Number }
+                        is Operand.Scalar -> if (arg.value is CellValue.Number) 1 else 0
+                    }
                 }
+                CellValue.Number(count.toDouble())
             }
-            CellValue.Number(count.toDouble())
         }
 
         "MIN" -> {
-            val numbers = args.flatMap { resolver.numbers(it) }
-            numbers.minOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
+            val error = firstError(args)
+            if (error != null) {
+                error
+            } else {
+                val numbers = args.flatMap { resolver.numbers(it) }
+                numbers.minOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
+            }
         }
 
         "MAX" -> {
-            val numbers = args.flatMap { resolver.numbers(it) }
-            numbers.maxOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
+            val error = firstError(args)
+            if (error != null) {
+                error
+            } else {
+                val numbers = args.flatMap { resolver.numbers(it) }
+                numbers.maxOrNull()?.let { CellValue.Number(it) } ?: CellValue.Error("#VALUE!")
+            }
         }
 
         "IF" -> when {
             args.size < 2 || args.size > 3 -> CellValue.Error("#VALUE!")
-            truthy(resolver.scalar(args[0])) -> resolver.scalar(args[1])
-            args.size == 3 -> resolver.scalar(args[2])
-            else -> CellValue.Bool(false)
+            else -> {
+                val condition = resolver.scalar(args[0])
+                when {
+                    condition is CellValue.Error -> condition
+                    truthy(condition) -> resolver.scalar(args[1])
+                    args.size == 3 -> resolver.scalar(args[2])
+                    else -> CellValue.Bool(false)
+                }
+            }
         }
 
         "VLOOKUP" -> vlookup(args)
@@ -562,6 +666,7 @@ private class Parser(
     private fun vlookup(args: List<Operand>): CellValue {
         if (args.size < 3 || args.size > 4) return CellValue.Error("#VALUE!")
         val lookup = resolver.scalar(args[0])
+        if (lookup is CellValue.Error) return lookup
         val table = args[1] as? Operand.Range ?: return CellValue.Error("#VALUE!")
         val columnOffset = asNumber(resolver.scalar(args[2]))?.toInt()
             ?: return CellValue.Error("#VALUE!")

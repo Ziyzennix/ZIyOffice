@@ -184,4 +184,29 @@ class FormulaTest {
         assertEquals(5.0, number(s, "=E1"))
         assertEquals(18.0, number(s, "=SUM(E1:E3)"))
     }
+
+    @Test
+    fun errorLiteralsAreValues() {
+        // Deleting a referenced row leaves #REF! in the formula; it must read as
+        // the error it is, not as a tokenizer complaint.
+        assertEquals(CellValue.Error("#REF!"), value(sheet(), "=#REF!"))
+        assertEquals(CellValue.Error("#N/A"), value(sheet(), "=#N/A"))
+        assertEquals(CellValue.Error("#DIV/0!"), value(sheet(), "=#DIV/0!"))
+    }
+
+    @Test
+    fun errorsPropagateThroughFormulas() {
+        val s = sheet("A1" to "1")
+        assertEquals(CellValue.Error("#REF!"), value(s, "=#REF!+A1"))
+        assertEquals(CellValue.Error("#REF!"), value(s, "=A1*#REF!"))
+        assertEquals(CellValue.Error("#REF!"), value(s, "=SUM(#REF!)"))
+        assertEquals(CellValue.Error("#REF!"), value(s, "=A1>#REF!"))
+        assertEquals(CellValue.Error("#REF!"), value(s, "=IF(#REF!,1,2)"))
+    }
+
+    @Test
+    fun anErrorCellInsideARangeIsReported() {
+        val s = sheet("A1" to "1", "A2" to "=#REF!", "A3" to "3")
+        assertEquals(CellValue.Error("#REF!"), value(s, "=SUM(A1:A3)"))
+    }
 }
