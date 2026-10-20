@@ -123,6 +123,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.ziyoffice.data.DraftStore
 import org.ziyoffice.data.RecentFilesStore
+import org.ziyoffice.model.BorderKind
 import org.ziyoffice.model.BorderStyle
 import org.ziyoffice.model.Cell
 import org.ziyoffice.model.CellAlignment
@@ -159,6 +160,7 @@ import org.ziyoffice.model.replaceInCell
 import org.ziyoffice.model.replaceText
 import org.ziyoffice.model.rowBands
 import org.ziyoffice.model.rowHeight
+import org.ziyoffice.model.withBorders
 import org.ziyoffice.model.withColumnWidth
 import org.ziyoffice.model.withMergedRange
 import org.ziyoffice.model.withMergesClearedIn
@@ -178,14 +180,11 @@ private data class CellPos(val row: Int, val column: Int)
 /** Which axis the size dialog is editing. */
 private enum class SizeTarget { COLUMN, ROW }
 
-/** The edges a border action draws. */
-private enum class BorderKind { NONE, TOP, BOTTOM, LEFT, RIGHT, ALL, BOX }
-
 /** How thick a border line is drawn on screen. */
 private fun borderWidth(style: BorderStyle): Dp = when (style) {
-    BorderStyle.THIN, BorderStyle.DASHED, BorderStyle.DOTTED -> 1.dp
-    BorderStyle.MEDIUM -> 2.dp
-    BorderStyle.THICK -> 3.dp
+    BorderStyle.THIN, BorderStyle.DASHED, BorderStyle.DOTTED -> 1.5.dp
+    BorderStyle.MEDIUM -> 2.5.dp
+    BorderStyle.THICK -> 3.5.dp
     BorderStyle.NONE -> 0.dp
 }
 
@@ -849,28 +848,7 @@ fun SheetScreen(
         if (editingCell) commitEdit()
         val range = selectedRange()
         val anchor = selection
-        mutate { sheet ->
-            val byPosition = sheet.cells.associateBy { it.row to it.column }
-            val positions = buildSet {
-                for (row in range.top..range.bottom) {
-                    for (column in range.left..range.right) add(row to column)
-                }
-            }
-            val outside = sheet.cells.filterNot { (it.row to it.column) in positions }
-            val bordered = positions.mapNotNull { (row, column) ->
-                val existing = byPosition[row to column]
-                val format = (existing?.format ?: CellFormat()).copy(
-                    borders = bordersFor(kind, row, column, range),
-                )
-                val value = existing?.value.orEmpty()
-                if (value.isNotEmpty() || format != CellFormat()) {
-                    Cell(row, column, value, format, existing?.cached)
-                } else {
-                    null
-                }
-            }
-            sheet.copy(cells = (outside + bordered).sortedWith(compareBy({ it.row }, { it.column })))
-        }
+        mutate { it.withBorders(range, kind) }
         editText = rawValueAt(anchor)
     }
 
@@ -2441,7 +2419,9 @@ private fun SheetMoreSheet(
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2571,32 +2551,6 @@ private fun StructureAction(
             .fillMaxWidth()
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(vertical = 14.dp),
-    )
-}
-
-/** The edges one cell of the selection carries for a border action. */
-private fun bordersFor(
-    kind: BorderKind,
-    row: Int,
-    column: Int,
-    range: CellRange,
-): CellBorders = when (kind) {
-    BorderKind.NONE -> CellBorders()
-    BorderKind.TOP -> CellBorders(top = BorderStyle.THIN)
-    BorderKind.BOTTOM -> CellBorders(bottom = BorderStyle.THIN)
-    BorderKind.LEFT -> CellBorders(left = BorderStyle.THIN)
-    BorderKind.RIGHT -> CellBorders(right = BorderStyle.THIN)
-    BorderKind.ALL -> CellBorders(
-        top = BorderStyle.THIN,
-        bottom = BorderStyle.THIN,
-        left = BorderStyle.THIN,
-        right = BorderStyle.THIN,
-    )
-    BorderKind.BOX -> CellBorders(
-        top = if (row == range.top) BorderStyle.THIN else BorderStyle.NONE,
-        bottom = if (row == range.bottom) BorderStyle.THIN else BorderStyle.NONE,
-        left = if (column == range.left) BorderStyle.THIN else BorderStyle.NONE,
-        right = if (column == range.right) BorderStyle.THIN else BorderStyle.NONE,
     )
 }
 
