@@ -643,6 +643,29 @@ fun EditorScreen(
         updateTargetParagraph { paragraph -> paragraph.copy(lineSpacingPercent = percent) }
     }
 
+    /**
+     * Moves the paragraph in or out by one step. A paragraph that carries no
+     * indent of its own starts from zero, so the first tap always moves it.
+     */
+    fun setIndent(deltaTwips: Int) {
+        val target = focusedTarget ?: return
+        updateTargetParagraph { paragraph ->
+            val current = paragraph.indentTwips ?: 0
+            paragraph.copy(indentTwips = (current + deltaTwips).coerceAtLeast(0))
+        }
+    }
+
+    /** Sets the space above and below the paragraph. */
+    fun setParagraphSpacing(beforeTwips: Int, afterTwips: Int) {
+        val target = focusedTarget ?: return
+        updateTargetParagraph { paragraph ->
+            paragraph.copy(
+                spacingBeforeTwips = beforeTwips,
+                spacingAfterTwips = afterTwips,
+            )
+        }
+    }
+
     fun toggleList(kind: ListKind) {
         val target = focusedTarget ?: return
         val ready = previewState.value as? DocxPreview.Ready ?: return
@@ -1163,6 +1186,8 @@ fun EditorScreen(
                         onColour = ::setColour,
                         onAlignment = ::setAlignment,
                         onLineSpacing = ::setLineSpacing,
+                        onIndent = ::setIndent,
+                        onSpacing = ::setParagraphSpacing,
                         onToggleList = ::toggleList,
                         onTogglePageBreak = ::togglePageBreak,
                         onDeleteParagraph = { focusedTarget?.let(::deleteParagraph) },
@@ -1395,6 +1420,8 @@ private fun FormattingBar(
     onColour: (Int?) -> Unit,
     onAlignment: (ParagraphAlignment) -> Unit,
     onLineSpacing: (Int?) -> Unit,
+    onIndent: (Int) -> Unit,
+    onSpacing: (Int, Int) -> Unit,
     onToggleList: (ListKind) -> Unit,
     onTogglePageBreak: () -> Unit,
     onDeleteParagraph: () -> Unit,
@@ -1453,6 +1480,8 @@ private fun FormattingBar(
                 enabled = enabled,
                 onPreset = onPreset,
                 onLineSpacing = onLineSpacing,
+                onIndent = onIndent,
+                onSpacing = onSpacing,
                 onToggleList = onToggleList,
                 onAlignment = onAlignment,
                 onTogglePageBreak = onTogglePageBreak,
@@ -1473,6 +1502,8 @@ private fun DocMoreMenu(
     enabled: Boolean,
     onPreset: (ParagraphPreset) -> Unit,
     onLineSpacing: (Int?) -> Unit,
+    onIndent: (Int) -> Unit,
+    onSpacing: (Int, Int) -> Unit,
     onToggleList: (ListKind) -> Unit,
     onAlignment: (ParagraphAlignment) -> Unit,
     onTogglePageBreak: () -> Unit,
@@ -1490,7 +1521,9 @@ private fun DocMoreMenu(
     if (open) {
         ModalBottomSheet(onDismissRequest = { open = false }) {
             Column(
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1526,6 +1559,43 @@ private fun DocMoreMenu(
                                 onClick = {
                                     open = false
                                     onLineSpacing(percent)
+                                },
+                                label = { Text(label) },
+                            )
+                        }
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Indent", style = MaterialTheme.typography.titleSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                open = false
+                                onIndent(-INDENT_STEP_TWIPS)
+                            },
+                            label = { Text("Decrease indent") },
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = {
+                                open = false
+                                onIndent(INDENT_STEP_TWIPS)
+                            },
+                            label = { Text("Increase indent") },
+                        )
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Paragraph spacing", style = MaterialTheme.typography.titleSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PARAGRAPH_SPACINGS.forEach { (label, before, after) ->
+                            FilterChip(
+                                selected = paragraph?.spacingBeforeTwips == before &&
+                                    paragraph?.spacingAfterTwips == after,
+                                onClick = {
+                                    open = false
+                                    onSpacing(before, after)
                                 },
                                 label = { Text(label) },
                             )
@@ -2575,6 +2645,16 @@ private fun HeaderFooterBand(
 }
 
 private const val TWIPS_PER_DP = 15
+
+/** One indent step, a quarter of an inch. */
+private const val INDENT_STEP_TWIPS = 360
+
+/** The space above and below a paragraph, in twips. */
+private val PARAGRAPH_SPACINGS: List<Triple<String, Int, Int>> = listOf(
+    Triple("Tight", 0, 0),
+    Triple("Normal", 120, 120),
+    Triple("Relaxed", 240, 240),
+)
 
 /** A typical list indent (0.5 inch) for lists that do not set their own. */
 private const val DEFAULT_LIST_INDENT_TWIPS = 720
