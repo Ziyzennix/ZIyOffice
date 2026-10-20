@@ -74,7 +74,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Viewer (page render, page list) | yes | | done |
 | Annotate (highlight, ink, notes) | yes | | done |
 | Merge / split / rotate / reorder | yes (paid) | | done |
-| Fill forms | yes (paid) | | — |
+| Fill forms | yes (paid) | Fill the fields and save the filled document | planned |
 | Digital signature (handwritten ink — drawn, not cryptographic) | yes (paid) | | done |
 | True redaction (content removed, not black boxes) | partial (paid) | | done |
 | Export progress + cancel, output verified non-empty and `%PDF` | no | | done |
@@ -90,7 +90,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Print via the system print service | yes | | done |
 | Shape/image editing on slides | yes | | planned — text edits preserve other parts |
 | Present mode + speaker notes | yes | | done |
-| Transitions / animations | yes | | — |
+| Transitions / animations | yes | Per-slide transitions and animations | planned |
 
 ## Privacy & freedom (the "beat WPS" list) — M5
 

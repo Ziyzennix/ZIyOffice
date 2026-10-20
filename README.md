@@ -96,14 +96,24 @@ CI runs the tests, the debug build, Android lint, and two guardrail scripts: one
 
 ## Roadmap
 
-0.5 is the current release. Next:
+0.5 is the current release. What is planned next, by area:
 
-- encrypted vault with biometric lock
-- offline OCR from images you pick
-- handwriting notes
-- slide shapes and images
-- PDF form filling
-- F-Droid reproducible builds
+**Sheets** - conditional formatting, cell notes, named ranges, sorting by more
+than one column, filters, and charts that are not bar charts.
+
+**Documents** - page numbers, footnotes, a table of contents, hyperlinks and
+spell check.
+
+**Slides** - images and shapes on a slide, title/content layouts, transitions
+and animations.
+
+**PDF** - filling forms, editing text on the page, page labels and stamps, and
+offline OCR of a picture you pick, so a scanned document becomes text you can
+search and copy.
+
+**Everywhere** - copy and paste between apps, reading and writing
+`.odt`/`.ods`/`.odp`, an encrypted vault with a biometric lock, handwriting
+notes, and F-Droid reproducible builds.
 
 ## Reporting bugs
 
