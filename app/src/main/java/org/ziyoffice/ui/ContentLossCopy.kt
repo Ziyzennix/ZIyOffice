@@ -3,12 +3,12 @@ package org.ziyoffice.ui
 import org.ziyoffice.ooxml.DroppedFeature
 
 /**
- * Copy for the "saving this file will drop content" warning.
+ * Copy for the "this save drops content" warning.
  *
- * The writers rebuild each package from ZiyOffice's model, so anything the
- * readers skip is gone after a save. That is an acceptable limitation for an
- * honest subset implementation; doing it silently is not. This text is shared by
- * Docs and Sheets and is unit-tested so the wording cannot drift into vagueness.
+ * The writers rebuild each package from the model, so anything the readers skip
+ * is gone after a save. That is a fair limitation for an honest subset
+ * implementation, but doing it silently is not. Shared by Docs and Sheets and
+ * unit-tested so the wording cannot drift into vagueness.
  */
 internal object ContentLossCopy {
 

@@ -9,19 +9,16 @@ import kotlin.math.roundToLong
 import kotlin.math.sqrt
 
 /**
- * The spreadsheet function library.
+ * The function library: aggregates, maths, text, logic, conditional counting,
+ * lookup, statistics, dates and information tests.
  *
- * Every function takes the arguments the parser produced and returns a
- * [CellValue]. Ranges are read through the [CellResolver], so a formula that
- * reaches a cell with an error reports that error instead of a made-up number.
- *
- * The set follows the everyday spreadsheet vocabulary: text handling, maths,
- * conditional counting, lookup, statistics, dates and information tests.
+ * Every function takes what the parser produced and returns a [CellValue].
+ * Ranges are read through the [CellResolver], so a formula that reaches a cell
+ * with an error reports that error instead of a made-up number.
  */
 internal object FormulaFunctions {
 
     fun apply(name: String, args: List<Operand>, resolver: CellResolver): CellValue = when (name) {
-        /* ----------------------------- aggregates ---------------------------- */
         "SUM" -> aggregate(args, resolver) { numbers -> CellValue.Number(numbers.sum()) }
         "AVERAGE" -> aggregate(args, resolver) { numbers ->
             if (numbers.isEmpty()) CellValue.Error("#DIV/0!") else CellValue.Number(numbers.average())
@@ -53,7 +50,6 @@ internal object FormulaFunctions {
         "SMALL" -> extreme(args, resolver, largest = false)
         "SUMPRODUCT" -> sumProduct(args, resolver)
 
-        /* ------------------------------ logical ------------------------------ */
         "IF" -> conditional(args, resolver)
         "IFERROR" -> ifError(args, resolver)
         "AND" -> logic(args, resolver, requireAll = true)
@@ -61,18 +57,15 @@ internal object FormulaFunctions {
         "NOT" -> not(args, resolver)
         "NA" -> CellValue.Error("#N/A")
 
-        /* ---------------------------- conditional ---------------------------- */
         "COUNTIF" -> countIf(args, resolver)
         "SUMIF" -> sumIf(args, resolver)
         "AVERAGEIF" -> averageIf(args, resolver)
 
-        /* ------------------------------ lookup ------------------------------- */
         "VLOOKUP" -> vlookup(args, resolver)
         "INDEX" -> index(args, resolver)
         "MATCH" -> match(args, resolver)
         "CHOOSE" -> choose(args, resolver)
 
-        /* -------------------------------- maths ------------------------------ */
         "ABS" -> singleNumber(args, resolver) { CellValue.Number(abs(it)) }
         "INT" -> singleNumber(args, resolver) { CellValue.Number(floor(it)) }
         "SIGN" -> singleNumber(args, resolver) { value ->
@@ -100,7 +93,6 @@ internal object FormulaFunctions {
         "FLOOR" -> stepped(args, resolver, up = false)
         "PI" -> CellValue.Number(Math.PI)
 
-        /* -------------------------------- text ------------------------------- */
         "LEN" -> singleText(args, resolver) { CellValue.Number(it.length.toDouble()) }
         "LEFT" -> edgeText(args, resolver, left = true)
         "RIGHT" -> edgeText(args, resolver, left = false)
@@ -119,7 +111,6 @@ internal object FormulaFunctions {
         "TEXT" -> text(args, resolver)
         "VALUE" -> value(args, resolver)
 
-        /* -------------------------------- dates ------------------------------ */
         "TODAY" -> CellValue.Number(dateTimeToSerial(LocalDateTime.now().toLocalDate().atStartOfDay()))
         "NOW" -> CellValue.Number(dateTimeToSerial(LocalDateTime.now()))
         "YEAR" -> datePart(args, resolver) { it.year }
@@ -130,7 +121,6 @@ internal object FormulaFunctions {
         "SECOND" -> datePart(args, resolver) { it.second }
         "DATE" -> date(args, resolver)
 
-        /* ----------------------------- information --------------------------- */
         "ISBLANK" -> information(args, resolver) { it is CellValue.Text && it.text.isEmpty() }
         "ISNUMBER" -> information(args, resolver) { it is CellValue.Number }
         "ISTEXT" -> information(args, resolver) { it is CellValue.Text }
@@ -139,8 +129,6 @@ internal object FormulaFunctions {
 
         else -> CellValue.Error("#NAME?")
     }
-
-    /* ------------------------------ helpers ------------------------------ */
 
     private enum class Rounding { ROUND, UP, DOWN }
 
@@ -684,8 +672,6 @@ internal object FormulaFunctions {
         if (args.size != 1) return CellValue.Error("#VALUE!")
         return CellValue.Bool(test(resolver.scalar(args[0])))
     }
-
-    /* ----------------------------- comparisons ---------------------------- */
 
     private fun equalValues(left: CellValue, right: CellValue): Boolean {
         val l = asNumber(left)

@@ -3,14 +3,12 @@ package org.ziyoffice.ui
 /**
  * Turns a read failure into something a person can act on.
  *
- * The raw message is whatever the platform or the format layer threw —
- * `SecurityException` text names an internal content-provider class and tells
- * the user to "obtain access using ACTION_OPEN_DOCUMENT or related APIs", which
- * is an instruction for a developer, not a reader. This maps the failures that
- * actually happen to one sentence each, and falls back to the raw message only
- * when it is genuinely informative.
+ * The raw message is whatever the platform threw, and it tends to be written for
+ * a developer ("obtain access using ACTION_OPEN_DOCUMENT or related APIs").
+ * This maps the failures that actually happen to one sentence each and falls
+ * back to the raw message only when it is genuinely informative.
  *
- * Unit-tested so the wording cannot silently drift back into stack-trace prose.
+ * Unit-tested so the wording cannot drift back into stack-trace prose.
  */
 internal object ReadFailureCopy {
 

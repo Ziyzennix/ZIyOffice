@@ -11,11 +11,11 @@ import org.ziyoffice.ui.PdfMark
 import org.ziyoffice.ui.bakeMarks
 
 /**
- * Reads a PDF using only the platform's [PdfRenderer] — no PDFium dependency, no
- * network. The renderer is the same engine Android itself uses for print preview,
- * so a document that renders here renders the way the system renders it.
+ * Reads a PDF using only the platform's [PdfRenderer]. No PDFium, no network.
+ * It is the same engine Android uses for print preview, so a file renders here
+ * the way the system renders it.
  *
- * The renderer holds an open file descriptor, so [close] must be called; the
+ * The renderer holds an open file descriptor, so [close] has to be called. The
  * viewer does that when the screen goes away.
  */
 class PdfDocument private constructor(

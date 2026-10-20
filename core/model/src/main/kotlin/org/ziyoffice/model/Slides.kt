@@ -3,10 +3,10 @@ package org.ziyoffice.model
 /**
  * A presentation: its slides in presentation order.
  *
- * The model is deliberately flat — text lines per slide — because that is what can
- * be edited without a full DrawingML renderer. The writer patches the text runs in
- * the original package, so themes, layouts, images, notes and animation survive an
- * edit untouched.
+ * The model is deliberately flat - text lines per slide - because that is what
+ * can be edited without a full DrawingML renderer. The writer patches the text
+ * runs in the original package, so themes, layouts, images, notes and animation
+ * survive an edit untouched.
  */
 data class SlideDeck(
     val slides: List<Slide>,

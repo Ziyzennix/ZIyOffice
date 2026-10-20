@@ -1,11 +1,11 @@
 package org.ziyoffice.export
 
 /**
- * Page breaks for the spreadsheet exporter, kept free of Android types so the
- * one property that matters — every row and every column printed exactly once —
- * is testable on the JVM.
+ * Page breaks for the sheet exporter, free of Android types so the one property
+ * that matters is testable on the JVM: every row and every column is printed
+ * exactly once.
  *
- * The exporter draws from these ranges; it never recomputes them, so a fix here
+ * The exporter draws from these ranges and never recomputes them, so a fix here
  * is a fix to what actually prints.
  */
 internal object SheetPagination {

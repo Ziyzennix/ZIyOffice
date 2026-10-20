@@ -18,9 +18,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
 
 /**
- * One user mark on a PDF page. Every coordinate is a fraction of the page
- * (0..1), so a mark made while zoomed out still lands in the right place when the
- * page is rendered at print resolution.
+ * One user mark on a PDF page. Coordinates are a fraction of the page (0..1), so
+ * a mark made while zoomed out still lands in the right place at print
+ * resolution.
  *
  * [doc] says which opened document the mark belongs to, so marks stay on their
  * page when pages are reordered or a second PDF is merged in.

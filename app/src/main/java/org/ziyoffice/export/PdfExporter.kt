@@ -31,15 +31,14 @@ import org.ziyoffice.model.Table
 import org.ziyoffice.ui.listMarker
 
 /**
- * Exports a [Document] to a real PDF using only the Android platform's
- * [PdfDocument] and text layout — no third-party code, no network.
+ * Exports a [Document] to a real PDF using only the platform's [PdfDocument]
+ * and text layout. No third-party code, no network.
  *
  * Fidelity is layout-based, not pixel-based: paragraphs flow onto A4 pages at
- * 72 dpi (text sizes in points match the document's), styled runs keep their
- * bold/italic/underline/size/colour, lists keep their resolved markers and
- * counters, page breaks are honoured, images scale to the text column, and
- * tables are drawn as a simple ruled grid. This is what most people actually
- * need from "export to PDF": something they can send straight from the phone.
+ * 72 dpi, styled runs keep their bold/italic/underline/size/colour, lists keep
+ * their resolved markers, page breaks are honoured, images scale to the text
+ * column and tables are drawn as a ruled grid. That is what most people mean by
+ * "export to PDF": something they can send straight from the phone.
  */
 object PdfExporter {
     /** Writes the rendered PDF; the caller owns the stream. */

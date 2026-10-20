@@ -15,17 +15,17 @@ import org.ziyoffice.model.columnName
 import org.ziyoffice.model.normaliseMerges
 
 /**
- * Writes the ZiyOffice [Workbook] model back into an `.xlsx` package using only
- * platform APIs. The counterpart of [XlsxReader].
+ * Writes the [Workbook] model back into an .xlsx package with platform APIs
+ * only. The counterpart of [XlsxReader].
  *
- * Emits a minimal, standards-valid package: content types, package and workbook
- * relationships, `xl/workbook.xml`, `xl/styles.xml`, and one worksheet part per
- * sheet. Values are written inline where possible: numbers as `<v>`, text as
- * inline strings (`t="inlineStr"`), formulas as `<f>` with a cached `<v>`.
+ * The package is minimal but standards-valid: content types, the package and
+ * workbook relationships, xl/workbook.xml, xl/styles.xml and one worksheet part
+ * per sheet. Values are written inline where possible: numbers as <v>, text as
+ * inline strings, formulas as <f> with a cached <v>.
  *
- * Cell formatting is flattened into direct `cellXfs` entries, so bold/italic/
- * underline/strike, size, colour, fill, alignment and number formats survive a
- * save/reopen round trip.
+ * Cell formatting is flattened into direct cellXfs entries, so bold, italic,
+ * underline, strike, size, colour, fill, borders, alignment and number formats
+ * all survive a round trip.
  */
 class XlsxWriter {
 
@@ -54,8 +54,6 @@ class XlsxWriter {
         }
         return out.toByteArray()
     }
-
-    /* ----------------------------- workbook ----------------------------- */
 
     private fun workbookXml(sheets: List<Sheet>, activeSheet: Int): String = buildString {
         append(XML_HEADER)
@@ -100,8 +98,6 @@ class XlsxWriter {
         }
         append("</Types>")
     }
-
-    /* ---------------------------- worksheet ---------------------------- */
 
     private fun sheetXml(sheet: Sheet, styles: StylePlan): String = buildString {
         val lastRow = maxOf(
@@ -252,8 +248,6 @@ class XlsxWriter {
         }
         append("</c>")
     }
-
-    /* ------------------------------ styles ------------------------------ */
 
     /** Deduplicated cell formats and their `cellXfs` indices. */
     private class StylePlan(

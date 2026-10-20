@@ -55,11 +55,8 @@ private enum class ZiyTab(val label: String) {
 }
 
 /**
- * Top-level app shell: a three-tab bottom navigation (Home / Files / Settings),
- * the layout users already know from commercial office apps — minus the accounts,
- * the cloud promos, the ads and the premium nags.
- *
- * About is still a pushed screen with a back button.
+ * App shell: three tabs (Home / Files / Settings) and the pushed screens behind
+ * them. About is a pushed screen with a back button.
  */
 @Composable
 fun ZiyOfficeApp(

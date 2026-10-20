@@ -10,11 +10,11 @@ import org.ziyoffice.model.Slide
 import org.ziyoffice.model.SlideDeck
 
 /**
- * Writes a [SlideDeck] back into a `.pptx` package.
+ * Writes a [SlideDeck] back into a .pptx package.
  *
- * [edit] patches slide text and notes in the original package. Other package parts
- * pass through unchanged, so unsupported layout, image and animation data survives.
- * [create] makes a minimal title-and-content deck for new presentations.
+ * [edit] patches slide text and notes in the original package; other parts pass
+ * through unchanged, so layout, image and animation data survives. [create]
+ * makes a minimal title-and-content deck for new presentations.
  */
 class PptxWriter {
 

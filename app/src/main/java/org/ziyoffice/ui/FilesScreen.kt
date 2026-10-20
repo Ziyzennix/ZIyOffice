@@ -34,12 +34,10 @@ import org.ziyoffice.model.RecentFile
 private val FILE_FILTERS = listOf("All", "Docs", "Sheets", "Slides", "PDF", "Other")
 
 /**
- * The "Files" tab: a category tab strip (the pattern WPS uses on its document list)
- * over the same local recents list. No permission banner is needed \u2014 ZiyOffice
- * only ever sees files the user has explicitly opened.
+ * The Files tab: a category strip over the same local recents list.
  *
- * The heading and the empty state both say "recent": this is not a scan of device
- * storage, and the only way to reach anything else is the system picker.
+ * The heading and the empty state both say "recent", because this is not a scan
+ * of device storage. The only way to anything else is the system picker.
  */
 @Composable
 fun FilesScreen(

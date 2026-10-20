@@ -4,9 +4,9 @@ package org.ziyoffice.model
  * Find and replace inside a sheet.
  *
  * A formula is searched through the text it quotes, never through its
- * references or function names: replacing a label inside `="Paper"` is safe,
- * replacing `SUM` in `=SUM(A1:A2)` would not be. Plain cells are searched as
- * they are shown.
+ * references or function names: replacing a label inside ="Paper" is safe,
+ * replacing SUM in =SUM(A1:A2) would not be. Plain cells are searched as they
+ * are shown.
  */
 
 /** A cell that contains the search term. */

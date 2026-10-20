@@ -85,8 +85,6 @@ class XlsxReader(
         return targets
     }
 
-    /* ---------------------------- container ---------------------------- */
-
     private fun readParts(input: InputStream): Map<String, ByteArray> {
         val parts = mutableMapOf<String, ByteArray>()
         var total = 0L
@@ -121,8 +119,6 @@ class XlsxReader(
         }
         return out.toByteArray()
     }
-
-    /* ---------------------------- workbook ---------------------------- */
 
     private data class SheetEntry(val name: String, val sheetId: String, val relId: String) {
         /** Last-resort part name when workbook.xml.rels is missing. */
@@ -163,8 +159,6 @@ class XlsxReader(
         return 0
     }
 
-    /* ------------------------- shared strings ------------------------- */
-
     private fun parseSharedStrings(bytes: ByteArray): List<String> {
         val parser = newParser()
         parser.setInput(ByteArrayInputStream(bytes), null)
@@ -190,8 +184,6 @@ class XlsxReader(
         }
         return strings
     }
-
-    /* ----------------------------- styles ----------------------------- */
 
     /** Indexed cell formats, resolved from `cellXfs` -> `fonts` / `fills` / `numFmts`. */
     private class StyleTable(val formats: List<CellFormat>) {
@@ -414,8 +406,6 @@ class XlsxReader(
         val value = attribute(parser, "val")
         return value == null || value == "1" || value.equals("true", ignoreCase = true)
     }
-
-    /* ---------------------------- worksheet ---------------------------- */
 
     private fun parseSheet(
         name: String,

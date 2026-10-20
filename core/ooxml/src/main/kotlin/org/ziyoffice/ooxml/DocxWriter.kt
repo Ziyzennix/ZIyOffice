@@ -17,20 +17,18 @@ import org.ziyoffice.model.Table
 import org.ziyoffice.model.VerticalMerge
 
 /**
- * Writes the ZiyOffice document model back into a `.docx` package, using only
- * platform APIs (`java.util.zip`). The counterpart of [DocxReader], and the
- * foundation of editing: read → edit → write → reopen keeps working.
+ * Writes the document model back into a .docx package with nothing but
+ * java.util.zip. The counterpart of [DocxReader], and the foundation of
+ * editing: read, edit, write, reopen keeps working.
  *
- * The writer emits a minimal, standards-valid package: content types, package
- * and document relationships, `word/document.xml`, a small `word/styles.xml`
- * with document defaults, and — only when needed — `word/numbering.xml`,
- * `word/header1.xml`, `word/footer1.xml` and `word/media/` entries.
+ * The package is minimal but standards-valid: content types, the package and
+ * document relationships, word/document.xml, a small word/styles.xml, and only
+ * when needed word/numbering.xml, word/header1.xml, word/footer1.xml and
+ * word/media entries.
  *
- * Deliberate simplification: the model stores *resolved* formatting, so styles
- * are flattened into direct formatting on save (every run and paragraph carries
- * its own `w:rPr` / `w:pPr`; no `w:pStyle` references are emitted). Content,
- * appearance, lists, tables and images all survive a save/reopen round trip;
- * style *names* do not. A future revision can add style-preserving patching.
+ * One deliberate simplification: the model stores resolved formatting, so styles
+ * are flattened into direct formatting on save. Content, appearance, lists,
+ * tables and images survive a round trip; style *names* do not.
  */
 class DocxWriter {
 

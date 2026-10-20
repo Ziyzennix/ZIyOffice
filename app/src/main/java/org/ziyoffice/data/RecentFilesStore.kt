@@ -10,11 +10,10 @@ import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.RecentFile
 
 /**
- * Local-only store for recently opened files and the persisted Storage Access
- * Framework grants behind them. Backed by SharedPreferences + JSON so M0 needs
- * zero extra dependencies; replaced by Room when the editor lands in M1.
+ * Recently opened files and the SAF grants behind them, in SharedPreferences
+ * plus JSON so M0 needs no extra dependency.
  *
- * Nothing in here is ever transmitted or backed up (android:allowBackup="false").
+ * Nothing here is ever transmitted, and android:allowBackup is off.
  */
 class RecentFilesStore(context: Context) {
 

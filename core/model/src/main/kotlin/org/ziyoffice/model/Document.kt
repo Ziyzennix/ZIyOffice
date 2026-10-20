@@ -1,11 +1,9 @@
 package org.ziyoffice.model
 
 /**
- * Platform-independent document model.
- *
- * Pure Kotlin (no Android classes) so it is unit-testable on the JVM and reusable
- * by future non-Android front-ends. Grows milestone by milestone: paragraphs and
- * styled runs, lists, and now tables; images and sections follow.
+ * The document model: paragraphs and styled runs, lists, tables, headers and
+ * footers. Pure Kotlin, so it is unit-testable on the JVM and reusable by
+ * another front end later.
  */
 data class Document(
     val blocks: List<Block>,

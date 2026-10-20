@@ -51,7 +51,6 @@ fun AboutScreen(onBack: () -> Unit) {
         else -> declaredPermissions.getOrDefault(emptyList()).joinToString(", ")
     }
 
-
     Scaffold(
         topBar = {
             TopAppBar(

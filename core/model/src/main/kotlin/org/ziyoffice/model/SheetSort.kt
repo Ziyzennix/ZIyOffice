@@ -1,15 +1,14 @@
 package org.ziyoffice.model
 
 /**
- * Sorting for a rectangular range of a sheet.
+ * Sorting a rectangular range of a sheet.
  *
- * The rules match what a spreadsheet user expects from "sort by column": blank
- * cells always sort last regardless of direction, numbers sort numerically, text
- * sorts case-insensitively, and formulas move with their row because the sort
- * reorders whole rows rather than rewriting cell contents.
+ * The rules are what a spreadsheet user expects from "sort by column": blanks
+ * always sort last, numbers sort numerically, text sorts case-insensitively,
+ * and formulas move with their row because whole rows are reordered.
  *
- * Formula references are deliberately *not* rewritten. Rewriting `=B1+C1` into
- * `=B7+C7` while the target rows move is the classic way spreadsheets corrupt
+ * Formula references are deliberately not rewritten. Rewriting =B1+C1 into
+ * =B7+C7 while the target rows move is the classic way spreadsheets corrupt
  * data; moving whole rows keeps every relative reference pointing at the same
  * neighbour it pointed at before.
  */

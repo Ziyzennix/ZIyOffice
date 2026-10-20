@@ -30,9 +30,9 @@ import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.RecentFile
 
 /**
- * A file row with a colour-coded type badge, shared by the Home and Files screens.
+ * A file row with a colour-coded type badge, shared by Home and Files.
  *
- * The row's two Text children already spell out the name and the type/size/date
+ * The row's text children already spell out the name and the type/size/date
  * line, but TalkBack would read them as two separate nodes. Collapsing the row
  * into one labelled node with Role.Button gives a single meaningful sentence.
  */

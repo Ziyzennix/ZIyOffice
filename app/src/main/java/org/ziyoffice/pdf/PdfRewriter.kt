@@ -8,15 +8,15 @@ import android.graphics.pdf.PdfRenderer
 import java.io.OutputStream
 
 /**
- * Page-level PDF operations built on the platform renderer and the platform PDF
- * writer — no PDF library, no network.
+ * Page-level PDF operations built on the platform renderer and writer. No PDF
+ * library, no network.
  *
- * Every operation re-renders pages and writes a fresh document, which has one
- * deliberate consequence: the output is raster. That is the right trade for this
- * app because it makes redaction *real* — the removed text is gone from the file,
- * not merely covered by a black rectangle that any editor can peel back. The cost
+ * Every operation re-renders pages into a fresh document, which has one
+ * deliberate consequence: the output is raster. That is the right trade here
+ * because it makes redaction real - the removed text is gone from the file
+ * instead of hidden under a black rectangle any editor can peel back. The cost
  * is that text in an edited file is no longer selectable, so operations that do
- * not need to rewrite a page (viewing) never touch the original.
+ * not rewrite a page never touch the original.
  */
 object PdfRewriter {
 

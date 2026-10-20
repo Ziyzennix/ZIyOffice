@@ -5,9 +5,9 @@ package org.ziyoffice.model
  * are taken into account.
  *
  * [row] and [column] are grid coordinates; [rowIndex] and [cellIndex] are the
- * position of the same cell inside [Table.rows], which is what [FocusPath]
- * addresses. Keeping both means the renderer can lay out a merged grid while the
- * editor still refers to cells the way the model stores them.
+ * same cell inside [Table.rows], which is what [FocusPath] addresses. Keeping
+ * both lets the renderer lay out a merged grid while the editor still refers to
+ * cells the way the model stores them.
  */
 data class PlacedCell(
     val row: Int,

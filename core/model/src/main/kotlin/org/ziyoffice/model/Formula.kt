@@ -3,14 +3,13 @@ package org.ziyoffice.model
 /**
  * Formula evaluation for ZiyOffice Sheets.
  *
- * Pure Kotlin, no Android classes — evaluates formula strings against a [Sheet]
- * and returns [CellValue] results. Supports cell references (A1, $A$1), ranges
- * (A1:B2), arithmetic (+, -, *, /, ^, &), comparisons (=, <>, <, >, <=, >=),
- * and the function library in [FormulaFunctions].
+ * Pure Kotlin, no Android classes. Evaluates a formula string against a [Sheet]
+ * and returns a [CellValue]. Handles references (A1, $A$1), ranges (A1:B2),
+ * arithmetic, comparisons and the function library in [FormulaFunctions].
  *
- * Parsing is recursive-descent over a token stream. Cell references are resolved
- * through a single [CellResolver] per evaluation, so circular references are
- * detected across nested formulas and reported as errors rather than looping.
+ * Parsing is recursive descent over a token stream. References resolve through a
+ * single [CellResolver] per evaluation, so a circular reference is reported as
+ * an error instead of looping.
  */
 
 /** Result of evaluating a formula cell: value plus any evaluation errors. */
@@ -55,8 +54,6 @@ fun columnName(index: Int): String {
     }
     return sb.reverse().toString()
 }
-
-/* ----------------------------- values ----------------------------- */
 
 /** A parsed operand: either one scalar or a rectangular range of cells. */
 internal sealed interface Operand {
@@ -192,8 +189,6 @@ internal fun truthy(value: CellValue): Boolean = when (value) {
 
 private fun bool(value: Boolean): CellValue = CellValue.Bool(value)
 
-/* ----------------------------- tokens ----------------------------- */
-
 private enum class TokenType {
     NUMBER,
     TEXT,
@@ -310,8 +305,6 @@ private fun tokenize(body: String): List<Token> {
     tokens += Token(TokenType.EOF, "", body.length)
     return tokens
 }
-
-/* ----------------------------- parser ----------------------------- */
 
 /**
  * Precedence, loosest to tightest:
@@ -525,8 +518,6 @@ private class Parser(
         if (col < 0 || row == null || row < 1) throw FormulaException("Bad cell reference '$lexeme'")
         return (row - 1) to col
     }
-
-    /* --------------------------- operations --------------------------- */
 
     private fun arithmetic(op: String, left: CellValue, right: CellValue): CellValue {
         // An error operand wins: `=#REF!+1` stays #REF! instead of becoming a

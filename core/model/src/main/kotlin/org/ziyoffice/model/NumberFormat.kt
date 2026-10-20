@@ -10,11 +10,11 @@ import kotlin.math.roundToLong
 /**
  * Excel-style number and date rendering for cell values.
  *
- * Patterns are the format codes found in a spreadsheet's `numFmt` entries, e.g.
- * `"0.00"`, `"#,##0"`, `"0%"`, `"#,##0.00;(#,##0.00)"` or `"m/d/yyyy"`.
- * Anything this renderer does not understand falls back to [generalNumber], which
- * is what a spreadsheet shows for an unformatted cell — never an error, never a
- * raw serial number pretending to be a date.
+ * The patterns are the format codes found in a spreadsheet's numFmt entries:
+ * "0.00", "#,##0", "0%", "m/d/yyyy" and friends. Anything this renderer does
+ * not understand falls back to [generalNumber], which is what a spreadsheet
+ * shows for an unformatted cell - never an error, never a raw serial number
+ * pretending to be a date.
  */
 
 /** Renders [value] the way a cell shows it without an explicit format. */
@@ -39,8 +39,6 @@ fun formatCellValue(value: CellValue, pattern: String?): String = when (value) {
     is CellValue.Bool -> if (value.value) "TRUE" else "FALSE"
     is CellValue.Error -> value.message
 }
-
-/* --------------------------------- dates ---------------------------------- */
 
 /**
  * True when [pattern] describes a date and/or time. Bracket sections (colour and
@@ -243,8 +241,6 @@ private fun stripBracketSections(pattern: String): String = buildString {
     }
 }
 
-/* ------------------------------ numeric codes ------------------------------ */
-
 /**
  * Renders the numeric subset of Excel format codes: `;`-separated sections,
  * thousands separators, fixed decimals, percentages and literal prefixes or
@@ -342,8 +338,6 @@ private fun groupThousands(digits: String): String {
     }
     return builder.toString()
 }
-
-/* -------------------------------- parsing --------------------------------- */
 
 private val DATE_INPUT_PATTERNS: List<DateTimeFormatter> = listOf(
     DateTimeFormatter.ofPattern("yyyy-MM-dd", Locale.US),

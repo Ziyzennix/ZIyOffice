@@ -3,10 +3,9 @@ package org.ziyoffice.model
 /**
  * Copy and paste between cells.
  *
- * A copied range is plain tab-separated text, the same shape every
- * spreadsheet puts on the clipboard, so a range can travel to another app and
- * back. A cell keeps its own text, so a formula that is copied and pasted
- * stays a formula.
+ * A copied range is plain tab-separated text, the shape every spreadsheet puts
+ * on the clipboard, so a range can travel to another app and back. A cell keeps
+ * its own text, so a copied formula stays a formula.
  */
 
 /** The values of [range] as tab-separated text, one line per row. */

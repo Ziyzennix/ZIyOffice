@@ -60,7 +60,7 @@ The PDF writer renders pages with `PdfRenderer` and rebuilds them with `PdfDocum
 
 ## Testing
 
-308 unit tests run on the JVM in CI, covering the document model, every format reader and writer, formula evaluation, number formatting, CSV, sheet sorting, row and column edits, borders, dropdown lists, find and replace, clipboard, page-range parsing, the save and exit decisions, and the accessibility copy. Around 24,000 lines of Kotlin, 19,000 of them app and library code.
+310 unit tests run on the JVM in CI, covering the document model, every format reader and writer, formula evaluation, number formatting, CSV, sheet sorting, row and column edits, borders, dropdown lists, find and replace, clipboard, page-range parsing, the save and exit decisions, and the accessibility copy. Around 23,600 lines of Kotlin, 19,100 of them app and library code.
 
 Format tests build packages in memory, read them back, and assert the round trip. The content-audit test audits a package, saves it through the real reader and writer, and audits again to confirm the warning was accurate.
 

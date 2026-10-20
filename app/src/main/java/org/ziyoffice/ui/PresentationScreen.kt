@@ -87,13 +87,13 @@ import org.ziyoffice.ooxml.PptxReader
 import org.ziyoffice.ooxml.PptxWriter
 
 /**
- * Presentation editor: a horizontal slide strip, a text editor for the selected
- * slide (title, body lines, speaker notes) and a full-screen present mode.
+ * Presentation editor: a slide strip, a text editor for the selected slide
+ * (title, body, speaker notes) and a full-screen present mode.
  *
  * The model edits text only, because the writer patches text in the original
- * package: layouts, images, themes and animation survive an edit untouched but
- * are not editable here. The strip is honest about that — it shows the text a
- * slide carries, not a broken imitation of its artwork.
+ * package. Layouts, images, themes and animation survive an edit untouched but
+ * are not editable here, and the strip is honest about that: it shows the text
+ * a slide carries, not a broken imitation of its artwork.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

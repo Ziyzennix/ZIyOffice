@@ -25,21 +25,19 @@ import org.ziyoffice.model.rowHeight
 /**
  * Exports a [Workbook] to a paginated PDF using only the platform's [PdfDocument].
  *
- * Each sheet starts on a new page. Only the rectangle that actually holds data is
- * printed — a sheet with four used columns does not produce a hundred empty
- * pages — with column letters and a fixed row-number gutter, the way a
- * spreadsheet prints. Values are the same computed strings the grid shows, so a
- * formula prints its result, not `=SUM(A1:A9)`. Explicit column widths and row
- * heights scale onto the page while staying proportional to each other.
+ * Each sheet starts on a new page, and only the rectangle that holds data is
+ * printed. Column letters and a row-number gutter make it look like a
+ * spreadsheet. Values are the strings the grid shows, so a formula prints its
+ * result, not `=SUM(A1:A9)`. Custom column widths and row heights scale onto
+ * the page and stay proportional to each other.
  *
  * The page shows what the grid shows: the cell fill, the faint line every cell
  * carries, the borders the format asks for, the text colour and the alignment.
  * A bordered table that loses its borders in the PDF is not a faithful export.
  *
- * A sheet too wide or too long for one page continues onto further pages with
- * the column header repeated and every row printed exactly once. Nothing is
- * truncated to make the page fit: an export that silently dropped rows would be
- * worse than no export at all.
+ * A sheet too wide or too long continues onto further pages with the column
+ * header repeated and every row printed exactly once. Nothing is truncated to
+ * make a page fit; dropping rows silently would be worse than no export.
  */
 object SheetExporter {
 
@@ -77,7 +75,6 @@ object SheetExporter {
             val boldCellPaint = TextPaint(cellPaint).apply {
                 typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             }
-            // The faint line under the column headers and around every cell.
             val gridPaint = Paint().apply {
                 color = 0xFFC4CCC8.toInt()
                 strokeWidth = 0.5f

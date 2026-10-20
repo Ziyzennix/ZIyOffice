@@ -162,10 +162,9 @@ import org.ziyoffice.ooxml.DocxWriter
 import org.ziyoffice.ooxml.DroppedFeature
 
 /**
- * The editor: reads the document with the ZiyOffice OOXML layer, renders it with
- * styles/lists/tables/images, and — with the pencil toggle — lets the user edit
- * paragraph text and formatting, then save the whole document back in place as a
- * real `.docx` (own writer, no third-party code).
+ * The document editor: reads the file with the OOXML layer, renders styles,
+ * lists, tables and images, and - with the pencil on - lets the user edit text
+ * and formatting, then saves the whole document back as a real .docx.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

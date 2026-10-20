@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 /**
  * MIME types ZiyOffice offers in the system file picker.
  *
- * The picker is a Storage Access Framework flow: the user chooses a real file
- * in a real folder, and the app receives a revocable grant — no broad storage
- * permissions, no access to anything the user did not explicitly pick.
+ * The picker is a Storage Access Framework flow: the user picks a real file in
+ * a real folder and the app gets a revocable grant. No broad storage
+ * permission, no access to anything the user did not explicitly pick.
  */
 private val SUPPORTED_MIME_TYPES = arrayOf(
     "application/pdf",

@@ -3,10 +3,9 @@ package org.ziyoffice.pdf
 /**
  * Turns the text a user types into the page range to extract.
  *
- * Split needs the same range syntax people already know from print dialogs, and
- * it must be impossible to get a range that silently means something else — a
- * typo should be rejected, not clamped into "all pages". Kept free of Android
- * types so the parsing is unit-testable.
+ * The syntax is the one people already know from print dialogs, and a range
+ * that could mean something else is rejected rather than clamped: a typo should
+ * not quietly become "all pages".
  */
 internal object PageRange {
 

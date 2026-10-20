@@ -1,12 +1,10 @@
 package org.ziyoffice.model
 
 /**
- * A list of allowed values for a range of cells.
+ * The dropdown a table cell offers: a list of allowed values for a range.
  *
- * A validation is the dropdown a table cell offers: the sheet keeps the
- * choices, and the editor shows them when the cell is edited. Only a plain
- * list of values is modelled — a rule that points at another range is read
- * but not kept.
+ * Only a plain list is modelled. A rule that points at another range is read
+ * but not kept, and the content audit says so.
  */
 data class DataValidation(
     val range: CellRange,

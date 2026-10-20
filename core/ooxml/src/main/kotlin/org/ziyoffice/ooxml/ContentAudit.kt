@@ -159,8 +159,6 @@ object ContentAudit {
         return features
     }
 
-    /* ------------------------------ scanning ------------------------------ */
-
     private class Scan(val names: List<String>, val parts: Map<String, ByteArray>)
 
     /**

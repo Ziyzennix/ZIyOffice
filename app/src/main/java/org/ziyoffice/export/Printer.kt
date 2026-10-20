@@ -14,15 +14,10 @@ import java.io.ByteArrayOutputStream
 /**
  * Prints any ZiyOffice document through Android's own print service.
  *
- * No permission is involved: the app renders the pages into a PDF in memory and
- * hands the bytes to [PrintManager], so the system print dialog shows a real
- * preview and the user chooses printer or "Save as PDF". This is the same
- * offline path as export — nothing leaves the device unless the user picks a
- * printer that is not the local PDF writer.
- *
- * The PDF is produced by the existing exporters, so what prints is exactly what
- * export produces: the document's own layout, the deck's text pages, or the
- * sheet's computed values.
+ * No permission is involved: the pages are rendered into a PDF in memory and the
+ * bytes go to [PrintManager], so the system dialog shows a real preview and the
+ * user picks a printer or "Save as PDF". Same offline path as export, so what
+ * prints is what export produces.
  */
 object Printer {
 

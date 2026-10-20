@@ -1,11 +1,10 @@
 package org.ziyoffice.model
 
 /**
- * A rectangular block of cells, with 0-based inclusive edges.
+ * A rectangular block of cells, 0-based inclusive edges.
  *
- * Used for merged cells in a sheet. The constructor never trusts a file: a range
- * with its bottom above its top (or right left of left) is normalised by [of]
- * before it reaches the model.
+ * The constructor never trusts a file: a range with its bottom above its top
+ * is normalised by [of] before it reaches the model.
  */
 data class CellRange(
     val top: Int,

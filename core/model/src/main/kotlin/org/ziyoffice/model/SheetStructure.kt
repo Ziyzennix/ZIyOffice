@@ -3,11 +3,11 @@ package org.ziyoffice.model
 /**
  * Whole-row and whole-column edits.
  *
- * These are structural operations, not selections: every cell below or to the
- * right moves, merged ranges grow or shrink, sizing follows its axis, and
- * formulas are rewritten so they keep pointing at the same data. Deleting a
- * referenced row or column produces `#REF!`, matching spreadsheet convention.
- * Cached formula results are cleared because the sheet behind them changed.
+ * These move the sheet around: cells below or to the right shift, merged ranges
+ * grow or shrink, sizing follows its axis, and formulas are rewritten so they
+ * keep pointing at the same data. Deleting a referenced row or column gives
+ * #REF!, the way every spreadsheet does it. Cached results are cleared because
+ * the sheet behind them changed.
  */
 
 fun Sheet.insertRows(at: Int, count: Int): Sheet {
@@ -141,8 +141,6 @@ fun Sheet.deleteColumns(at: Int, count: Int): Sheet {
     )
 }
 
-/* ------------------------- formula rewriting ------------------------- */
-
 private fun Cell.rewriteFormulaForStructure(transform: (String) -> String): Cell =
     if (value.startsWith("=")) copy(value = transform(value), cached = null) else this
 
@@ -218,8 +216,6 @@ private fun renderFormulaReference(
     end: FormulaReference,
     isRange: Boolean,
 ): String = if (isRange) "${start.render()}:${end.render()}" else start.render()
-
-/* ------------------------------ sizing ------------------------------ */
 
 private fun List<ColumnWidth>.insertColumns(
     at: Int,
