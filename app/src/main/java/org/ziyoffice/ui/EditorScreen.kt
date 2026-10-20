@@ -125,6 +125,10 @@ import org.ziyoffice.data.DraftStore
 import org.ziyoffice.data.RecentFilesStore
 import org.ziyoffice.model.Block
 import org.ziyoffice.model.Document
+import org.ziyoffice.model.blocksIn
+import org.ziyoffice.model.withParagraphRemovedAt
+import org.ziyoffice.model.withParagraphAddedAfter
+import org.ziyoffice.model.DocumentRegion
 import org.ziyoffice.model.FocusPath
 import org.ziyoffice.model.mapParagraphAt
 import org.ziyoffice.model.formatRange
@@ -651,62 +655,32 @@ fun EditorScreen(
      * so a list keeps numbering and typing continues seamlessly.
      */
     fun splitParagraph(path: FocusPath, before: String, after: String) {
-        if (path.cellRow == null) {
-            val index = path.blockIndex
-            val ready = previewState.value as? DocxPreview.Ready ?: return
-            val paragraph = ready.document.blocks.getOrNull(index) as? Paragraph ?: return
-            updateDocument { document ->
-                val blocks = document.blocks.toMutableList()
-                blocks[index] = paragraph.withText(before)
-                blocks.add(index + 1, paragraph.withText(after).copy(images = emptyList()))
-                document.copy(blocks = blocks)
-            }
-            focusedTarget = FocusPath(index + 1)
-        } else {
-            val cellRow = path.cellRow
-            val cellCol = path.cellColumn ?: return
-            val ready = previewState.value as? DocxPreview.Ready ?: return
-            val paragraph = ready.document.paragraphAt(path) ?: return
-            updateDocument { doc ->
-                doc.copy(
-                    blocks = doc.blocks.mapIndexed { bIdx, b ->
-                        if (bIdx == path.blockIndex && b is Table) {
-                            b.copy(
-                                rows = b.rows.mapIndexed { rIdx, r ->
-                                    if (rIdx == cellRow) {
-                                        r.copy(
-                                            cells = r.cells.mapIndexed { cIdx, c ->
-                                                if (cIdx == cellCol) {
-                                                    val newBlocks = c.blocks.toMutableList()
-                                                    newBlocks[path.cellParagraph] = paragraph.withText(before)
-                                                    newBlocks.add(
-                                                        path.cellParagraph + 1,
-                                                        paragraph.withText(after).copy(images = emptyList()),
-                                                    )
-                                                    c.copy(blocks = newBlocks)
-                                                } else c
-                                            }
-                                        )
-                                    } else r
-                                }
-                            )
-                        } else b
-                    }
+        val ready = previewState.value as? DocxPreview.Ready ?: return
+        val paragraph = ready.document.paragraphAt(path) ?: return
+        updateDocument { document ->
+            document
+                .mapParagraphAt(path) { it.withText(before) }
+                .withParagraphAddedAfter(
+                    path,
+                    paragraph.withText(after).copy(images = emptyList()),
                 )
-            }
-            focusedTarget = FocusPath(path.blockIndex, cellRow, cellCol, path.cellParagraph + 1)
         }
+        // The caret follows the new paragraph, wherever it was created.
+        focusedTarget = path.copy(
+            blockIndex = if (path.cellRow == null) path.blockIndex + 1 else path.blockIndex,
+            cellParagraph = if (path.cellRow == null) path.cellParagraph else path.cellParagraph + 1,
+        )
     }
 
-    fun deleteParagraph(index: Int) {
+    /**
+     * Removes the focused paragraph. A body, header or footer keeps at least one
+     * paragraph, so deleting the last one leaves an empty paragraph behind —
+     * which is what every word processor does.
+     */
+    fun deleteParagraph(path: FocusPath) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
-        if (ready.document.blocks.getOrNull(index) !is Paragraph) return
-        updateDocument { document ->
-            val blocks = document.blocks.toMutableList()
-            blocks.removeAt(index)
-            if (blocks.isEmpty()) blocks += Paragraph()
-            document.copy(blocks = blocks)
-        }
+        if (ready.document.paragraphAt(path) == null) return
+        updateDocument { document -> document.withParagraphRemovedAt(path) }
         focusedTarget = null
     }
 
@@ -809,6 +783,27 @@ fun EditorScreen(
             document.copy(blocks = document.blocks + Paragraph())
         }
         focusedTarget = FocusPath(newIndex)
+    }
+
+    /**
+     * Gives the document a header (or footer) with an empty paragraph, and puts
+     * the caret in it so typing starts immediately. Word requires at least one
+     * paragraph per header part, so the empty one is not padding — it is the
+     * minimum valid content.
+     */
+    fun addHeaderFooter(region: DocumentRegion) {
+        val ready = previewState.value as? DocxPreview.Ready ?: return
+        if (ready.document.blocksIn(region) != null) return
+        updateDocument { document ->
+            val blocks = listOf<Block>(Paragraph())
+            when (region) {
+                DocumentRegion.BODY -> document.copy(blocks = blocks)
+                DocumentRegion.HEADER -> document.copy(header = blocks)
+                DocumentRegion.FOOTER -> document.copy(footer = blocks)
+            }
+        }
+        editing = true
+        focusedTarget = FocusPath(0, region = region)
     }
 
     fun togglePageBreak() {
@@ -1104,6 +1099,26 @@ fun EditorScreen(
                                             showInsertTable = true
                                         },
                                     )
+                                    // A document with no header has no band to tap,
+                                    // so the only way to get one is from here.
+                                    if ((preview as? DocxPreview.Ready)?.document?.header.isNullOrEmpty()) {
+                                        DropdownMenuItem(
+                                            text = { Text("Add header") },
+                                            onClick = {
+                                                menuExpanded = false
+                                                addHeaderFooter(DocumentRegion.HEADER)
+                                            },
+                                        )
+                                    }
+                                    if ((preview as? DocxPreview.Ready)?.document?.footer.isNullOrEmpty()) {
+                                        DropdownMenuItem(
+                                            text = { Text("Add footer") },
+                                            onClick = {
+                                                menuExpanded = false
+                                                addHeaderFooter(DocumentRegion.FOOTER)
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1143,7 +1158,7 @@ fun EditorScreen(
                         onLineSpacing = ::setLineSpacing,
                         onToggleList = ::toggleList,
                         onTogglePageBreak = ::togglePageBreak,
-                        onDeleteParagraph = { focusedTarget?.blockIndex?.let(::deleteParagraph) },
+                        onDeleteParagraph = { focusedTarget?.let(::deleteParagraph) },
                     )
                 }
             }
@@ -1716,7 +1731,19 @@ private fun DocxPage(
                         color = Color(0xFF8A8F8B),
                     )
                     preview.document.header?.takeIf { it.isNotEmpty() }?.let { header ->
-                        HeaderFooterBand("Header", header, preview.images)
+                        HeaderFooterBand(
+                            label = "Header",
+                            region = DocumentRegion.HEADER,
+                            blocks = header,
+                            bitmaps = preview.images,
+                            editing = editing,
+                            focusedTarget = focusedTarget,
+                            onFocusTarget = onFocusTarget,
+                            onTextChange = onTextChange,
+                            onSelectionChange = onSelectionChange,
+                            onSplitParagraph = onSplitParagraph,
+                            findQuery = findQuery,
+                        )
                     }
                     if (preview.document.blocks.isEmpty()) {
                         Text(
@@ -1779,9 +1806,21 @@ private fun DocxPage(
                                 AddParagraphButton(onClick = onAddParagraphAtEnd)
                             }
                         }
-                        preview.document.footer?.takeIf { it.isNotEmpty() }?.let { footer ->
-                            HeaderFooterBand("Footer", footer, preview.images)
-                        }
+                    }
+                    preview.document.footer?.takeIf { it.isNotEmpty() }?.let { footer ->
+                        HeaderFooterBand(
+                            label = "Footer",
+                            region = DocumentRegion.FOOTER,
+                            blocks = footer,
+                            bitmaps = preview.images,
+                            editing = editing,
+                            focusedTarget = focusedTarget,
+                            onFocusTarget = onFocusTarget,
+                            onTextChange = onTextChange,
+                            onSelectionChange = onSelectionChange,
+                            onSplitParagraph = onSplitParagraph,
+                            findQuery = findQuery,
+                        )
                     }
                 }
             }
@@ -2349,8 +2388,16 @@ private fun TableBlock(
 @Composable
 private fun HeaderFooterBand(
     label: String,
+    region: DocumentRegion,
     blocks: List<Block>,
     bitmaps: Map<InlineImage, ImageBitmap?>,
+    editing: Boolean,
+    focusedTarget: FocusPath?,
+    onFocusTarget: (FocusPath) -> Unit,
+    onTextChange: (FocusPath, String) -> Unit,
+    onSelectionChange: (TextRange) -> Unit,
+    onSplitParagraph: (FocusPath, String, String) -> Unit,
+    findQuery: String = "",
 ) {
     val counters = remember(blocks) { mutableMapOf<Pair<Int, Int>, Int>() }
     Surface(
@@ -2364,15 +2411,33 @@ private fun HeaderFooterBand(
                 style = MaterialTheme.typography.labelSmall,
                 color = Color(0xFF8A8F8B),
             )
-            blocks.forEach { block ->
+            blocks.forEachIndexed { index, block ->
                 when (block) {
-                    is Paragraph -> ParagraphLine(
-                        line = block.toDisplayLine(
+                    is Paragraph -> {
+                        val path = FocusPath(index, region = region)
+                        val line = block.toDisplayLine(
                             counters = counters,
                             bitmaps = bitmaps,
                             defaultSpacingTwips = 0,
-                        ),
-                    )
+                            searchQuery = findQuery,
+                        )
+                        if (editing) {
+                            EditableParagraph(
+                                paragraph = block,
+                                line = line,
+                                isFocused = focusedTarget == path,
+                                onFocus = { onFocusTarget(path) },
+                                onTextChange = { text -> onTextChange(path, text) },
+                                onSelectionChange = onSelectionChange,
+                                onSplitParagraph = { before, after ->
+                                    onSplitParagraph(path, before, after)
+                                },
+                                findQuery = findQuery,
+                            )
+                        } else {
+                            ParagraphLine(line = line, onClick = { onFocusTarget(path) })
+                        }
+                    }
                     is Table -> Text(
                         "Table in $label \u2014 not shown here",
                         style = MaterialTheme.typography.bodySmall,

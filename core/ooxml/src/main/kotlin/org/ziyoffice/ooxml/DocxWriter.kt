@@ -22,8 +22,8 @@ import org.ziyoffice.model.Table
  *
  * The writer emits a minimal, standards-valid package: content types, package
  * and document relationships, `word/document.xml`, a small `word/styles.xml`
- * with document defaults, and — only when needed — `word/numbering.xml` and
- * `word/media/` entries.
+ * with document defaults, and — only when needed — `word/numbering.xml`,
+ * `word/header1.xml`, `word/footer1.xml` and `word/media/` entries.
  *
  * Deliberate simplification: the model stores *resolved* formatting, so styles
  * are flattened into direct formatting on save (every run and paragraph carries

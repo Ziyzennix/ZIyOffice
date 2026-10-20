@@ -36,10 +36,11 @@ const val WORDPROCESSINGML_NAMESPACE =
  *    chains, resolved onto each run (run-level formatting always wins);
  *    table styles are inspected for borders
  *  - numbering.xml: `num` → `abstractNum` → level number formats and starts
+ *  - header/footer parts: the default variant of each section, including their
+ *    own images. First-page and even-page variants are not modelled.
  *
  * Unsupported content is skipped, never faked. Known gaps (tracked in the plan):
- * images, headers/footers, vertical cell merges, numbering inherited from
- * styles, paragraph spacing, real tab stops.
+ * vertical cell merges, numbering inherited from styles, real tab stops.
  *
  * [newParser] exists so tests can supply the JVM-side parser; production code
  * uses the platform factory.

@@ -39,7 +39,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
 | Print via the system print service | yes | | done |
-| Headers/footers | yes | Shown above and below the body, and kept by a save. Not editable yet; a document with first-page or even-page variants loses those variants (warned) | in progress |
+| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. A document using first-page or even-page variants loses those variants (warned) | done |
 | Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Not editable — and **removed by a save** (warned) | — |
 | Equations, SmartArt | partial | | — |
 | Mail merge | yes | | — |
