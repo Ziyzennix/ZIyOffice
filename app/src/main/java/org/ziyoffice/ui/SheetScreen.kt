@@ -2322,6 +2322,28 @@ private fun prefixSums(values: List<Int>): IntArray {
     return sums
 }
 
+/**
+ * The colour a cell's text is drawn in.
+ *
+ * A cell with a light fill needs dark text: the dark theme's on-surface is
+ * near-white, so a pale fill would swallow the text. An explicit font colour
+ * always wins, the way it does in the PDF export.
+ */
+@Composable
+private fun cellTextColour(format: CellFormat): Color {
+    format.colorRgb?.let { return Color(0xFF000000.toInt() or it) }
+    val fill = format.fillRgb ?: return MaterialTheme.colorScheme.onSurface
+    return if (isLightColour(fill)) Color(0xFF191C1B.toInt()) else MaterialTheme.colorScheme.onSurface
+}
+
+/** True when a colour is light enough that dark text reads better on it. */
+internal fun isLightColour(rgb: Int): Boolean {
+    val red = (rgb shr 16) and 0xFF
+    val green = (rgb shr 8) and 0xFF
+    val blue = rgb and 0xFF
+    return (0.299 * red + 0.587 * green + 0.114 * blue) > 140
+}
+
 @Composable
 private fun SheetCell(
     row: Int,
@@ -2461,8 +2483,7 @@ private fun SheetCell(
                 fontWeight = if (format.bold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (format.italic) FontStyle.Italic else FontStyle.Normal,
                 textDecoration = decoration,
-                color = format.colorRgb?.let { Color(0xFF000000.toInt() or it) }
-                    ?: MaterialTheme.colorScheme.onSurface,
+                color = cellTextColour(format),
                 textAlign = when (format.alignment) {
                     CellAlignment.CENTER -> TextAlign.Center
                     CellAlignment.RIGHT -> TextAlign.End
