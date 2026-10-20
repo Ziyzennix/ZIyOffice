@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -137,10 +138,14 @@ import org.ziyoffice.model.cellPlacements
 import org.ziyoffice.model.chartPointsFrom
 import org.ziyoffice.model.columnName
 import org.ziyoffice.model.columnWidth
+import org.ziyoffice.model.deleteColumns
+import org.ziyoffice.model.deleteRows
 import org.ziyoffice.model.evaluateFormula
 import org.ziyoffice.model.formatCellValue
 import org.ziyoffice.model.formatNumber
 import org.ziyoffice.model.generalNumber
+import org.ziyoffice.model.insertColumns
+import org.ziyoffice.model.insertRows
 import org.ziyoffice.model.isDateFormat
 import org.ziyoffice.model.mergeAt
 import org.ziyoffice.model.parseCsv
@@ -180,6 +185,10 @@ private fun rangeLabel(range: CellRange): String {
     if (range.rowSpan == 1 && range.columnSpan == 1) return start
     return "$start:${columnName(range.right)}${range.bottom + 1}"
 }
+
+/** "1 row", "3 rows", for snackbars and bottom-sheet actions. */
+private fun countLabel(count: Int, singular: String): String =
+    "$count $singular" + if (count == 1) "" else "s"
 
 private val CELL_WIDTH = 76.dp
 private val CELL_HEIGHT = 40.dp
@@ -264,6 +273,7 @@ fun SheetScreen(
     var menuExpanded by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
     var showChart by remember { mutableStateOf(false) }
+    var showStructure by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
     var sizeTarget by remember { mutableStateOf<SizeTarget?>(null) }
     var sizeValueText by remember { mutableStateOf("") }
@@ -621,6 +631,103 @@ fun SheetScreen(
         editText = rawValueAt(selection)
     }
 
+    /** Moves the selection after a structural edit and keeps it on a real cell. */
+    fun settleAfterStructure(sheet: Sheet, pos: CellPos) {
+        selection = anchorAt(sheet, clampToSheet(sheet, pos))
+        selectionEnd = null
+        editText = rawValueAt(selection)
+    }
+
+    fun insertSelectedRows(above: Boolean) {
+        if (editingCell) commitEdit()
+        val before = currentSheet() ?: return
+        val range = selectedRange()
+        val count = range.rowSpan
+        val at = if (above) range.top else range.bottom + 1
+        val after = before.insertRows(at, count)
+        if (after == before) {
+            showStructure = false
+            scope.launch { snackbarHostState.showSnackbar("There is no room to insert more rows") }
+            return
+        }
+        mutate { it.insertRows(at, count) }
+        settleAfterStructure(after, CellPos(at, range.left))
+        showStructure = false
+        val inserted = after.rowCount - before.rowCount
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                "Inserted ${countLabel(inserted, "row")} " +
+                    if (above) "above row ${at + 1}" else "below row ${at}",
+            )
+        }
+    }
+
+    fun deleteSelectedRows() {
+        if (editingCell) commitEdit()
+        val before = currentSheet() ?: return
+        val range = selectedRange()
+        if (range.rowSpan >= before.rowCount) {
+            showStructure = false
+            scope.launch {
+                snackbarHostState.showSnackbar("A sheet keeps at least one row; clear the cells instead")
+            }
+            return
+        }
+        val after = before.deleteRows(range.top, range.rowSpan)
+        if (after == before) return
+        mutate { it.deleteRows(range.top, range.rowSpan) }
+        settleAfterStructure(after, CellPos(range.top, range.left))
+        showStructure = false
+        scope.launch {
+            snackbarHostState.showSnackbar("Deleted ${countLabel(range.rowSpan, "row")}")
+        }
+    }
+
+    fun insertSelectedColumns(left: Boolean) {
+        if (editingCell) commitEdit()
+        val before = currentSheet() ?: return
+        val range = selectedRange()
+        val count = range.columnSpan
+        val at = if (left) range.left else range.right + 1
+        val after = before.insertColumns(at, count)
+        if (after == before) {
+            showStructure = false
+            scope.launch { snackbarHostState.showSnackbar("There is no room to insert more columns") }
+            return
+        }
+        mutate { it.insertColumns(at, count) }
+        settleAfterStructure(after, CellPos(range.top, at))
+        showStructure = false
+        val inserted = after.columnCount - before.columnCount
+        scope.launch {
+            snackbarHostState.showSnackbar(
+                "Inserted ${countLabel(inserted, "column")} " +
+                    if (left) "to the left of ${columnName(at)}" else "to the right of ${columnName(at - 1)}",
+            )
+        }
+    }
+
+    fun deleteSelectedColumns() {
+        if (editingCell) commitEdit()
+        val before = currentSheet() ?: return
+        val range = selectedRange()
+        if (range.columnSpan >= before.columnCount) {
+            showStructure = false
+            scope.launch {
+                snackbarHostState.showSnackbar("A sheet keeps at least one column; clear the cells instead")
+            }
+            return
+        }
+        val after = before.deleteColumns(range.left, range.columnSpan)
+        if (after == before) return
+        mutate { it.deleteColumns(range.left, range.columnSpan) }
+        settleAfterStructure(after, CellPos(range.top, range.left))
+        showStructure = false
+        scope.launch {
+            snackbarHostState.showSnackbar("Deleted ${countLabel(range.columnSpan, "column")}")
+        }
+    }
+
     /**
      * Sorts every used row of the active sheet by the column the cursor is in.
      * The whole used block moves, so rows keep their cells together.
@@ -750,6 +857,8 @@ fun SheetScreen(
         redoStack = (redoStack + current).takeLast(UNDO_LIMIT)
         workbook = previous
         activeSheet = previous.activeSheet.coerceIn(0, (previous.sheets.size - 1).coerceAtLeast(0))
+        val restored = previous.sheets.getOrNull(activeSheet)
+        if (restored != null) selection = anchorAt(restored, clampToSheet(restored, selection))
         selectionEnd = null
         editingCell = false
         editText = rawValueAt(selection)
@@ -765,6 +874,8 @@ fun SheetScreen(
         undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
         workbook = next
         activeSheet = next.activeSheet.coerceIn(0, (next.sheets.size - 1).coerceAtLeast(0))
+        val restored = next.sheets.getOrNull(activeSheet)
+        if (restored != null) selection = anchorAt(restored, clampToSheet(restored, selection))
         selectionEnd = null
         editingCell = false
         editText = rawValueAt(selection)
@@ -1150,6 +1261,69 @@ fun SheetScreen(
         )
     }
 
+    if (showStructure) {
+        val structureSheet = currentSheet()
+        if (structureSheet != null) {
+            val range = selectedRange()
+            val rows = countLabel(range.rowSpan, "row")
+            val columns = countLabel(range.columnSpan, "column")
+            ModalBottomSheet(onDismissRequest = { showStructure = false }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+                ) {
+                    Text(
+                        "Rows and columns",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                    Text(
+                        "${rangeLabel(range)} \u00B7 $rows \u00D7 $columns",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    Text(
+                        "Rows",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    StructureAction("Insert $rows above") { insertSelectedRows(above = true) }
+                    StructureAction("Insert $rows below") { insertSelectedRows(above = false) }
+                    StructureAction(
+                        label = "Delete $rows",
+                        destructive = true,
+                        enabled = range.rowSpan < structureSheet.rowCount,
+                        onClick = ::deleteSelectedRows,
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp))
+                    Text(
+                        "Columns",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    StructureAction("Insert $columns to the left") { insertSelectedColumns(left = true) }
+                    StructureAction("Insert $columns to the right") { insertSelectedColumns(left = false) }
+                    StructureAction(
+                        label = "Delete $columns",
+                        destructive = true,
+                        enabled = range.columnSpan < structureSheet.columnCount,
+                        onClick = ::deleteSelectedColumns,
+                    )
+                    Text(
+                        "Cells move with the edit. Merged ranges, sizes and formula references adjust; " +
+                            "a deleted reference becomes #REF!.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
+                }
+            }
+        }
+    }
+
     if (showChart) {
         // Commit first, in the event handler that opened the sheet — not here.
         // The body below runs on every recomposition while the sheet is open, and
@@ -1262,6 +1436,14 @@ fun SheetScreen(
                                     menuExpanded = false
                                     renameText = currentSheet()?.name.orEmpty()
                                     showRename = true
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Rows and columns\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (editingCell) commitEdit()
+                                    showStructure = true
                                 },
                             )
                             DropdownMenuItem(
@@ -2069,6 +2251,28 @@ private fun SheetMoreSheet(
             }
         }
     }
+}
+
+@Composable
+private fun StructureAction(
+    label: String,
+    destructive: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.bodyLarge,
+        color = when {
+            !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            destructive -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.onSurface
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(vertical = 14.dp),
+    )
 }
 
 @Composable

@@ -20,7 +20,7 @@ Version 0.5 is early development — expect bugs. If something breaks,
 
 ZiyOffice also appears in Android's "Open with" and share sheets for these formats, so a document attached to a mail or chat message opens straight in the editor. A file shared that way usually arrives with a one-shot grant that Android will not let an app keep, so it opens for the session without joining the recent list — "Save as copy" is how you keep the result.
 
-Documents support bold, italic, underline and strikethrough, font size and colour, headings, lists, alignment, line spacing, page breaks, tables with addable rows and columns, inserted pictures, find and replace, word count, undo and redo, and PDF export. Spreadsheets support arithmetic, cell references, ranges, `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `IF` and `VLOOKUP`, number and date formats, frozen rows, sorting, merged cells with range selection, adjustable column widths and row heights, charts from a column, and CSV import and export. Slides keep slide text, adding, deleting and reordering slides, speaker notes, a present mode, and PDF export; images and shapes on a slide are preserved untouched but cannot be edited yet. PDF work includes highlighting, freehand ink, text notes, a drawn signature, rotation, reordering and deletion of pages, merging pages from another file, page-range split, and redaction that removes the content underneath rather than covering it. Printing goes through Android's print service with no permission needed.
+Documents support bold, italic, underline and strikethrough, font size and colour, headings, lists, alignment, line spacing, page breaks, tables with addable rows and columns, inserted pictures, find and replace, word count, undo and redo, and PDF export. Spreadsheets support arithmetic, cell references, ranges, `SUM`, `AVERAGE`, `COUNT`, `MIN`, `MAX`, `IF` and `VLOOKUP`, number and date formats, frozen rows, sorting, merged cells with range selection, adjustable column widths and row heights, inserting and deleting rows and columns, charts from a column, and CSV import and export. Slides keep slide text, adding, deleting and reordering slides, speaker notes, a present mode, and PDF export; images and shapes on a slide are preserved untouched but cannot be edited yet. PDF work includes highlighting, freehand ink, text notes, a drawn signature, rotation, reordering and deletion of pages, merging pages from another file, page-range split, and redaction that removes the content underneath rather than covering it. Printing goes through Android's print service with no permission needed.
 
 ## Privacy
 
@@ -60,11 +60,11 @@ The PDF writer renders pages with `PdfRenderer` and rebuilds them with `PdfDocum
 
 ## Testing
 
-243 unit tests run on the JVM in CI, covering the document model, every format reader and writer, formula evaluation, number formatting, CSV, sheet sorting, page-range parsing, the save and exit decisions, and the accessibility copy. Around 17,600 lines of Kotlin.
+273 unit tests run on the JVM in CI, covering the document model, every format reader and writer, formula evaluation, number formatting, CSV, sheet sorting and row/column edits, page-range parsing, the save and exit decisions, and the accessibility copy. Around 21,700 lines of Kotlin, 17,300 of them app and library code.
 
 Format tests build packages in memory, read them back, and assert the round trip. The content-audit test audits a package, saves it through the real reader and writer, and audits again to confirm the warning was accurate.
 
-There is no instrumented test suite yet, so device behaviour is checked by hand. Version 0.5 was checked on a 360 dp Android 14 phone: content-loss warnings, sheet PDF export across two pages, print preview, and the editors at their narrowest width.
+There is no instrumented test suite yet, so device behaviour is checked by hand. Version 0.5 was checked on a 360 dp Android 14 phone: content-loss warnings, sheet PDF export across two pages, print preview, the editors at their narrowest width, and inserting and deleting sheet rows and columns with their formulas, merges and sizes following along.
 
 ## Build
 

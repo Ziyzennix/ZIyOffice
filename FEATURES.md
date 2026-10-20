@@ -55,6 +55,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Freeze panes, sorting | yes | | done |
 | Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |
 | Column widths and row heights | yes | Resize the selected columns or rows; read and write `.xlsx` `<col>` widths and row `ht` | done |
+| Insert and delete rows and columns | yes | Insert above/below or left/right and delete from the selected range; cells, merged ranges, sizes, the freeze line and formula references follow the edit, and a deleted reference becomes `#REF!` | done |
 | Charts (bar, from a column) | yes | | done |
 | Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths and heights are honoured | done |
 | Print via the system print service | yes | | done |

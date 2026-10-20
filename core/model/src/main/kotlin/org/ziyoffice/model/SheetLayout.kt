@@ -29,6 +29,9 @@ const val MAX_ROW_HEIGHT_POINTS = 409f
 /** XFD, the last column an `.xlsx` worksheet can address. */
 const val MAX_SHEET_COLUMNS = 16_384
 
+/** The last row an `.xlsx` worksheet can address. */
+const val MAX_SHEET_ROWS = 1_048_576
+
 /** The explicit width for [column], or the worksheet default. */
 fun Sheet.columnWidth(column: Int): Float =
     columnWidths.lastOrNull { it.covers(column) }?.width ?: DEFAULT_COLUMN_WIDTH_CHARS
