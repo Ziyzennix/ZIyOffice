@@ -163,12 +163,15 @@ import org.ziyoffice.model.replaceText
 import org.ziyoffice.model.rowBands
 import org.ziyoffice.model.rowHeight
 import org.ziyoffice.model.tsvOf
+import org.ziyoffice.model.validationAt
 import org.ziyoffice.model.withBorders
 import org.ziyoffice.model.withColumnWidth
 import org.ziyoffice.model.withMergedRange
 import org.ziyoffice.model.withMergesClearedIn
 import org.ziyoffice.model.withPastedText
 import org.ziyoffice.model.withRowHeight
+import org.ziyoffice.model.withValidation
+import org.ziyoffice.model.withValidationCleared
 import org.ziyoffice.model.writeCsv
 import org.ziyoffice.export.Printer
 import org.ziyoffice.export.SheetExporter
@@ -300,6 +303,8 @@ fun SheetScreen(
     var findReplacement by remember { mutableStateOf("") }
     var findMatchCase by remember { mutableStateOf(false) }
     var findCursor by remember { mutableStateOf(0) }
+    var showListDialog by remember { mutableStateOf(false) }
+    var listChoicesText by remember { mutableStateOf("") }
     // The row the grid should bring into view, set when a match is selected.
     var scrollTargetRow by remember { mutableStateOf<Int?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -881,6 +886,29 @@ fun SheetScreen(
         scope.launch { snackbarHostState.showSnackbar("Pasted into ${rangeLabel(selectedRange())}") }
     }
 
+    /** Opens the dropdown editor for the selected range. */
+    fun openListDialog() {
+        val current = currentSheet() ?: return
+        val range = selectedRange()
+        val existing = current.validationAt(range.top, range.left)
+        listChoicesText = existing?.values?.joinToString(", ").orEmpty()
+        showListDialog = true
+    }
+
+    fun applyListDialog() {
+        val range = selectedRange()
+        val values = listChoicesText.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        mutate { it.withValidation(range, values) }
+        showListDialog = false
+        editText = rawValueAt(selection)
+    }
+
+    fun clearListDialog() {
+        val range = selectedRange()
+        mutate { it.withValidationCleared(range) }
+        showListDialog = false
+    }
+
     /**
      * Sorts every used row of the active sheet by the column the cursor is in.
      * The whole used block moves, so rows keep their cells together.
@@ -1414,6 +1442,39 @@ fun SheetScreen(
         )
     }
 
+    if (showListDialog) {
+        val range = selectedRange()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showListDialog = false },
+            title = { Text("Dropdown choices") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextField(
+                        value = listChoicesText,
+                        onValueChange = { listChoicesText = it },
+                        singleLine = true,
+                        label = { Text("Choices") },
+                    )
+                    Text(
+                        "Applies to ${rangeLabel(range)}. The cell offers these values " +
+                            "when it is edited.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = ::applyListDialog) { Text("Apply") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = ::clearListDialog) { Text("Clear") }
+                    TextButton(onClick = { showListDialog = false }) { Text("Cancel") }
+                }
+            },
+        )
+    }
+
     if (showFind) {
         ModalBottomSheet(onDismissRequest = { showFind = false }) {
             Column(
@@ -1692,6 +1753,13 @@ fun SheetScreen(
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("Dropdown choices\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    openListDialog()
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Column width\u2026") },
                                 onClick = {
                                     menuExpanded = false
@@ -1849,6 +1917,36 @@ fun SheetScreen(
                 },
 
             )
+
+            // A cell with a dropdown offers its choices right under the
+            // formula bar, so a value is one tap away.
+            val choices = sheet?.validationAt(selection.row, selection.column)?.values.orEmpty()
+            if (choices.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    choices.forEach { choice ->
+                        FilterChip(
+                            selected = editText == choice,
+                            onClick = {
+                                if (editingCell) {
+                                    editText = choice
+                                    commitEdit()
+                                } else {
+                                    writeCell(selection, choice)
+                                }
+                                runCatching { gridFocus.requestFocus() }
+                            },
+                            label = { Text(choice) },
+                        )
+                    }
+                }
+            }
 
             when {
                 loadError != null -> CenteredNotice(

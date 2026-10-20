@@ -188,6 +188,23 @@ class XlsxWriter {
             }
             append("</mergeCells>")
         }
+        // Validations come after the merges in the schema. Only a plain list of
+        // values is written, which is what the model holds.
+        val validations = sheet.validations.filter { it.values.isNotEmpty() }
+        if (validations.isNotEmpty()) {
+            append("<dataValidations count=\"").append(validations.size).append("\">")
+            validations.forEach { validation ->
+                append("<dataValidation type=\"list\" allowBlank=\"1\" showInputMessage=\"0\"")
+                append(" showErrorMessage=\"1\" sqref=\"")
+                append(columnName(validation.range.left)).append(validation.range.top + 1)
+                append(':')
+                append(columnName(validation.range.right)).append(validation.range.bottom + 1)
+                append("\"><formula1>\"")
+                append(escapeAttribute(validation.values.joinToString(",")))
+                append("\"</formula1></dataValidation>")
+            }
+            append("</dataValidations>")
+        }
         append("</worksheet>")
     }
 

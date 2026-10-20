@@ -127,12 +127,18 @@ object ContentAudit {
             val xml = part.decodeToString()
             listOf(
                 "conditionalFormatting" to "Conditional formatting",
-                "dataValidation" to "Data validation",
                 "autoFilter" to "Auto filters",
                 "sheetProtection" to "Sheet protection",
             ).forEach { (tag, label) ->
                 val count = countTag(xml, tag)
                 if (count > 0) sheetTags[label] = (sheetTags[label] ?: 0) + count
+            }
+            // A validation that is a plain list of values is kept by a save, so
+            // only the rules the model cannot hold are worth a warning.
+            val droppedValidations = countDroppedValidations(xml)
+            if (droppedValidations > 0) {
+                sheetTags["Data validation"] =
+                    (sheetTags["Data validation"] ?: 0) + droppedValidations
             }
             // Hidden rows and columns are attributes, not elements; a save
             // rebuilds them as visible because the model has no hidden flag.
@@ -240,9 +246,25 @@ object ContentAudit {
         }
     }
 
+    /**
+     * Validations a save would lose: everything that is not a plain list of
+     * values, such as a rule that points at another range.
+     */
+    private fun countDroppedValidations(xml: String): Int {
+        val total = countTag(xml, "dataValidation")
+        if (total == 0) return 0
+        val kept = PRESERVED_VALIDATION.findAll(xml).count()
+        return (total - kept).coerceAtLeast(0)
+    }
+
     /** `hidden="1"`/`hidden="true"` on a `<row>` or `<col>`. */
     private val HIDDEN_ATTRIBUTE =
         Regex("""\bhidden\s*=\s*["'](?:1|true)["']""", RegexOption.IGNORE_CASE)
+
+    /** A validation that is a plain list of values, which a save keeps. */
+    private val PRESERVED_VALIDATION = Regex(
+        """<dataValidation\b[^>]*\btype\s*=\s*"list"[^>]*>\s*<formula1>"[^"]*"</formula1>\s*</dataValidation>""",
+    )
 
     private const val DOCUMENT_PART = "word/document.xml"
     private const val COMMENTS_PART = "word/comments.xml"

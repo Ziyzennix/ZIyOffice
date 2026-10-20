@@ -13,6 +13,7 @@ import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.ColumnWidth
+import org.ziyoffice.model.DataValidation
 import org.ziyoffice.model.MAX_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.MIN_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.Sheet
@@ -426,6 +427,7 @@ class XlsxReader(
         val mergedRanges = mutableListOf<CellRange>()
         val columnWidths = mutableListOf<ColumnWidth>()
         val rowHeights = mutableMapOf<Int, Float>()
+        val validations = mutableListOf<DataValidation>()
         var rowCount = 0
         var columnCount = 0
         var frozenRows = 0
@@ -443,6 +445,10 @@ class XlsxReader(
         var formula: StringBuilder? = null
         var inValue = false
         var inFormula = false
+        var validationRef: String? = null
+        var validationType: String? = null
+        var validationFormula: StringBuilder? = null
+        var inValidationFormula = false
 
         var event = parser.eventType
         while (event != XmlPullParser.END_DOCUMENT) {
@@ -454,6 +460,11 @@ class XlsxReader(
             }
             if (event == XmlPullParser.TEXT && inFormula) {
                 formula?.append(parser.text)
+                event = parser.next()
+                continue
+            }
+            if (event == XmlPullParser.TEXT && inValidationFormula) {
+                validationFormula?.append(parser.text)
                 event = parser.next()
                 continue
             }
@@ -487,6 +498,46 @@ class XlsxReader(
                                 }
                             }
                         }
+                    }
+                    event == XmlPullParser.START_TAG && parser.name == "dataValidation" -> {
+                        validationRef = attribute(parser, "sqref")
+                        validationType = attribute(parser, "type")
+                        validationFormula = null
+                    }
+                    event == XmlPullParser.START_TAG && parser.name == "formula1" -> {
+                        inValidationFormula = true
+                        validationFormula = StringBuilder()
+                    }
+                    event == XmlPullParser.END_TAG && parser.name == "formula1" ->
+                        inValidationFormula = false
+                    event == XmlPullParser.END_TAG && parser.name == "dataValidation" -> {
+                        val range = validationRef
+                            ?.split(" ")
+                            ?.firstOrNull()
+                            ?.let(CellRange::parse)
+                        val text = validationFormula?.toString().orEmpty()
+                        // Only a plain list of values survives; a rule that points
+                        // at another range is read but not kept.
+                        if (
+                            validationType == "list" &&
+                            range != null &&
+                            text.length >= 2 &&
+                            text.startsWith("\"") &&
+                            text.endsWith("\"")
+                        ) {
+                            val values = text.substring(1, text.length - 1)
+                                .split(",")
+                                .map { it.trim() }
+                                .filter { it.isNotEmpty() }
+                            if (values.isNotEmpty()) {
+                                validations += DataValidation(range, values)
+                                rowCount = maxOf(rowCount, range.bottom + 1)
+                                columnCount = maxOf(columnCount, range.right + 1)
+                            }
+                        }
+                        validationRef = null
+                        validationType = null
+                        validationFormula = null
                     }
                     event == XmlPullParser.START_TAG && parser.name == "mergeCell" -> {
                         val range = attribute(parser, "ref")?.let(CellRange::parse)
@@ -550,6 +601,7 @@ class XlsxReader(
             mergedRanges = mergedRanges.normaliseMerges(),
             columnWidths = columnWidths.normaliseColumnWidths(),
             rowHeights = rowHeights,
+            validations = validations,
         )
     }
 

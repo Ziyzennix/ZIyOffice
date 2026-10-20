@@ -107,6 +107,27 @@ class ContentAuditTest {
     }
 
     @Test
+    fun xlsxKeepsPlainListValidationsAndWarnsAboutTheRest() {
+        val packageBytes = zip(
+            mapOf(
+                "xl/worksheets/sheet1.xml" to
+                    "<worksheet><sheetData/>" +
+                    "<dataValidations>" +
+                    "<dataValidation type=\"list\" sqref=\"A1:A5\">" +
+                    "<formula1>\"Open,Done\"</formula1></dataValidation>" +
+                    "<dataValidation type=\"list\" sqref=\"B1:B5\">" +
+                    "<formula1>Lists!\$A\$1:\$A\$3</formula1></dataValidation>" +
+                    "</dataValidations></worksheet>",
+            ),
+        )
+
+        assertEquals(
+            listOf("Data validation" to 1),
+            ContentAudit.xlsx(packageBytes).map { it.label to it.count },
+        )
+    }
+
+    @Test
     fun xlsxReportsHiddenRowsAndColumnsThatASaveWouldReveal() {
         val packageBytes = zip(
             mapOf(

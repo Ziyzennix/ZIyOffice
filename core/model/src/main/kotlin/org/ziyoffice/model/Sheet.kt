@@ -64,6 +64,8 @@ data class Sheet(
     val columnWidths: List<ColumnWidth> = emptyList(),
     /** Explicit row heights in points; missing rows use [DEFAULT_ROW_HEIGHT_POINTS]. */
     val rowHeights: Map<Int, Float> = emptyMap(),
+    /** Dropdowns offered for a range of cells. */
+    val validations: List<DataValidation> = emptyList(),
 )
 
 data class Workbook(

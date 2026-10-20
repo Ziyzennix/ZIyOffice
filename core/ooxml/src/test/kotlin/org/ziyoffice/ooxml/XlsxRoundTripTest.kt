@@ -13,6 +13,7 @@ import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.CellValue
 import org.ziyoffice.model.ColumnWidth
+import org.ziyoffice.model.DataValidation
 import org.ziyoffice.model.DEFAULT_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
@@ -112,6 +113,26 @@ class XlsxRoundTripTest {
             CellBorders(left = BorderStyle.DASHED, right = BorderStyle.DOTTED),
             out.cellAt(1, 0)?.format?.borders,
         )
+    }
+
+    @Test
+    fun dropdownChoicesSurviveRoundTrip() {
+        val sheet = Sheet(
+            name = "Lists",
+            cells = listOf(Cell(row = 0, column = 0, value = "Open")),
+            rowCount = 10,
+            columnCount = 6,
+            validations = listOf(
+                DataValidation(CellRange(0, 0, 3, 0), listOf("Open", "Done")),
+            ),
+        )
+
+        val bytes = XlsxWriter().write(Workbook(listOf(sheet)))
+        val out = reader().read(ByteArrayInputStream(bytes)).sheets.single()
+
+        assertEquals(1, out.validations.size)
+        assertEquals(listOf("Open", "Done"), out.validations.single().values)
+        assertEquals(CellRange(0, 0, 3, 0), out.validations.single().range)
     }
 
     @Test
