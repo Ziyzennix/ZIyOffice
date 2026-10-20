@@ -41,7 +41,7 @@ Not implemented yet: encrypted vault, OCR, handwriting notes, slide shapes and i
 
 ## Install
 
-Download the APK from [Releases](https://github.com/Ziyzennix/ZiyOffice/releases) and open it on your phone. Android asks you to allow installing from this source. Requires Android 8.0 (API 26) or newer. The release APK is about 1.6 MB.
+Download the APK from [Releases](https://github.com/Ziyzennix/ZiyOffice/releases) and open it on your phone. Android asks you to allow installing from this source. Requires Android 8.0 (API 26) or newer. The release APK is about 1.8 MB.
 
 ## How it is built
 

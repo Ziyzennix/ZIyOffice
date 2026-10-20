@@ -1,9 +1,9 @@
 # ZiyOffice Accessibility Audit — Punch List
 
-**Status (2026-10-20):** items 1–10, 12–15 below are addressed in code; item 11
-(HomeScreen.kt CreateTile icon Surface ≥48 dp) still needs a code change. The device
-checks in "Still needs a device" are outstanding. This document is kept as the audit
-record, so the findings are preserved verbatim below the status note.
+**Status (2026-10-21):** items 1–15 below are addressed in code, item 11 included:
+the create tile's icon surface is 48 dp. The device checks in "Still needs a device"
+are outstanding. This document is kept as the audit record, so the findings are
+preserved verbatim below the status note.
 
 **Addressed:** recent rows / template rows / create tiles / About row are labelled `Role.Button` nodes with ≥48 dp targets (1, 2, 3, 4); KindBadge minimum touch target raised to 48 dp (10); sheet tabs announce name + selection with `Role.Tab` (5, 8); slide thumbnails announce position/title/selection (6); fill and font-colour swatches have distinct spoken names plus a selection state (7, 9); Docs and Sheets format toggles expose On/Off state instead of relying on tint (15); list markers use a minimum width so large font scales do not clip them (12); `contentDescription` was removed from the search and formula fields because on an editable node it suppresses read-back (see "Corrections to this audit"); document text style no longer hardcodes 11.sp so system font scale is respected (12); recent-row file names no longer ellipsis-clipped (14); slide titles and body previews no longer ellipsis-clipped in slide cards (14).
 
