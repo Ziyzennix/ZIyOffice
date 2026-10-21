@@ -3,6 +3,98 @@ package org.ziyoffice.model
 fun List<Run>.textLength(): Int =
     sumOf { it.text.length }
 
+/**
+ * Replaces the characters in [start, end) with [replacement].
+ *
+ * Text outside the range keeps its own formatting. The replacement takes the
+ * formatting of the run the range starts in, which is what an editor does when
+ * you type over a selection.
+ */
+fun Paragraph.replaceRange(start: Int, end: Int, replacement: String): Paragraph {
+    val total = runs.textLength()
+    if (total == 0) {
+        return if (replacement.isEmpty()) this else copy(runs = listOf(Run(replacement)))
+    }
+    val from = start.coerceIn(0, total)
+    val to = end.coerceIn(from, total)
+    if (from == to && replacement.isEmpty()) return this
+
+    val head = mutableListOf<Run>()
+    val tail = mutableListOf<Run>()
+    var before: Run? = null
+    var after: Run? = null
+    var overlap: Run? = null
+    var offset = 0
+
+    for (run in runs) {
+        if (run.text.isEmpty()) continue
+        val runStart = offset
+        val runEnd = offset + run.text.length
+        offset = runEnd
+        when {
+            runEnd <= from -> head += run
+            runStart >= to -> tail += run
+            else -> {
+                if (overlap == null) overlap = run
+                val keepBefore = from - runStart
+                if (keepBefore > 0) before = run.copy(text = run.text.substring(0, keepBefore))
+                val keepAfter = runEnd - to
+                if (keepAfter > 0) {
+                    after = run.copy(text = run.text.substring(run.text.length - keepAfter))
+                }
+            }
+        }
+    }
+
+    val template = overlap ?: head.lastOrNull() ?: runs.firstOrNull() ?: Run("")
+    val result = mutableListOf<Run>()
+    result += head
+    if (before != null) result += before
+    if (replacement.isNotEmpty()) result += template.copy(text = replacement)
+    if (after != null) result += after
+    result += tail
+    return copy(runs = mergeRuns(result))
+}
+
+/**
+ * Replaces the paragraph's text with [text], leaving the formatting of
+ * everything the change did not touch alone.
+ *
+ * The edit is worked out by comparing the old text with the new one: whatever
+ * they share at the start and at the end stays, and only the middle is
+ * replaced. Typing at the end of a bold word therefore leaves the word bold
+ * instead of flattening the paragraph onto its first run.
+ */
+fun Paragraph.applyText(text: String): Paragraph {
+    val old = runs.joinToString("") { it.text }
+    if (old == text) return this
+    val limit = minOf(old.length, text.length)
+    var prefix = 0
+    while (prefix < limit && old[prefix] == text[prefix]) prefix++
+    var suffix = 0
+    while (suffix < limit - prefix &&
+        old[old.length - 1 - suffix] == text[text.length - 1 - suffix]
+    ) {
+        suffix++
+    }
+    return replaceRange(prefix, old.length - suffix, text.substring(prefix, text.length - suffix))
+}
+
+/** Joins runs that ended up with the same formatting. */
+private fun mergeRuns(runs: List<Run>): List<Run> {
+    val result = mutableListOf<Run>()
+    for (run in runs) {
+        if (run.text.isEmpty()) continue
+        val last = result.lastOrNull()
+        if (last != null && last.hasSameFormattingAs(run)) {
+            result[result.lastIndex] = last.copy(text = last.text + run.text)
+        } else {
+            result += run
+        }
+    }
+    return result
+}
+
 fun List<Run>.formatRange(range: IntRange, transform: (Run) -> Run): List<Run> {
     val start = range.first
     val end = range.last
@@ -129,14 +221,6 @@ fun List<Run>.replaceAll(
 
     return resultRuns to matchStarts.size
 }
-
-private fun Run.hasSameFormattingAs(other: Run): Boolean =
-    bold == other.bold &&
-        italic == other.italic &&
-        underline == other.underline &&
-        strike == other.strike &&
-        sizePt == other.sizePt &&
-        colorRgb == other.colorRgb
 
 data class TextMatch(val path: FocusPath, val start: Int, val end: Int)
 

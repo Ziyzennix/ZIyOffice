@@ -71,16 +71,16 @@ data class Table(
 
 data class TableRow(
     val cells: List<TableCell>,
-    /** `w:tblHeader` — a repeating header row. */
+    /** `w:tblHeader`, a repeating header row. */
     val header: Boolean = false,
 )
 
 data class TableCell(
     /** Cell content blocks (paragraphs; nested tables are legal OOXML). */
     val blocks: List<Block>,
-    /** `w:gridSpan` — how many grid columns this cell spans. */
+    /** `w:gridSpan`, how many grid columns this cell spans. */
     val columnSpan: Int = 1,
-    /** `w:vMerge` — whether this cell starts, continues or ignores a vertical merge. */
+    /** `w:vMerge`, whether this cell starts, continues or ignores a vertical merge. */
     val verticalMerge: VerticalMerge = VerticalMerge.NONE,
 )
 
@@ -129,5 +129,14 @@ data class Run(
     /** Text colour as 0xRRGGBB; null when the document uses automatic colour. */
     val colorRgb: Int? = null,
 )
+
+/** True when two runs would look the same on the page. */
+fun Run.hasSameFormattingAs(other: Run): Boolean =
+    bold == other.bold &&
+        italic == other.italic &&
+        underline == other.underline &&
+        strike == other.strike &&
+        sizePt == other.sizePt &&
+        colorRgb == other.colorRgb
 
 enum class ParagraphAlignment { START, CENTER, END, JUSTIFY }
