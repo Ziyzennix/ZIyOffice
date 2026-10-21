@@ -176,9 +176,13 @@ import org.ziyoffice.model.writeCsv
 import org.ziyoffice.export.Printer
 import org.ziyoffice.export.SheetExporter
 import org.ziyoffice.ooxml.ContentAudit
-import org.ziyoffice.ooxml.DroppedFeature
+import org.ziyoffice.ooxml.XlsxEditor
+import org.ziyoffice.ooxml.PackageKind
+import org.ziyoffice.ooxml.XlsxSource
+import org.ziyoffice.ooxml.PreservedFeature
 import org.ziyoffice.ooxml.XlsxReader
 import org.ziyoffice.ooxml.XlsxWriter
+import org.ziyoffice.saf.SafeWrite
 import org.ziyoffice.saf.XLSX_MIME_TYPE
 
 /** A 0-based cell address inside the active sheet. */
@@ -353,7 +357,32 @@ fun SheetScreen(
     // Content-loss gate, same contract as the Docs editor: the writer rebuilds
     // the workbook from the model, so parts it cannot reproduce are announced
     // before the first save rather than discovered afterwards.
-    var droppedFeatures by remember(file.uri) { mutableStateOf(emptyList<DroppedFeature>()) }
+    var droppedFeatures by remember(file.uri) { mutableStateOf(emptyList<PreservedFeature>()) }
+    /**
+     * The package the workbook was opened from.
+     *
+     * Saving writes the edited workbook back into this package, so the charts,
+     * images, comments, filters and protections the workbook carries survive
+     * the save instead of being rebuilt away.
+     */
+    var sourcePackage by remember(file.uri) { mutableStateOf<XlsxSource?>(null) }
+
+    /**
+     * The bytes to write for [current].
+     *
+     * A workbook that came from a package is written back into that package,
+     * so everything the editor cannot edit survives. A workbook ZiyOffice
+     * created has no package behind it and is written from scratch.
+     */
+    fun workbookBytes(current: Workbook): ByteArray {
+        if (isCsv(file.displayName)) {
+            return writeCsv(current.sheets[activeSheet]).encodeToByteArray()
+        }
+        val target = current.copy(activeSheet = activeSheet)
+        val source = sourcePackage
+        return if (source != null) XlsxEditor(source).save(target) else XlsxWriter().write(target)
+    }
+
     var showLossWarning by remember(file.uri) { mutableStateOf(false) }
     var lossAccepted by remember(file.uri) { mutableStateOf(false) }
     var pendingAfterLoss by remember(file.uri) { mutableStateOf<(() -> Unit)?>(null) }
@@ -373,6 +402,14 @@ fun SheetScreen(
         }
     }
 
+    /** What the file turned out to hold. */
+    data class Loaded(
+        val workbook: Workbook,
+        val recovered: Boolean,
+        val dropped: List<PreservedFeature>,
+        val source: XlsxSource?,
+    )
+
     LaunchedEffect(file.uri) {
         val loaded = withContext(Dispatchers.IO) {
             runCatching {
@@ -388,15 +425,17 @@ fun SheetScreen(
                             ?.use { stream -> ContentAudit.xlsx(stream.readBytes()) }
                             .orEmpty()
                     }
-                    Triple(XlsxReader().read(ByteArrayInputStream(draft)), true, dropped)
+                    val draftSource = XlsxSource.capture(draft)
+                    Loaded(draftSource.workbook, true, dropped, draftSource)
                 } else if (isCsv(file.displayName)) {
                     val text = context.contentResolver.openInputStream(Uri.parse(file.uri))
                         ?.bufferedReader()?.use { it.readText() }
                         ?: error("the file could not be opened")
-                    Triple(
+                    Loaded(
                         Workbook(listOf(parseCsv(text, file.displayName.substringBeforeLast('.')))),
                         false,
                         emptyList(),
+                        null,
                     )
                 } else {
                     val stream = context.contentResolver.openInputStream(Uri.parse(file.uri))
@@ -405,20 +444,23 @@ fun SheetScreen(
                     // describes exactly this file.
                     val bytes = stream.use { it.readBytes() }
                     val dropped = ContentAudit.xlsx(bytes)
-                    Triple(XlsxReader().read(ByteArrayInputStream(bytes)), false, dropped)
+                    val workbookSource = XlsxSource.capture(bytes)
+                    Loaded(workbookSource.workbook, false, dropped, workbookSource)
                 }
             }
         }
         loaded.fold(
-            onSuccess = { (loadedWorkbook, recovered, dropped) ->
+            onSuccess = { loaded ->
+                val loadedWorkbook = loaded.workbook
                 workbook = loadedWorkbook
-                droppedFeatures = dropped
+                droppedFeatures = loaded.dropped
+                sourcePackage = loaded.source
                 activeSheet = loadedWorkbook.activeSheet.coerceIn(
                     0,
                     (loadedWorkbook.sheets.size - 1).coerceAtLeast(0),
                 )
-                dirty = recovered
-                if (recovered) {
+                dirty = loaded.recovered
+                if (loaded.recovered) {
                     snackbarHostState.showSnackbar("Recovered unsaved changes")
                 }
             },
@@ -435,7 +477,7 @@ fun SheetScreen(
         val saved = withContext(Dispatchers.IO) {
             runCatching {
                 val target = current.copy(activeSheet = activeSheet)
-                draftStore.save(file.uri, XlsxWriter().write(target))
+                draftStore.save(file.uri, workbookBytes(target))
             }.isSuccess
         }
         if (!saved) {
@@ -1104,14 +1146,25 @@ fun SheetScreen(
         writeScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = if (isCsv(file.displayName)) {
-                        writeCsv(current.sheets[activeSheet]).encodeToByteArray()
+                    val bytes = workbookBytes(current)
+                    if (isCsv(file.displayName)) {
+                        SafeWrite.writePlain(context, Uri.parse(file.uri), bytes)
                     } else {
-                        XlsxWriter().write(current.copy(activeSheet = activeSheet))
+                        val written = SafeWrite.write(
+                            context,
+                            Uri.parse(file.uri),
+                            bytes,
+                            PackageKind.SPREADSHEET,
+                        )
+                        check(
+                            SafeWrite.verifyWritten(
+                                context,
+                                Uri.parse(file.uri),
+                                written,
+                                PackageKind.SPREADSHEET,
+                            ),
+                        ) { "the file could not be read back after saving" }
                     }
-                    val stream = context.contentResolver.openOutputStream(Uri.parse(file.uri), "wt")
-                        ?: error("the file could not be opened for writing")
-                    stream.use { it.write(bytes) }
                 }
             }
             saving = false
@@ -1144,17 +1197,8 @@ fun SheetScreen(
      */
     fun save(onSaved: () -> Unit = {}) {
         val current = workbook ?: return
-        if (
-            ContentLossCopy.requiresConfirmation(
-                dropped = droppedFeatures,
-                accepted = lossAccepted,
-                writesWholeFormat = !isCsv(file.displayName),
-            )
-        ) {
-            pendingAfterLoss = onSaved
-            showLossWarning = true
-            return
-        }
+        // Nothing is lost by saving: the edited parts are written back into
+        // the original package, so there is nothing to warn about.
         writeWorkbook(current, onSaved)
     }
 
@@ -1227,9 +1271,12 @@ fun SheetScreen(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = XlsxWriter().write(current.copy(activeSheet = activeSheet))
-                    context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                        ?: error("could not write")
+                    val bytes = workbookBytes(current)
+                    if (isCsv(file.displayName)) {
+                        SafeWrite.writePlain(context, uri, bytes)
+                    } else {
+                        SafeWrite.write(context, uri, bytes, PackageKind.SPREADSHEET)
+                    }
                 }
             }
             result.fold(
@@ -1346,7 +1393,7 @@ fun SheetScreen(
             title = { Text("This save removes content") },
             text = {
                 Text(
-                    ContentLossCopy.body(droppedFeatures, ".xlsx") +
+                    PreservedCopy.body(droppedFeatures, ".xlsx") +
                         "\n\nUnsaved edits stay in this session if you cancel.",
                 )
             },
@@ -1363,7 +1410,7 @@ fun SheetScreen(
                             save(next)
                         }
                     },
-                ) { Text(if (gatingSave) "Save anyway" else "Understood") }
+                ) { Text("Understood") }
             },
             dismissButton = {
                 TextButton(
@@ -1798,7 +1845,7 @@ fun SheetScreen(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            ContentLossCopy.banner(droppedFeatures),
+                            PreservedCopy.banner(droppedFeatures),
                             style = MaterialTheme.typography.bodySmall,
                         )
                         TextButton(
@@ -1808,7 +1855,7 @@ fun SheetScreen(
                             },
                             modifier = Modifier.padding(top = 4.dp),
                         ) {
-                            Text("What will be removed")
+                            Text("What cannot be edited")
                         }
                     }
                 }

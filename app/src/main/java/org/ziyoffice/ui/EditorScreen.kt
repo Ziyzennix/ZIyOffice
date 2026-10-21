@@ -157,9 +157,13 @@ import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Run
 import org.ziyoffice.model.Table
 import org.ziyoffice.ooxml.ContentAudit
+import org.ziyoffice.saf.SafeWrite
+import org.ziyoffice.ooxml.PackageKind
+import org.ziyoffice.ooxml.DocxEditor
+import org.ziyoffice.ooxml.DocxSource
 import org.ziyoffice.ooxml.DocxReader
 import org.ziyoffice.ooxml.DocxWriter
-import org.ziyoffice.ooxml.DroppedFeature
+import org.ziyoffice.ooxml.PreservedFeature
 
 /**
  * The document editor: reads the file with the OOXML layer, renders styles,
@@ -239,6 +243,20 @@ fun EditorScreen(
     }
 
     val currentDoc = (preview as? DocxPreview.Ready)?.document
+
+    /**
+     * The bytes to write for [document].
+     *
+     * When the document came from a package, the edited document is written
+     * back into that package: everything the editor cannot edit survives.
+     * A document ZiyOffice created has no package behind it, so it is written
+     * from scratch.
+     */
+    fun documentBytes(document: Document): ByteArray {
+        val source = (previewState.value as? DocxPreview.Ready)?.source
+        return if (source != null) DocxEditor(source).save(document) else DocxWriter().write(document)
+    }
+
     // Recovery silence is the bug: a failed autosave used to vanish into
     // runCatching, so crash protection silently stopped working. Report the
     // transition into failure once, then stay quiet until it recovers.
@@ -247,7 +265,7 @@ fun EditorScreen(
         if (!dirty || !editing || currentDoc == null) return@LaunchedEffect
         delay(1500L)
         val saved = withContext(Dispatchers.IO) {
-            runCatching { draftStore.save(file.uri, DocxWriter().write(currentDoc)) }.isSuccess
+            runCatching { draftStore.save(file.uri, documentBytes(currentDoc)) }.isSuccess
         }
         if (!saved && draftAutosaveHealthy) {
             draftAutosaveHealthy = false
@@ -278,7 +296,7 @@ fun EditorScreen(
             // scope.launch would never land. A daemon thread always finishes,
             // and this is a small file write (a few milliseconds).
             Thread {
-                runCatching { store.save(uri, DocxWriter().write(document)) }
+                runCatching { store.save(uri, documentBytes(document)) }
             }.apply { name = "draft-flush" }.start()
         }
     }
@@ -430,9 +448,8 @@ fun EditorScreen(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = DocxWriter().write(ready.document)
-                    context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                        ?: error("could not write")
+                    val bytes = documentBytes(ready.document)
+                    SafeWrite.write(context, uri, bytes, PackageKind.DOCUMENT)
                 }
             }
             result.fold(
@@ -849,10 +866,16 @@ fun EditorScreen(
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val bytes = DocxWriter().write(document)
-                    val stream = context.contentResolver.openOutputStream(Uri.parse(file.uri), "wt")
-                        ?: error("the file could not be opened for writing")
-                    stream.use { it.write(bytes) }
+                    val bytes = documentBytes(document)
+                    val written = SafeWrite.write(
+                        context,
+                        Uri.parse(file.uri),
+                        bytes,
+                        PackageKind.DOCUMENT,
+                    )
+                    check(
+                        SafeWrite.verifyWritten(context, Uri.parse(file.uri), written, PackageKind.DOCUMENT),
+                    ) { "the file could not be read back after saving" }
                 }
             }
             saving = false
@@ -880,19 +903,14 @@ fun EditorScreen(
     }
 
     /**
-     * Confirms once, before the first write, when saving would remove content the
-     * writer cannot reproduce. [onSaved] is what the caller wanted to happen; it
-     * runs after the write, or after the user accepts the loss.
+     * Writes the document to the file.
+     *
+     * Nothing is lost by saving: the edited parts are written back into the
+     * original package, so there is nothing to warn the user about first.
      */
     fun save(onSaved: () -> Unit = {}) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
-        val document = ready.document
-        if (ContentLossCopy.requiresConfirmation(ready.dropped, lossAccepted, writesWholeFormat = true)) {
-            pendingAfterLoss = onSaved
-            showLossWarning = true
-            return
-        }
-        writeDocument(document, onSaved)
+        writeDocument(ready.document, onSaved)
     }
 
     /**
@@ -969,24 +987,18 @@ fun EditorScreen(
             title = { Text("This save removes content") },
             text = {
                 Text(
-                    ContentLossCopy.body(droppedFeatures, ".docx") +
-                        "\n\nUnsaved edits stay in this session if you cancel.",
+                    PreservedCopy.body(droppedFeatures, ".docx"),
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showLossWarning = false
-                        val next = pendingAfterLoss
                         pendingAfterLoss = null
-                        if (next != null) {
-                            // Accepted for this session: the same loss is not
-                            // re-asked on every later save of the same file.
-                            lossAccepted = true
-                            save(next)
-                        }
+                        // Read for this session: the banner does not come back.
+                        lossAccepted = true
                     },
-                ) { Text(if (gatingSave) "Save anyway" else "Understood") }
+                ) { Text("Understood") }
             },
             dismissButton = {
                 TextButton(
@@ -1269,13 +1281,13 @@ fun EditorScreen(
             if (preview is DocxPreview.Ready) AccessLine(access)
             if (droppedFeatures.isNotEmpty() && !lossAccepted) {
                 Surface(
-                    color = MaterialTheme.colorScheme.errorContainer,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            ContentLossCopy.banner(droppedFeatures),
+                            PreservedCopy.banner(droppedFeatures),
                             style = MaterialTheme.typography.bodySmall,
                         )
                         TextButton(
@@ -1285,7 +1297,7 @@ fun EditorScreen(
                             },
                             modifier = Modifier.padding(top = 4.dp),
                         ) {
-                            Text("What will be removed")
+                            Text("What cannot be edited")
                         }
                     }
                 }
@@ -1309,9 +1321,10 @@ fun EditorScreen(
                             scope.launch {
                                 val bytes = withContext(Dispatchers.IO) { draftStore.load(file.uri) }
                                 if (bytes != null) {
-                                    val doc = withContext(Dispatchers.IO) {
-                                        DocxReader().read(java.io.ByteArrayInputStream(bytes))
+                                    val draftSource = withContext(Dispatchers.IO) {
+                                        DocxReader().readSource(java.io.ByteArrayInputStream(bytes))
                                     }
+                                    val doc = draftSource.document
                                     val bitmaps = withContext(Dispatchers.IO) {
                                         doc.blocks
                                             .flatMap(::collectImages)
@@ -1321,11 +1334,12 @@ fun EditorScreen(
                                     // The draft is the user's unsaved work, not the
                                     // source file: keep the source audit so the
                                     // warning still describes what saving removes.
-                                    val source = (previewState.value as? DocxPreview.Ready)
+                                    val previous = (previewState.value as? DocxPreview.Ready)
                                     previewState.value = DocxPreview.Ready(
                                         document = doc,
                                         images = bitmaps,
-                                        dropped = source?.dropped.orEmpty(),
+                                        dropped = previous?.dropped.orEmpty(),
+                                        source = draftSource,
                                     )
                                     dirty = true
                                 }
@@ -1716,7 +1730,16 @@ private sealed interface DocxPreview {
          * Carried with the preview so a restored draft keeps warning about the
          * original file's content rather than the draft's (which has none).
          */
-        val dropped: List<DroppedFeature> = emptyList(),
+        val dropped: List<PreservedFeature> = emptyList(),
+        /**
+         * The package the document was opened from.
+         *
+         * Saving writes the edited document back into this package, so
+         * everything the editor cannot edit — comments, footnotes, tracked
+         * changes, hyperlinks, styles, section breaks — survives the save
+         * instead of being rebuilt away.
+         */
+        val source: DocxSource? = null,
     ) : DocxPreview
     data class Failed(val reason: String) : DocxPreview
 }
@@ -1736,12 +1759,13 @@ private fun rememberDocxPreviewState(file: RecentFile): MutableState<DocxPreview
                 // warning describes exactly this file and costs no second read of
                 // the user's provider.
                 val dropped = ContentAudit.docx(bytes)
-                val document = DocxReader().read(ByteArrayInputStream(bytes))
+                val source = DocxReader().readSource(ByteArrayInputStream(bytes))
+                val document = source.document
                 val bitmaps = document.blocks
                     .flatMap(::collectImages)
                     .distinct()
                     .associateWith { image -> decodeImage(image.bytes) }
-                DocxPreview.Ready(document, bitmaps, dropped)
+                DocxPreview.Ready(document, bitmaps, dropped, source)
             }.fold(
                 onSuccess = { it },
                 onFailure = { DocxPreview.Failed(it.message ?: it.javaClass.simpleName) },

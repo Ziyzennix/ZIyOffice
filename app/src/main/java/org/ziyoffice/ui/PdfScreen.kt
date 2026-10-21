@@ -822,13 +822,22 @@ fun PdfScreen(
             onDismissRequest = { showMarks = false },
             title = { Text("Marks (${marks.size})") },
             text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "A saved PDF is drawn page by page, so the copy you export looks " +
+                            "the same but its text is no longer selectable. A redaction is " +
+                            "different: it removes what is underneath, so that content " +
+                            "cannot be recovered from the saved file.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 if (marks.isEmpty()) {
                     Text("No marks on this document yet.")
                 } else {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 360.dp)
+                            .heightIn(max = 300.dp)
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
@@ -854,6 +863,7 @@ fun PdfScreen(
                             }
                         }
                     }
+                }
                 }
             },
             confirmButton = {
