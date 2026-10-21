@@ -49,8 +49,8 @@ import org.ziyoffice.model.RecentFile
 private const val RECENT_LIMIT = 5
 
 /**
- * Home dashboard: search, create tiles and the recent files list —
- * the same visual rhythm as the office apps users know, without the cloud rows.
+ * Home dashboard: search, create tiles and the recent files list, the same
+ * visual rhythm as the office apps users know, without the cloud rows.
  */
 @Composable
 fun HomeScreen(
@@ -81,7 +81,7 @@ fun HomeScreen(
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("ZiyOffice", style = MaterialTheme.typography.headlineMedium)
                 Text(
-                    "Your files, your device \u2014 no account, no cloud, no ads.",
+                    "Your files, your device. No account, no cloud, no ads.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -98,8 +98,8 @@ fun HomeScreen(
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 shape = RoundedCornerShape(28.dp),
                 // No contentDescription here on purpose: it would replace the
-                // node's editable text, so TalkBack would stop reading back what
-                // the user types. The label names the field instead.
+                // node's editable text, so TalkBack would stop reading back
+                // what the user types. The label names the field instead.
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -191,7 +191,7 @@ fun HomeScreen(
             item {
                 Text(
                     if (recents.isEmpty()) {
-                        "Nothing yet. Open a .docx, .xlsx, .pptx or .pdf from your folders \u2014 " +
+                        "Nothing yet. Open a .docx, .xlsx, .pptx or .pdf from your folders, " +
                             "everything stays on this device."
                     } else {
                         "No recent file matches \u201C${query.trim()}\u201D."
@@ -216,7 +216,7 @@ fun HomeScreen(
 
         item {
             Text(
-                "Offline by design \u2014 ZiyOffice has no network permission, no ads and no accounts.",
+                "Offline by design. ZiyOffice has no network permission, no ads and no accounts.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -252,7 +252,7 @@ private fun CreateTile(
         modifier = modifier
             .defaultMinSize(minHeight = 48.dp)
             .semantics(mergeDescendants = true) {
-                // "New Docs" for creation, "Open PDF" for the PDF tile: PDFs
+                // "New Docs" for creation, "Open PDF" for the PDF tile: a PDF
                 // cannot be created from scratch, so the tile must not imply it.
                 contentDescription = "$spokenAction $label"
                 role = Role.Button

@@ -1,23 +1,17 @@
 package org.ziyoffice.model
 
 /**
- * Find and replace inside a sheet.
- *
- * A formula is searched through the text it quotes, never through its
- * references or function names: replacing a label inside ="Paper" is safe,
- * replacing SUM in =SUM(A1:A2) would not be. Plain cells are searched as they
- * are shown.
+ * Find and replace inside a sheet. A formula is searched through the text it quotes,
+ * never through its references or function names: replacing a label inside ="Paper" is
+ * safe, replacing SUM in =SUM(A1:A2) would not be.
  */
 
-/** A cell that contains the search term. */
 data class SheetMatch(val row: Int, val column: Int)
 
 /** What a replace run changed. */
 data class SheetReplaceResult(
     val sheet: Sheet,
-    /** How many times the term was replaced. */
     val occurrences: Int,
-    /** How many cells changed. */
     val cells: Int,
 )
 
@@ -41,10 +35,9 @@ fun Sheet.findMatches(
 }
 
 /**
- * Replaces every occurrence of [query] and returns the changed sheet.
- *
- * [wholeCell] only applies to plain cells: a formula is searched inside the
- * text it quotes, so a whole-cell rule there has no clear meaning.
+ * Replaces every occurrence of [query] and returns the changed sheet. [wholeCell] only
+ * applies to plain cells: a formula is searched inside the text it quotes, so a
+ * whole-cell rule there has no clear meaning.
  */
 fun Sheet.replaceText(
     query: String,
@@ -72,10 +65,7 @@ fun Sheet.replaceText(
     )
 }
 
-/**
- * Replaces the term in one cell and returns the sheet with how many times it
- * was replaced.
- */
+/** Replaces the term in one cell, returns the sheet and how many times it hit. */
 fun Sheet.replaceInCell(
     row: Int,
     column: Int,
@@ -107,8 +97,8 @@ private fun replaceWithinCell(
         return replaceAllOccurrences(cell.value, query, replacement, ignoreCase)
     }
 
-    // A whole-cell rule is about a cell's own text; a formula is not one, so it
-    // stays untouched.
+    // A whole-cell rule is about a cell's own text, and a formula is not one,
+    // so it stays untouched.
     if (wholeCell) return cell.value to 0
 
     val spans = stringLiteralSpans(cell.value)
@@ -130,7 +120,6 @@ private fun replaceWithinCell(
     return builder.toString() to count
 }
 
-/** Replaces every occurrence of [query] and counts how many were replaced. */
 private fun replaceAllOccurrences(
     text: String,
     query: String,
@@ -161,8 +150,8 @@ private fun searchableText(cell: Cell): String {
 }
 
 /**
- * The character ranges a formula keeps inside quotes. A doubled quote is a
- * literal quote, so it does not end the text.
+ * The character ranges a formula keeps inside quotes. A doubled quote is a literal
+ * quote, so it does not end the text.
  */
 private fun stringLiteralSpans(formula: String): List<IntRange> {
     val spans = mutableListOf<IntRange>()

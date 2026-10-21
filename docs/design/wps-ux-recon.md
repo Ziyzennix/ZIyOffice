@@ -1,10 +1,9 @@
-# WPS UX Recon — what we adopt, what we reject
+# WPS UX recon: what we adopt, what we reject
 
-**Method.** On-device observation of WPS Office 26.9.1 (Android 14, dark mode) via
-runtime screenshots and the accessibility view hierarchy. Nothing was decompiled; no WPS
-code, assets, icons, fonts or strings enter this repository. Screenshots stay outside the
-repo (local temp files only). This document is a written spec; our implementation uses
-original code and assets.
+**Method.** On-device observation of WPS Office 26.9.1 (Android 14, dark mode) via runtime
+screenshots and the accessibility view hierarchy. Nothing was decompiled. No WPS code, assets,
+icons, fonts or strings enter this repository. Screenshots stay outside the repo, in local temp
+files. This document is a written spec; the implementation uses original code and assets.
 
 ## Screen inventory (observed)
 
@@ -24,7 +23,7 @@ original code and assets.
 ### 2. Document list ("All Documents")
 - Top bar: back chevron, left-aligned bold title, search icon, overflow menu.
 - **Permission banner:** "Access to local files requires permission" with a blue
-  **Grant Access** action — WPS asks for broad storage access to browse everything.
+  **Grant Access** because WPS asks for broad storage access to browse everything.
 - **Category tab strip** (horizontally scrollable): All · Docs · Slides · Sheets · PDF ·
   TXT · …, with the selected tab bold + colour-underlined.
 - **Empty state:** centred grey page glyph + "No documents" in muted text.
@@ -42,7 +41,7 @@ original code and assets.
 Full-screen "Sign in to WPS Office": Google / Facebook / Email buttons, "More Sign-In
 Options", "No account? Sign Up", and terms/privacy text. Appears unprompted in normal use.
 
-### 5. Second pass — more screens (from the owner's own screenshots)
+### 5. Second pass: more screens (from the owner's own screenshots)
 
 **Recents / file list (Files tab)**
 - Segmented mode tabs: This Device · Server?/Recent · Shared · Starred (active one bold,
@@ -55,8 +54,8 @@ Options", "No account? Sign Up", and terms/privacy text. Appears unprompted in n
 - A large circular **orange "+" FAB** floating bottom-right above the nav bar.
 
 **Home tab**
-- Two big promo cards at the top: "Scanner — one tap, capture everything" and
-  "AI Slides — AI builds your slides".
+- Two big promo cards at the top: "Scanner, one tap, capture everything" and
+  "AI Slides, AI builds your slides".
 - A horizontal row of quick-action chips: "Edit PDF", "PDF to Word", "PDF Signature", …
 
 **Me tab**
@@ -93,9 +92,9 @@ Privacy Sandbox), `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `CAMERA`,
 `USE_FINGERPRINT`, `FOREGROUND_SERVICE*`, `WAKE_LOCK`, `VIBRATE`, `WRITE_SYNC_SETTINGS`,
 `REORDER_TASKS`, `BIND_QUICK_SETTINGS_TILE`, and more.
 
-ZiyOffice: **0.** Everything WPS needs those permissions for, we either do with scoped
-user consent (SAF file access) or deliberately do not do (ads, cloud, location, contacts,
-background services).
+ZiyOffice: **0.** Everything WPS needs those permissions for, we either do with scoped user
+consent (SAF file access) or deliberately don't (ads, cloud, location, contacts, background
+services).
 
 ## What we adopt (structure and interaction patterns)
 
@@ -120,8 +119,8 @@ background services).
 |---|---|
 | Sign-in wall (Google/Facebook/Email) | No accounts exist. There is nothing to sign in to. |
 | Cloud storage promos and Drive/OneDrive connectors | No cloud. Files live in the user's own folders. |
-| Premium diamond badges + "Pro+ upgrade to save" banners | Every feature is free; saving documents is the point of the app, not a paywall. |
-| "Grant Access" to all local files (`MANAGE_EXTERNAL_STORAGE`) | Scoped SAF grants only; we never ask for the whole storage. |
+| Premium diamond badges + "Pro+ upgrade to save" banners | Every feature is free. Saving documents is the point of the app, not a paywall. |
+| "Grant Access" to all local files (`MANAGE_EXTERNAL_STORAGE`) | Scoped SAF grants only. We never ask for the whole storage. |
 | Discover feed, notification bell, push notifications | There is no content feed and no promotions; the app never notifies you about itself. |
 | Avatar / account profile | Nothing to personalise server-side. |
 | Advertising ID permissions | No ads, so no ad identifiers. |
@@ -143,6 +142,6 @@ background services).
 ## Decisions (2026-10-18, owner)
 
 1. **Accent colour:** teal stays. The structure is WPS-like; the identity is ours.
-2. **Tab labels:** **Home · Files · Settings** — the Scan tab was removed; OCR (M5) will
-   arrive as a feature entry point (e.g. a create-tile / action) rather than a tab, so
-   nothing in the app is a dead end. Nothing in the app is a dead end.
+2. **Tab labels:** **Home · Files · Settings.** The Scan tab was removed; OCR (M5) arrives
+   as a feature entry point (a create tile, say) rather than a tab, so nothing in the app
+   is a dead end.

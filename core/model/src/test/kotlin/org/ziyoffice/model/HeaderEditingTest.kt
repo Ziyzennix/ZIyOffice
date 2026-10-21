@@ -5,9 +5,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * Headers and footers are edited through the same path shape as body text, so
- * these tests pin that the region field actually routes an edit to the right
- * block list — a body edit must never touch a header, and vice versa.
+ * Headers and footers are edited through the same path shape as body text, so these
+ * tests pin that the region field routes an edit to the right block list.
  */
 class HeaderEditingTest {
 

@@ -12,6 +12,8 @@ import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.ColumnWidth
 import org.ziyoffice.model.DataValidation
+import org.ziyoffice.model.MIN_SHEET_COLUMNS
+import org.ziyoffice.model.MIN_SHEET_ROWS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnName
@@ -21,20 +23,17 @@ import org.ziyoffice.ooxml.xml.escapeXmlAttribute
 import org.ziyoffice.ooxml.xml.escapeXmlText
 
 /**
- * An `.xlsx` package opened for editing, together with a snapshot of the
- * worksheet XML the model came from.
+ * An `.xlsx` package opened for editing, plus a snapshot of the worksheet XML
+ * the model came from.
  *
- * The same reasoning as [DocxSource] applies: rebuilding a workbook from the
- * model throws away the charts, drawings, images, pivot tables, comments,
- * conditional formatting, filters, protections, hidden rows and columns and
- * named ranges that the model cannot hold. Keeping the original package means
- * a save can leave all of that alone and change only the cells the user
- * touched.
+ * Same reasoning as [DocxSource]: rebuilding a workbook from the model throws
+ * away the charts, drawings, images, pivot tables, comments, conditional
+ * formatting, filters, protections, hidden rows and columns and named ranges
+ * that the model cannot hold. Keeping the original package means a save can
+ * leave all of that alone and change only the cells the user touched.
  */
 class XlsxSource internal constructor(
-    /** Every entry of the original package. */
     val parts: Map<String, ByteArray>,
-    /** The workbook as the model sees it. */
     val workbook: Workbook,
     internal val sheets: List<XlsxSheetSource>,
     internal val styles: XlsxStyles,
@@ -52,54 +51,37 @@ class XlsxSource internal constructor(
 internal class XlsxSheetSource internal constructor(
     /** The package part the worksheet lives in, e.g. `xl/worksheets/sheet1.xml`. */
     val partName: String,
-    /** The relationship id the workbook uses for this sheet. */
     val relId: String,
-    /** The `sheetId` the workbook gives this sheet. */
     val sheetId: String,
-    /** The sheet's name. */
     val name: String,
-    /** The original XML of the worksheet part. */
     val xml: String,
-    /** The root `worksheet` element. */
     val root: XmlElement,
     /** The style index each cell carries, keyed by row and column. */
     val styleIndexes: Map<Pair<Int, Int>, Int>,
     /** The formatting each cell resolved to, keyed by row and column. */
     val formats: Map<Pair<Int, Int>, CellFormat>,
-    /** The `sheetData` element. */
     val sheetData: XmlElement?,
-    /** The `cols` element, when the sheet has one. */
     val cols: XmlElement?,
-    /** The `mergeCells` element, when the sheet has one. */
     val mergeCells: XmlElement?,
-    /** The `dataValidations` element, when the sheet has one. */
     val dataValidations: XmlElement?,
-    /** The `sheetViews` element, when the sheet has one. */
     val sheetViews: XmlElement?,
     /** The row elements, keyed by their 0-based row index. */
     val rows: Map<Int, XmlElement>,
-    /** The cell elements, keyed by row and column. */
     val cells: Map<Pair<Int, Int>, XmlElement>,
-    /** The formula each cell holds, keyed by row and column. */
     val formulas: Map<Pair<Int, Int>, String>,
-    /** The cached result each formula cell holds, keyed by row and column. */
     val cachedValues: Map<Pair<Int, Int>, String>,
-    /** The model sheet this source produced. */
     val model: Sheet,
 )
 
 /**
  * The style sheet of a workbook, kept so new formatting can be added to it
- * rather than replacing it.
- *
- * Named styles, theme colours, differential formats and every style the
- * workbook already declares stay exactly as they were. A format the user
- * applies to a cell is added as a new entry, and the cell points at that.
+ * rather than replacing it. Named styles, theme colours, differential formats
+ * and every style the workbook already declares stay exactly as they were. A
+ * format the user applies to a cell is added as a new entry, and the cell
+ * points at that.
  */
 class XlsxStyles internal constructor(
-    /** The original XML of the style sheet. */
     val xml: String,
-    /** The root `styleSheet` element. */
     internal val root: XmlElement,
 ) {
     private val numFmts = mutableMapOf<Int, String>()
@@ -135,7 +117,6 @@ class XlsxStyles internal constructor(
         }
     }
 
-    /** The formatting the cell format at [index] resolves to. */
     fun formatAt(index: Int?): CellFormat {
         if (index == null) return CellFormat()
         val xf = cellXfs.getOrNull(index) ?: return CellFormat()
@@ -219,7 +200,6 @@ class XlsxStyles internal constructor(
         return index
     }
 
-    /** The style sheet with the added entries written into it. */
     fun toXml(): String {
         var text = xml
         text = insertBefore(text, "</fonts>", addedFonts, "fonts")
@@ -260,7 +240,6 @@ class XlsxStyles internal constructor(
         return updateCount(withBlock, parent, block.size)
     }
 
-    /** Adds [added] to the `count` attribute of the element named [name]. */
     private fun updateCount(text: String, name: String, added: Int): String {
         val pattern = Regex("<$name\\b[^>]*\\bcount=\"(\\d+)\"")
         val match = pattern.find(text) ?: return text
@@ -478,7 +457,6 @@ class XlsxStyles internal constructor(
     }
 }
 
-/** Reads an `.xlsx` package into an [XlsxSource]. */
 internal class XlsxSourceReader {
 
     fun read(input: InputStream): XlsxSource {
@@ -487,10 +465,8 @@ internal class XlsxSourceReader {
             ?: throw IOException("$WORKBOOK_PART not found in the package")
         val workbookXml = workbookBytes.decodeToString()
         val workbookRoot = XmlScanner.parse(workbookXml).root
-        val styles = XlsxStyles(
-            parts[STYLES_PART]?.decodeToString() ?: "<styleSheet/>",
-            XmlScanner.parse(parts[STYLES_PART]?.decodeToString() ?: "<styleSheet/>").root,
-        )
+        val stylesXml = parts[STYLES_PART]?.decodeToString() ?: "<styleSheet/>"
+        val styles = XlsxStyles(stylesXml, XmlScanner.parse(stylesXml).root)
         val rels = parts[WORKBOOK_RELS_PART]?.let { parseRelationships(it) } ?: emptyMap()
         val sharedStrings = parts[SHARED_STRINGS_PART]?.let { parseSharedStrings(it) } ?: emptyList()
 
@@ -633,8 +609,8 @@ internal class XlsxSourceReader {
                 if (raw.isEmpty() && format == CellFormat()) null
                 else Cell(row = position.first, column = position.second, value = raw, format = format)
             },
-            rowCount = (rows.keys.maxOrNull() ?: 0) + 1,
-            columnCount = (cells.keys.maxOfOrNull { it.second } ?: 0) + 1,
+            rowCount = maxOf((rows.keys.maxOrNull() ?: 0) + 1, MIN_SHEET_ROWS),
+            columnCount = maxOf((cells.keys.maxOfOrNull { it.second } ?: 0) + 1, MIN_SHEET_COLUMNS),
             frozenRows = frozenRows,
             mergedRanges = mergedRanges,
             columnWidths = columnWidths,
@@ -663,7 +639,6 @@ internal class XlsxSourceReader {
         )
     }
 
-    /** The raw value of a cell: a formula, a literal, or the text it holds. */
     private fun cellValue(cell: XmlElement, sharedStrings: List<String>): String {
         val formula = cell.child("f")?.text
         if (formula != null) return "=$formula"
@@ -676,7 +651,6 @@ internal class XlsxSourceReader {
         }
     }
 
-    /** A range reference, which may name a single cell. */
     private fun parseRange(reference: String): CellRange? = parseCellRange(reference)
 
     private fun parseCellRef(ref: String): Pair<Int, Int> {
@@ -698,9 +672,7 @@ internal class XlsxSourceReader {
     }
 }
 
-/**
- * A range reference, which may name a single cell rather than a range.
- */
+/** A range reference, which may name a single cell rather than a range. */
 internal fun parseCellRange(reference: String): CellRange? {
     val trimmed = reference.trim()
     if (trimmed.contains(':')) return CellRange.parse(trimmed)
@@ -712,7 +684,6 @@ internal fun parseCellRange(reference: String): CellRange? {
     return CellRange(row.coerceAtLeast(0), column, row.coerceAtLeast(0), column)
 }
 
-/** Reads the relationships of a workbook part. */
 internal fun parseWorkbookRelationships(bytes: ByteArray): Map<String, String> {
     val root = XmlScanner.parse(bytes.decodeToString()).root
     val targets = mutableMapOf<String, String>()
@@ -725,7 +696,6 @@ internal fun parseWorkbookRelationships(bytes: ByteArray): Map<String, String> {
     return targets
 }
 
-/** Turns a workbook relationship target into a package entry name. */
 internal fun resolveWorkbookTarget(target: String): String {
     if (target.startsWith("/")) return target.removePrefix("/")
     if (target.startsWith("xl/")) return target

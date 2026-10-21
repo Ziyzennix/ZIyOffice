@@ -1,10 +1,8 @@
 package org.ziyoffice.model
 
 /**
- * A rectangular block of cells, 0-based inclusive edges.
- *
- * The constructor never trusts a file: a range with its bottom above its top
- * is normalised by [of] before it reaches the model.
+ * A rectangular block of cells, 0-based and inclusive on both edges. Build one through
+ * [of], which normalises the corners.
  */
 data class CellRange(
     val top: Int,
@@ -52,24 +50,19 @@ data class CellRange(
     }
 }
 
-/** A row/column pair used while building a [CellRange]. */
 data class CellRangeCorner(val row: Int, val column: Int)
 
-/** The merged block covering this cell, if any. */
 fun Sheet.mergeAt(row: Int, column: Int): CellRange? =
     mergedRanges.firstOrNull { it.contains(row, column) }
 
-/** Whether this cell is the top-left cell of a merged block. */
+/** Whether this cell is the top-left of a merged block. */
 fun Sheet.isMergeAnchor(row: Int, column: Int): Boolean =
     mergedRanges.any { it.top == row && it.left == column }
 
 /**
- * Merges [range] into the sheet.
- *
- * Ranges that overlap an existing merge replace it, so the grid can never carry
- * two claims on the same cell. Values outside the top-left cell are cleared:
- * that is what every spreadsheet does, and keeping invisible values would make
- * "unmerge" reveal text the user thought they had removed.
+ * Merges [range] into the sheet. An overlapping range replaces the existing merge, so the
+ * grid never has two claims on one cell. Values outside the top-left are cleared, so
+ * unmerge cannot reveal text the user thought they had removed.
  */
 fun Sheet.withMergedRange(range: CellRange): Sheet {
     val clamped = range.copy(
@@ -95,7 +88,6 @@ fun Sheet.withMergedRange(range: CellRange): Sheet {
     )
 }
 
-/** Removes the merged block covering [row], [column], if there is one. */
 fun Sheet.withMergeClearedAt(row: Int, column: Int): Sheet {
     val merge = mergeAt(row, column) ?: return this
     return copy(mergedRanges = mergedRanges.filterNot { it == merge })
@@ -106,9 +98,8 @@ fun Sheet.withMergesClearedIn(range: CellRange): Sheet =
     copy(mergedRanges = mergedRanges.filterNot { it.intersects(range) })
 
 /**
- * Drops malformed, duplicate and overlapping ranges and sorts them for stable
- * saves. Overlaps are invalid in a spreadsheet; keeping the first is the only
- * order-independent reading, and drawing both would hide a cell twice.
+ * Drops malformed, duplicate and overlapping ranges, sorted so saves stay stable.
+ * Keeping the first of an overlapping pair is the only order-independent reading.
  */
 fun List<CellRange>.normaliseMerges(): List<CellRange> {
     val valid = filter {
@@ -123,18 +114,14 @@ fun List<CellRange>.normaliseMerges(): List<CellRange> {
     return kept
 }
 
-/**
- * One row band of the on-screen grid: [rowCount] model rows compressed into one
- * item because a vertical merge runs through them.
- */
+/** One row band of the grid: [rowCount] model rows in one item, because a vertical merge runs through them. */
 data class SheetRowBand(val startRow: Int, val rowCount: Int) {
     val endRow: Int get() = startRow + rowCount - 1
 }
 
 /**
- * A cell's place in the rendered grid. [rowSpan] and [columnSpan] are the size
- * of the cell's rectangle in grid units; a continuation cell of a merge is not
- * placed at all, because its anchor already covers the area.
+ * A cell's place in the grid. [rowSpan] and [columnSpan] are its size in grid units.
+ * A continuation cell of a merge is not placed, since its anchor covers the area.
  */
 data class SheetCellPlacement(
     val row: Int,
@@ -144,9 +131,8 @@ data class SheetCellPlacement(
 )
 
 /**
- * Splits the sheet's rows into bands that a lazy list can render without
- * clipping a vertical merge. A band grows until no merge that starts inside it
- * reaches past its end.
+ * Splits the rows into bands a lazy list can render without clipping a vertical merge.
+ * A band grows until no merge starting inside it reaches past its end.
  */
 fun Sheet.rowBands(): List<SheetRowBand> {
     val rows = rowCount.coerceAtLeast(1)
@@ -173,9 +159,8 @@ fun Sheet.rowBands(): List<SheetRowBand> {
 }
 
 /**
- * Every cell that draws in [band], with merged anchors carrying their real
- * span. Cells without a merge are still returned: the grid needs their borders,
- * backgrounds and tap targets even when they hold no value.
+ * Every cell that draws in [band], merged anchors carrying their real span. Unmerged cells
+ * come back too: the grid needs their borders and tap targets even when they hold no value.
  */
 fun Sheet.cellPlacements(band: SheetRowBand): List<SheetCellPlacement> {
     val placements = mutableListOf<SheetCellPlacement>()

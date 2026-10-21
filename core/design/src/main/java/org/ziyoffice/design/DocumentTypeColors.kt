@@ -3,10 +3,8 @@ package org.ziyoffice.design
 import androidx.compose.ui.graphics.Color
 
 /**
- * Document-type colours for badges and tiles.
- *
- * Follows the universal convention users already know (blue documents, green sheets,
- * orange slides, red PDFs). The values are ours; the artwork is ours.
+ * Colours for badges and tiles: blue documents, green sheets, orange slides, red PDFs.
+ * The convention users already know, with our own values.
  */
 object ZiyTypeColors {
     val Docs = Color(0xFF2F6FED)

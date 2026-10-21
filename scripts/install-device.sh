@@ -14,16 +14,16 @@ if [ -z "$gradle_cmd" ]; then
   fi
 fi
 
-echo "Building debug APK with: $gradle_cmd"
+echo "building the debug APK with: $gradle_cmd"
 "$gradle_cmd" :app:assembleDebug
 
 apk="$root/app/build/outputs/apk/debug/app-debug.apk"
 if [ ! -f "$apk" ]; then
-  echo "ERROR: APK not found at $apk" >&2
+  echo "no APK at $apk" >&2
   exit 1
 fi
 
-echo "Installing on device..."
+echo "installing on the device..."
 adb install -r "$apk"
 adb shell am start -n org.ziyoffice/.MainActivity
-echo "Done. ZiyOffice is running on the device."
+echo "done. ZiyOffice is running on the device."

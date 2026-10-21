@@ -57,9 +57,9 @@ fi
 
 echo
 if [ "$problems" -eq 0 ]; then
-  echo "All good. Build with:  ./gradlew :app:assembleDebug"
-  echo "Install on a phone:    scripts/install-device.sh"
+  echo "all good. build with:  ./gradlew :app:assembleDebug"
+  echo "install on a phone:    scripts/install-device.sh"
 else
-  echo "$problems problem(s) found — fix the items marked MISS above."
+  echo "$problems problem(s) found. Fix the items marked MISS above."
   exit 1
 fi

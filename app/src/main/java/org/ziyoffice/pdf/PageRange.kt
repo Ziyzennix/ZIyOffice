@@ -4,8 +4,8 @@ package org.ziyoffice.pdf
  * Turns the text a user types into the page range to extract.
  *
  * The syntax is the one people already know from print dialogs, and a range
- * that could mean something else is rejected rather than clamped: a typo should
- * not quietly become "all pages".
+ * that could mean something else is rejected rather than clamped, so a typo
+ * never quietly becomes "all pages".
  */
 internal object PageRange {
 
@@ -14,8 +14,8 @@ internal object PageRange {
      *
      * Accepts `3`, `2-5`, `1,4,7`, and open ends `-4` / `5-`, separated by
      * commas or spaces. Returns the selected 1-based page numbers in the order
-     * given, without duplicates, or null when the text is not a valid range —
-     * so the caller can keep the dialog open with the text intact.
+     * given, without duplicates, or null when the text is not a valid range, so
+     * the caller can keep the dialog open with the text intact.
      */
     fun parse(text: String, pageCount: Int): List<Int>? {
         if (pageCount <= 0) return null

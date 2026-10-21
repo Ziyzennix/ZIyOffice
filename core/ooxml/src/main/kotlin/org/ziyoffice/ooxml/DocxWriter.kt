@@ -17,20 +17,19 @@ import org.ziyoffice.model.Table
  * Writes the document model into a new .docx package with nothing but
  * java.util.zip. The counterpart of [DocxReader].
  *
- * This writer builds a package from scratch, so it is the right tool for a
- * document ZiyOffice creates. It is the wrong tool for a document ZiyOffice
- * edits: rebuilding from the model drops everything the model cannot express.
- * [DocxEditor] is that path — it starts from the original package and changes
- * only what the user changed.
+ * This builds a package from scratch, so it is right for a document ZiyOffice
+ * creates and wrong for a document ZiyOffice edits: rebuilding from the model
+ * drops everything the model cannot express. [DocxEditor] is that path, it
+ * starts from the original package and changes only what the user changed.
  *
  * The package is minimal but standards-valid: content types, the package and
  * document relationships, word/document.xml, a small word/styles.xml, and only
  * when needed word/numbering.xml, word/header1.xml, word/footer1.xml and
  * word/media entries.
  *
- * One deliberate simplification: the model stores resolved formatting, so styles
- * are flattened into direct formatting on save. Content, appearance, lists,
- * tables and images survive a round trip; style *names* do not.
+ * One deliberate simplification: the model stores resolved formatting, so
+ * styles are flattened into direct formatting on save. Content, appearance,
+ * lists, tables and images survive a round trip; style *names* do not.
  */
 class DocxWriter {
 
@@ -44,12 +43,12 @@ class DocxWriter {
             DocxXml.writeBlock(body, block, images)
         }
         if (body.isEmpty()) {
-            // The body must contain at least one block-level element.
+            // The body must hold at least one block-level element.
             body.append("<w:p/>")
         }
 
-        // Header and footer are written only when the document has content for
-        // them: an empty reference would add a blank band on every page.
+        // A header or footer is written only when the document has content for
+        // it: an empty reference would add a blank band on every page.
         val header = document.header?.takeIf { it.isNotEmpty() }
         val footer = document.footer?.takeIf { it.isNotEmpty() }
 
@@ -84,8 +83,6 @@ class DocxWriter {
         return out.toByteArray()
     }
 
-    // ---------------------------------------------------------------- body xml
-
     private fun documentXml(body: String, hasHeader: Boolean, hasFooter: Boolean): String {
         val references = StringBuilder()
         if (hasHeader) {
@@ -103,7 +100,6 @@ class DocxWriter {
             "</w:sectPr></w:body></w:document>"
     }
 
-    /** The root element of a header or footer part. */
     private fun headerFooterXml(
         blocks: List<Block>,
         root: String,
@@ -119,8 +115,6 @@ class DocxWriter {
             "xmlns:a=\"$DRAWINGML_NAMESPACE\" " +
             "xmlns:pic=\"$PICTURE_NAMESPACE\">$body</w:$root>"
     }
-
-    // ------------------------------------------------------------- package xml
 
     private fun contentTypes(
         numbering: NumberingPlan,
@@ -187,8 +181,6 @@ class DocxWriter {
         return builder.toString()
     }
 
-    // ------------------------------------------------------------------ pieces
-
     /** Assigns relationship ids and media part names to images as they appear. */
     private class ImageRegistry(private val firstRelId: Int) : DocxXml.ImageRelId {
         val slots = mutableListOf<ImageSlot>()
@@ -215,7 +207,7 @@ class DocxWriter {
         val bytes: ByteArray,
     )
 
-    /** The numbering part, rebuilt from the list memberships used in the document. */
+    /** The numbering part, rebuilt from the lists the document actually uses. */
     private class NumberingPlan(private val levels: Map<Int, Map<Int, ListInfo>>) {
 
         val isEmpty: Boolean get() = levels.isEmpty()
@@ -301,7 +293,6 @@ class DocxWriter {
                 "<Relationship Id=\"rId1\" Type=\"$RELATIONSHIPS_NAMESPACE/officeDocument\" " +
                 "Target=\"word/document.xml\"/></Relationships>"
 
-        /** The file extension a picture's bytes get in the package. */
         fun imageExtension(bytes: ByteArray): String = DocxXml.imageExtension(bytes)
     }
 }

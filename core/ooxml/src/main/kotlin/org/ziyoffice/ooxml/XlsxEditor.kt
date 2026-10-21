@@ -19,21 +19,18 @@ import org.ziyoffice.ooxml.xml.escapeXmlText
 /**
  * Writes an edited workbook back into the package it came from.
  *
- * The old writer rebuilt the workbook from the model, so a save produced a
- * package holding only the cells, the sheets and the formatting the model
- * could express. Charts, images, pivot tables, comments, conditional
- * formatting, filters, protections, hidden rows and columns and named ranges
- * were all dropped.
+ * The old writer rebuilt the workbook from the model, so a save dropped the
+ * charts, images, pivot tables, comments, conditional formatting, filters,
+ * protections, hidden rows and columns and named ranges.
  *
  * This writer starts from the original package instead. It rewrites the
- * worksheet parts — the cells, the column widths, the row heights, the merged
- * ranges, the dropdowns and the frozen rows — and adds any new formatting to
- * the workbook's own style sheet. Everything else is copied through untouched,
- * so a cell edit does not disturb a chart that points at it.
+ * worksheet parts (the cells, the column widths, the row heights, the merged
+ * ranges, the dropdowns and the frozen rows) and adds any new formatting to
+ * the workbook's own style sheet. Everything else is copied through
+ * untouched, so a cell edit does not disturb a chart that points at it.
  */
 class XlsxEditor(private val source: XlsxSource) {
 
-    /** Saves [workbook] into the source package and returns the new bytes. */
     fun save(workbook: Workbook): ByteArray {
         val parts = LinkedHashMap(source.parts)
 
@@ -81,10 +78,9 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * A worksheet for a sheet the user added.
-     *
-     * The cells carry the formatting the model holds, added to the workbook's
-     * own style sheet, so a new sheet looks like the others.
+     * A worksheet for a sheet the user added. The cells carry the formatting
+     * the model holds, added to the workbook's own style sheet, so a new
+     * sheet looks like the others.
      */
     private fun renderNewSheet(sheet: Sheet): String = buildString {
         append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
@@ -166,7 +162,6 @@ class XlsxEditor(private val source: XlsxSource) {
         append("</worksheet>")
     }
 
-    /** The next relationship number that is not in use yet. */
     private fun nextRelationshipNumber(relationships: String?): Int {
         val highest = relationships?.let { text ->
             Regex("Id=\"rId(\\d+)\"").findAll(text).mapNotNull { it.groupValues[1].toIntOrNull() }
@@ -175,7 +170,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return highest + 1
     }
 
-    /** The next worksheet part number that is not in use yet. */
     private fun nextSheetNumber(parts: Map<String, ByteArray>): Int {
         val highest = parts.keys.mapNotNull {
             Regex("xl/worksheets/sheet(\\d+)\\.xml").find(it)?.groupValues?.get(1)?.toIntOrNull()
@@ -183,7 +177,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return highest + 1
     }
 
-    /** Adds a relationship to the workbook's relationship part. */
     private fun addRelationship(
         relationships: String?,
         relId: String,
@@ -196,7 +189,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return DocxXml.insertIntoContainer(text, "Relationships", relationship)
     }
 
-    /** Declares the content type of a part, when it is missing. */
     private fun addContentType(contentTypes: String?, partName: String, type: String): String? {
         val text = contentTypes ?: return null
         if (text.contains("PartName=\"$partName\"")) return text
@@ -204,15 +196,11 @@ class XlsxEditor(private val source: XlsxSource) {
         return DocxXml.insertIntoContainer(text, "Types", declaration)
     }
 
-    // ------------------------------------------------------------------ sheet
-
     /**
-     * Rewrites one worksheet.
-     *
-     * The cells are written out again, but every cell keeps the style it had
-     * unless the user changed the formatting, and every row keeps the
-     * attributes the workbook gave it — a hidden row, an outline level — that
-     * the model does not hold.
+     * Rewrites one worksheet. Every cell keeps the style it had unless the
+     * user changed the formatting, and every row keeps the attributes the
+     * workbook gave it (a hidden row, an outline level) that the model does
+     * not hold.
      */
     private fun editSheet(sheetSource: XlsxSheetSource, sheet: Sheet): String {
         val xml = sheetSource.xml
@@ -288,10 +276,9 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * True when the sheet still says what the source sheet said.
-     *
-     * When it does, the worksheet part is copied through untouched, so a save
-     * that changes nothing produces the same file.
+     * True when the sheet still says what the source sheet said. When it
+     * does, the worksheet part is copied through untouched, so a save that
+     * changes nothing produces the same file.
      */
     private fun sameSheet(original: Sheet, sheet: Sheet): Boolean {
         if (sheet.frozenRows != original.frozenRows) return false
@@ -310,11 +297,9 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * The cells of a sheet, written out again.
-     *
-     * A cell keeps the style it had unless its formatting changed, in which
-     * case the new formatting is added to the workbook's style sheet and the
-     * cell points at that.
+     * The cells of a sheet, written out again. A cell keeps the style it had
+     * unless its formatting changed, in which case the new formatting is
+     * added to the workbook's style sheet and the cell points at that.
      */
     private fun renderSheetData(sheetSource: XlsxSheetSource, sheet: Sheet): String {
         val builder = StringBuilder("<sheetData>")
@@ -411,11 +396,10 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * The value the workbook cached for a formula cell.
-     *
-     * It is only reused when the formula is still the one the workbook holds:
-     * a formula the user changed has to be recalculated, and a stale result
-     * would be worse than none.
+     * The value the workbook cached for a formula cell. It is only reused
+     * when the formula is still the one the workbook holds: a formula the
+     * user changed has to be recalculated, and a stale result would be worse
+     * than none.
      */
     private fun cachedValueOf(
         sheetSource: XlsxSheetSource,
@@ -435,10 +419,9 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * The column widths.
-     *
-     * The workbook's own column entries are kept — a hidden column stays
-     * hidden — and only the width the user set is written into them.
+     * The column widths. The workbook's own column entries are kept (a
+     * hidden column stays hidden) and only the width the user set is written
+     * into them.
      */
     private fun renderCols(sheetSource: XlsxSheetSource, sheet: Sheet): String {
         val widths = sheet.columnWidths
@@ -477,7 +460,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return builder.toString()
     }
 
-    /** The merged ranges, or an empty string when there are none. */
     private fun renderMerges(sheet: Sheet): String {
         val merges = sheet.mergedRanges
         if (merges.isEmpty()) return ""
@@ -494,11 +476,9 @@ class XlsxEditor(private val source: XlsxSource) {
     }
 
     /**
-     * The dropdown lists.
-     *
-     * The workbook's own rules that ZiyOffice cannot hold — a rule that points
-     * at another range, for instance — are kept exactly as they are; only the
-     * rules the model holds are written out.
+     * The dropdown lists. Rules the workbook has that ZiyOffice cannot hold
+     * (a rule pointing at another range, for instance) are kept exactly as
+     * they are; only the rules the model holds are written out.
      */
     private fun renderValidations(sheetSource: XlsxSheetSource, sheet: Sheet): String {
         val validations = sheet.validations.filter { it.values.isNotEmpty() }
@@ -528,7 +508,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return builder.toString()
     }
 
-    /** The frozen rows. */
     private fun renderSheetViews(sheet: Sheet): String {
         val builder = StringBuilder("<sheetViews><sheetView workbookViewId=\"0\">")
         if (sheet.frozenRows > 0) {
@@ -541,13 +520,10 @@ class XlsxEditor(private val source: XlsxSource) {
         return builder.toString()
     }
 
-    // --------------------------------------------------------------- workbook
-
     /**
-     * The workbook part: the sheet names, their order and the active tab.
-     *
-     * The relationships are not touched, so a sheet keeps the charts,
-     * drawings and pivot tables that point at it.
+     * The workbook part: the sheet names, their order and the active tab. The
+     * relationships are not touched, so a sheet keeps the charts, drawings
+     * and pivot tables that point at it.
      */
     private fun editWorkbook(workbook: Workbook, relIds: List<String>): String {
         val xml = source.workbookXml
@@ -587,12 +563,9 @@ class XlsxEditor(private val source: XlsxSource) {
         return applyEdits(xml, edits)
     }
 
-    // --------------------------------------------------------------- helpers
-
     /**
-     * Where an element belongs when the worksheet does not have one yet.
-     *
-     * The order of a worksheet's children is fixed by the schema, so a new
+     * Where an element belongs when the worksheet does not have one yet. The
+     * order of a worksheet's children is fixed by the schema, so a new
      * element goes before the first element that has to follow it.
      */
     private fun insertionPoint(root: XmlElement, before: List<String>): Int {
@@ -601,7 +574,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return root.contentEnd
     }
 
-    /** Applies a list of edits to a string. */
     private fun applyEdits(xml: String, edits: List<Edit>): String {
         if (edits.isEmpty()) return xml
         val sorted = edits.sortedBy { it.start }
@@ -642,7 +614,6 @@ class XlsxEditor(private val source: XlsxSource) {
         return out.toByteArray()
     }
 
-    /** One replacement in a source string. */
     private data class Edit(val start: Int, val end: Int, val replacement: String)
 
     private companion object {

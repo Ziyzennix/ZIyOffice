@@ -157,8 +157,6 @@ class XlsxPreservationTest {
         return XlsxEditor(source).save(workbook)
     }
 
-    // ------------------------------------------------------------------ tests
-
     @Test
     fun anUntouchedWorkbookIsSavedByteForByte() {
         val original = richWorkbook()

@@ -1,18 +1,18 @@
-# ZiyOffice — Feature matrix vs WPS Office
+# ZiyOffice feature matrix vs WPS Office
 
-Living checklist. `Status` values: `done` · `in progress` · `planned` · `—` (not planned yet).
-The rule for this file: only mark `done` what a user can actually do on a phone today.
+A checklist that gets updated as things land. `Status` values: `done` · `in progress` ·
+`planned` · `—` (not planned yet). Only mark `done` what a user can actually do on a phone
+today.
 
-**Content preservation.** Saving writes the edited parts back into the package the file
-came from, rather than building a new one from ZiyOffice's own model. A paragraph the user
-did not touch comes out of a save byte for byte; a paragraph they did touch keeps its
-properties, its hyperlinks, its comment anchors and its drawings, and only the text and the
-formatting they changed are rewritten. Everything the editor cannot edit — comments,
-footnotes, tracked changes, equations, text boxes, section breaks, charts, pivot tables,
-conditional formatting, filters, hidden rows and columns — stays in the file exactly as it
-was. The editors audit the file on open and list what they cannot edit; nothing is removed
-by a save. See the per-format rows below, and `DocxPreservationTest` / `XlsxPreservationTest`
-for the enforced contract.
+**Content preservation.** Saving writes the edited parts back into the package the file came
+from instead of building a new one from ZiyOffice's own model. A paragraph the user didn't
+touch comes out of a save byte for byte. A paragraph they did touch keeps its properties, its
+hyperlinks, its comment anchors and its drawings, and only the text and the formatting they
+changed get rewritten. Everything the editor can't edit (comments, footnotes, tracked
+changes, equations, text boxes, section breaks, charts, pivot tables, conditional formatting,
+filters, hidden rows and columns) stays in the file exactly as it was. The editors list that
+content when you open the file; nothing gets removed by a save. See the per-format rows
+below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced contract.
 
 ## Foundations (M0)
 
@@ -21,10 +21,10 @@ for the enforced contract.
 | Opens documents from user folders (SAF) | yes | yes | done |
 | Opens from another app ("Open with" / "Share to") | yes | yes | done |
 | Recent files list, local only | yes | yes | done |
-| **Zero permissions requested** | no (dozens) | **yes** | done |
+| **No system permissions** | no (dozens) | **yes** | done |
 | **No ads / no subscription** | no | **yes** | done |
 | **No account required** | no | **yes** | done |
-| **Cannot use the network at all** | no | **yes** | done |
+| **Can't use the network at all** | no | **yes** | done |
 | Dark mode | yes | yes | done |
 | Home screen, Settings, About (privacy receipt) | yes | yes | done |
 | Save-safety: unsaved-edit prompt, crash recovery draft | yes | yes | done |
@@ -46,8 +46,8 @@ for the enforced contract.
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
 | Print via the system print service | yes | | done |
-| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. First-page and even-page variants are kept as they are but cannot be edited | done |
-| Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Kept as they are by a save — the file stays complete — but not editable here (listed on open) | — |
+| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. First-page and even-page variants are kept as they are but can't be edited | done |
+| Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Kept as they are by a save, so the file stays complete, but not editable here (listed on open) | — |
 | Equations, SmartArt | partial | | — |
 | Mail merge | yes | | — |
 
@@ -68,7 +68,7 @@ for the enforced contract.
 | Charts (bar, from a column) | yes | | done |
 | Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths, heights, fills, borders and alignment are honoured | done |
 | Print via the system print service | yes | | done |
-| Content a save keeps but cannot edit (charts, images, pivot tables, conditional formatting, filters, protection, hidden rows/columns) | no | Kept as they are by a save; listed on open | done |
+| Content a save keeps but can't edit (charts, images, pivot tables, conditional formatting, filters, protection, hidden rows/columns) | no | Kept as they are by a save; listed on open | done |
 | Pivot tables | yes | | — |
 | Macros | yes | | — |
 
@@ -81,7 +81,7 @@ for the enforced contract.
 | Merge / split / rotate / reorder | yes (paid) | | done |
 | Page labels and text stamps | yes | Stamp text on a page, and number the pages of a saved or printed copy | done |
 | Fill forms | yes (paid) | Fill the fields and save the filled document | planned |
-| Digital signature (handwritten ink — drawn, not cryptographic) | yes (paid) | | done |
+| Digital signature (handwritten ink, drawn not cryptographic) | yes (paid) | | done |
 | True redaction (content removed, not black boxes) | partial (paid) | | done |
 | Export progress + cancel, output verified non-empty and `%PDF` | no | | done |
 | Marks rotate with their page; mark list with remove | no | | done |
@@ -94,11 +94,11 @@ for the enforced contract.
 | Open/edit/save `.pptx` text (preserve other package parts) | yes | | done |
 | Slide strip + text editing | yes | Editing a slide's text keeps the layout, the images, the animations and the rest of the package | done |
 | Print via the system print service | yes | | done |
-| Shape/image editing on slides | yes | | planned — text edits preserve other parts |
+| Shape/image editing on slides | yes | | planned. Text edits preserve other parts |
 | Present mode + speaker notes | yes | | done |
 | Transitions / animations | yes | Per-slide transitions and animations | planned |
 
-## Privacy & freedom (the "beat WPS" list) — M5
+## Privacy & freedom (the "beat WPS" list). M5
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
@@ -113,5 +113,5 @@ for the enforced contract.
 
 ## Non-goals (for now)
 
-Collaboration, cloud sync, macros/VBA, pivot tables, mail merge, equation editor.
-Each may come back later, one at a time, with a decision recorded.
+Collaboration, cloud sync, macros/VBA, pivot tables, mail merge, equation editor. Each one
+may come back later, one at a time, with a decision recorded.

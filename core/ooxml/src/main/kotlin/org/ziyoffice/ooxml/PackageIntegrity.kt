@@ -11,12 +11,11 @@ import java.util.zip.ZipInputStream
  * failed halfway or a provider that wrote nothing all look like success from
  * inside the app, and the user only finds out when the file will not open.
  *
- * The check is deliberately small: it reads the entry names and confirms the
- * one part that makes the format what it is.
+ * The check is deliberately small: read the entry names, confirm the one part
+ * that makes the format what it is.
  */
 object PackageIntegrity {
 
-    /** The part that must be present for each format. */
     fun requiredPart(kind: PackageKind): String = when (kind) {
         PackageKind.DOCUMENT -> "word/document.xml"
         PackageKind.SPREADSHEET -> "xl/workbook.xml"
@@ -50,9 +49,8 @@ object PackageIntegrity {
     }
 
     /**
-     * True when the archive ends with the end-of-central-directory record.
-     *
-     * A stream reads the entries one after another and never notices that the
+     * True when the archive ends with the end-of-central-directory record. A
+     * stream reads the entries one after another and never notices that the
      * directory at the end of the file is missing, so a package that was cut
      * short halfway would pass. The record is what says "the archive is
      * complete", so its absence means the file is not.

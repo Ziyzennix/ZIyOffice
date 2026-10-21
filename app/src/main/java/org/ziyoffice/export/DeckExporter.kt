@@ -12,8 +12,8 @@ import org.ziyoffice.model.SlideDeck
 /**
  * Exports a [SlideDeck] to PDF: one landscape page per slide, title first.
  *
- * This is a text export, not a pixel copy of the original deck — images, themes
- * and animation are not rendered. It shows exactly what this app can read.
+ * This is a text export, not a pixel copy of the original deck: images, themes
+ * and animation are not rendered.
  */
 object DeckExporter {
 

@@ -6,8 +6,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * Decodes document images, downsampled to a sane display size so a 12-megapixel
- * photo never allocates its full bitmap in memory. Called from a background
- * dispatcher; returns null for formats the platform cannot decode (EMF, WMF, SVG).
+ * photo never allocates its full bitmap. Called from a background dispatcher,
+ * returns null for formats the platform cannot decode (EMF, WMF, SVG).
  */
 fun decodeImage(bytes: ByteArray, maxDimension: Int = 2048): ImageBitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

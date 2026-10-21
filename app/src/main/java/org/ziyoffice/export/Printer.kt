@@ -14,18 +14,17 @@ import java.io.ByteArrayOutputStream
 /**
  * Prints any ZiyOffice document through Android's own print service.
  *
- * No permission is involved: the pages are rendered into a PDF in memory and the
- * bytes go to [PrintManager], so the system dialog shows a real preview and the
- * user picks a printer or "Save as PDF". Same offline path as export, so what
- * prints is what export produces.
+ * No permission is involved: the pages are rendered into a PDF in memory and
+ * the bytes go to [PrintManager], so the system dialog shows a real preview and
+ * the user picks a printer or "Save as PDF". Same offline path as export, so
+ * what prints is what export produces.
  */
 object Printer {
 
     /**
-     * Renders [pdfBytes] and opens the system print dialog under [jobName].
-     * Returns false when the platform has no print service (rare, but some
-     * stripped-down builds omit it), so the caller can say so instead of
-     * silently doing nothing.
+     * Opens the system print dialog under [jobName] with [pdfBytes]. False when
+     * the platform has no print service (some stripped-down builds omit it), so
+     * the caller can say so instead of doing nothing.
      */
     fun print(context: Context, jobName: String, pdfBytes: ByteArray): Boolean {
         val manager = context.getSystemService(Context.PRINT_SERVICE) as? PrintManager
@@ -72,9 +71,8 @@ object Printer {
                 return
             }
             try {
-                // The bytes are a complete, paginated PDF: all pages are always
-                // written, which is what a document produced by our exporters
-                // means. Writing a subset would require re-rendering.
+                // The bytes are a complete, paginated PDF, so all pages are always
+                // written. Writing a subset would mean re-rendering.
                 ParcelFileDescriptor.AutoCloseOutputStream(destination).use { out ->
                     out.write(pdfBytes)
                     out.flush()

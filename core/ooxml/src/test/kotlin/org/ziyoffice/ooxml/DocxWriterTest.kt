@@ -17,10 +17,7 @@ import org.ziyoffice.model.TableCell
 import org.ziyoffice.model.TableRow
 import org.ziyoffice.model.VerticalMerge
 
-/**
- * Round-trip tests: what the writer emits must come back identical through the
- * reader for everything the model can currently express.
- */
+/** What the writer emits must come back identical through the reader. */
 class DocxWriterTest {
 
     private val reader = DocxReader()

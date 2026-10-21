@@ -117,7 +117,7 @@ class NumberFormatTest {
     @Test
     fun parsesTypedTimesOntoTodaysDate() {
         // A bare time is anchored to today, so the serial is absolute rather than a
-        // fraction — formatting it back with a time code must still show the time.
+        // fraction. Formatting it back with a time code must still show the time.
         val serial = parseDateInput("13:45")!!
         assertEquals("13:45", formatNumber(serial, "h:mm"))
         assertEquals(

@@ -5,10 +5,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 /**
- * The MIME type an intent carries decides how a shared file opens, and it is the
- * only reliable signal: content providers sometimes report a display name with
- * no extension at all ("document:1000142160"), which reads as [DocumentKind.UNKNOWN]
- * and sends the user to the unsupported-file screen.
+ * The MIME type an intent carries decides how a shared file opens, and it is the only
+ * reliable signal: content providers sometimes report a display name with no extension
+ * at all ("document:1000142160"), which reads as [DocumentKind.UNKNOWN] and sends the
+ * user to the unsupported-file screen.
  */
 class DocumentKindMimeTest {
 

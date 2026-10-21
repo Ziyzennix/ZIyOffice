@@ -1,4 +1,4 @@
-# ADR 0002 — Toolchain baseline (AGP 8.13 / Gradle 8.13 / Kotlin 2.4 / Compose 1.10)
+# ADR 0002: Toolchain baseline (AGP 8.13 / Gradle 8.13 / Kotlin 2.4 / Compose 1.10)
 
 **Status:** Accepted (2026-10-18).
 **Supersedes:** nothing. Review trigger: before milestone M1 feature work grows, or when the
@@ -37,7 +37,7 @@ Pin the project to the **newest toolchain that works with compileSdk 36**:
 - A future upgrade to API 37 + AGP 9 is a single, well-defined migration:
   bump `agp`, `composeBom`, `compileSdk`, `targetSdk`; install SDK platform 37; move off
   Gradle 8.13; re-validate the privacy guardrail scripts (nothing about them is AGP-specific).
-- Upgrade hygiene: version bumps happen one at a time with a green build between them —
+- Upgrade hygiene: version bumps happen one at a time with a green build between them.
   never as part of a feature change.
 - Known warnings we accept for now: Kotlin's "Gradle 8.13 deprecated" notice, and AGP 8.13's
   "SDK XML version 4" notice from newer command-line tools.

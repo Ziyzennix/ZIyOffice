@@ -56,7 +56,7 @@ private enum class ZiyTab(val label: String) {
 
 /**
  * App shell: three tabs (Home / Files / Settings) and the pushed screens behind
- * them. About is a pushed screen with a back button.
+ * them, About among them.
  */
 @Composable
 fun ZiyOfficeApp(
@@ -74,7 +74,7 @@ fun ZiyOfficeApp(
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     /**
      * A file handed over by another app. Its grant usually cannot be persisted,
-     * so it is not a recents entry — it lives only for this visit and the
+     * so it is not a recents entry: it lives only for this visit, and the
      * editor's "Save as copy" is the way to keep the result.
      */
     var transientFile by remember { mutableStateOf<RecentFile?>(null) }
@@ -86,20 +86,20 @@ fun ZiyOfficeApp(
     // dropping the user on Home and making them find it again.
     //
     // The effect is keyed on the uri but consumes it through a local snapshot:
-    // clearing [incomingUri] re-keys the effect and cancels whatever it was
-    // doing, which silently dropped the document. So the uri is copied first,
-    // handled to completion, and only then reported as consumed.
+    // clearing [incomingUri] re-keys it and cancels whatever it was doing,
+    // which silently dropped the document. So the uri is copied first, handled
+    // to completion, then reported as consumed.
     LaunchedEffect(incomingUri) {
         val uri = incomingUri ?: return@LaunchedEffect
         val remembered = withContext(Dispatchers.IO) { store.remember(uri, incomingMimeType) }
         if (remembered == null) {
-            statusMessage = "Could not read that file."
+            statusMessage = "Couldn't read that file."
         } else {
             if (remembered.persisted) {
                 recents = store.load()
             } else {
-                // One-shot grant: no recents row, just this visit. Say so,
-                // because edits can only be kept through "Save as copy".
+                // One-shot grant: no recents row, just this visit. Say so, since
+                // edits can only be kept through "Save as copy".
                 transientFile = remembered.file
                 statusMessage = "Opened from another app \u00b7 use Save as copy to keep changes"
             }
@@ -114,19 +114,19 @@ fun ZiyOfficeApp(
         if (entry != null) {
             openFileUri = entry.uri
         } else {
-            statusMessage = "Could not read that file."
+            statusMessage = "Couldn't read that file."
         }
     }
 
     // Home's PDF tile opens a PDF straight away rather than pretending the app
-    // can create a blank one: the picker is narrowed to application/pdf.
+    // can create a blank one, so the picker is narrowed to application/pdf.
     val openPdfPicker = rememberDocumentPicker(PDF_MIME_TYPES) { uri: Uri ->
         val entry = store.remember(uri)?.file
         recents = store.load()
         if (entry != null) {
             openFileUri = entry.uri
         } else {
-            statusMessage = "Could not read that PDF."
+            statusMessage = "Couldn't read that PDF."
         }
     }
 
@@ -137,7 +137,7 @@ fun ZiyOfficeApp(
                 runCatching {
                     val bytes = DocxWriter().write(document)
                     context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                        ?: error("the file could not be created")
+                        ?: error("the file couldn't be created")
                 }
             }
             result.fold(
@@ -148,11 +148,11 @@ fun ZiyOfficeApp(
                         createdFileUri = entry.uri
                         openFileUri = entry.uri
                     } else {
-                        statusMessage = "Could not read the new document."
+                        statusMessage = "Couldn't read the new document."
                     }
                 },
                 onFailure = { error ->
-                    statusMessage = "Could not create the document: " +
+                    statusMessage = "Couldn't create the document: " +
                         (error.message ?: error.javaClass.simpleName)
                 },
             )
@@ -167,7 +167,7 @@ fun ZiyOfficeApp(
                     val workbook = Workbook(sheets = listOf(Sheet(name = "Sheet1", cells = emptyList())))
                     val bytes = XlsxWriter().write(workbook)
                     context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                        ?: error("the file could not be created")
+                        ?: error("the file couldn't be created")
                 }
             }
             result.fold(
@@ -178,11 +178,11 @@ fun ZiyOfficeApp(
                         createdFileUri = entry.uri
                         openFileUri = entry.uri
                     } else {
-                        statusMessage = "Could not read the new spreadsheet."
+                        statusMessage = "Couldn't read the new spreadsheet."
                     }
                 },
                 onFailure = { error ->
-                    statusMessage = "Could not create the spreadsheet: " +
+                    statusMessage = "Couldn't create the spreadsheet: " +
                         (error.message ?: error.javaClass.simpleName)
                 },
             )
@@ -196,7 +196,7 @@ fun ZiyOfficeApp(
                 runCatching {
                     val bytes = PptxWriter().create(SlideDeck.blank())
                     context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) }
-                        ?: error("the file could not be created")
+                        ?: error("the file couldn't be created")
                 }
             }
             result.fold(
@@ -207,11 +207,11 @@ fun ZiyOfficeApp(
                         createdFileUri = entry.uri
                         openFileUri = entry.uri
                     } else {
-                        statusMessage = "Could not read the new presentation."
+                        statusMessage = "Couldn't read the new presentation."
                     }
                 },
                 onFailure = { error ->
-                    statusMessage = "Could not create the presentation: " +
+                    statusMessage = "Couldn't create the presentation: " +
                         (error.message ?: error.javaClass.simpleName)
                 },
             )

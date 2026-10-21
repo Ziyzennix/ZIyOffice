@@ -21,10 +21,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 /**
  * One user mark on a PDF page. Coordinates are a fraction of the page (0..1), so
  * a mark made while zoomed out still lands in the right place at print
- * resolution.
- *
- * [doc] says which opened document the mark belongs to, so marks stay on their
- * page when pages are reordered or a second PDF is merged in.
+ * resolution. [doc] says which opened document the mark belongs to, so marks
+ * stay put when pages are reordered or another PDF is merged in.
  */
 sealed interface PdfMark {
     val doc: Int
@@ -88,10 +86,9 @@ enum class MarkMode(val label: String) {
 }
 
 /**
- * Interactive layer over a rendered page. Draws every mark for the page and turns
- * drags and taps into new ones. The same surface handles highlighting, inking,
- * notes, signatures and redaction because they differ only in how they are
- * painted, not in how they are captured.
+ * Interactive layer over a rendered page. Draws every mark for the page and
+ * turns drags and taps into new ones. One surface handles all the mark kinds,
+ * since they differ only in how they are painted.
  */
 @Composable
 fun MarkLayer(
@@ -118,9 +115,9 @@ fun MarkLayer(
                 } else {
                     Modifier.pointerInput(mode, doc, page) {
                         // One tap is the whole gesture: the mark lands where the
-                        // finger is. Double-tap was tried first and abandoned — it
-                        // needs a sub-300 ms second tap, which is a coin flip on a
-                        // phone and invisible when it misses.
+                        // finger is. Double-tap was tried first and abandoned, it
+                        // needs a sub-300 ms second tap, which is a coin flip on
+                        // a phone and invisible when it misses.
                         detectTapGestures { offset ->
                             val x = offset.x / size.width
                             val y = offset.y / size.height
@@ -239,13 +236,15 @@ fun MarkLayer(
                     }
 
                     is PdfMark.Text -> {
-                        drawContext.canvas.nativeCanvas.drawText(                            mark.text,
+                        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                            color = android.graphics.Color.rgb(0x1A, 0x1C, 0x1B)
+                            textSize = 12f * density
+                        }
+                        drawContext.canvas.nativeCanvas.drawText(
+                            mark.text,
                             mark.x * size.width,
-                            mark.y * size.height,
-                            android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                                color = android.graphics.Color.rgb(0x1A, 0x1C, 0x1B)
-                                textSize = 12f * density
-                            },
+                            textBaseline(mark.y, size.height, paint.textSize),
+                            paint,
                         )
                     }
                 }
@@ -282,12 +281,19 @@ fun MarkLayer(
 }
 
 /**
+ * Where a text mark's baseline goes.
+ *
+ * The mark's y is where the text starts, not where its baseline is. A stamp
+ * placed near the top of a page would otherwise be drawn half off it.
+ */
+private fun textBaseline(y: Float, height: Float, textSize: Float): Float =
+    y * height + textSize
+
+/**
  * Re-expresses marks for a page that has just been rotated clockwise by
  * [degrees]. Marks are stored as fractions of the page, so rotating the page
- * without rotating them would slide every highlight, stroke and redaction off
- * the content it was placed on.
- *
- * Only marks belonging to [doc]/[page] move; everything else is returned as-is.
+ * without them would slide every highlight, stroke and redaction off the
+ * content it was placed on. Only marks on [doc]/[page] move.
  */
 fun rotateMarks(
     marks: List<PdfMark>,
@@ -395,14 +401,14 @@ fun bakeMarks(canvas: Canvas, doc: Int, page: Int, marks: List<PdfMark>) {
                 }
             }
 
-            // Notes are not drawn: a note is a comment for the reader's list, and
-            // stamping its text onto the page would change the document's content.
+            // Notes are not drawn: a note is a comment for the reader's list,
+            // and stamping its text on the page would change the content.
             is PdfMark.Note -> Unit
 
             is PdfMark.Text -> canvas.drawText(
                 mark.text,
                 mark.x * width,
-                mark.y * height,
+                textBaseline(mark.y, height, textPaint.textSize),
                 textPaint,
             )
 

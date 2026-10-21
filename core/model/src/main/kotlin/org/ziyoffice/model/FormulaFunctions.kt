@@ -9,12 +9,9 @@ import kotlin.math.roundToLong
 import kotlin.math.sqrt
 
 /**
- * The function library: aggregates, maths, text, logic, conditional counting,
- * lookup, statistics, dates and information tests.
- *
- * Every function takes what the parser produced and returns a [CellValue].
- * Ranges are read through the [CellResolver], so a formula that reaches a cell
- * with an error reports that error instead of a made-up number.
+ * The function library: aggregates, maths, text, logic, conditional counting, lookup,
+ * statistics, dates and information tests. Ranges go through the [CellResolver], so a
+ * formula that reaches an error cell reports that error instead of a made-up number.
  */
 internal object FormulaFunctions {
 
@@ -681,8 +678,8 @@ internal object FormulaFunctions {
     }
 
     /**
-     * True when a cell matches a criterion such as `">10"`, `"<>done"` or
-     * `"Paper"`. Text comparisons ignore case, like every spreadsheet.
+     * True when a cell matches a criterion such as `">10"`, `"<>done"` or `"Paper"`. Text comparisons
+     * ignore case, like every spreadsheet.
      */
     private fun matchesCriterion(value: CellValue, criterion: CellValue): Boolean {
         val text = asText(criterion) ?: return equalValues(value, criterion)

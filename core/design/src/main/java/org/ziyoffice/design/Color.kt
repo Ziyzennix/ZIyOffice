@@ -2,7 +2,7 @@ package org.ziyoffice.design
 
 import androidx.compose.ui.graphics.Color
 
-// ZiyOffice brand palette — calm "ink and paper" tones.
+// ZiyOffice brand palette, calm "ink and paper" tones.
 // Light theme
 val ZiyPrimaryLight = Color(0xFF0E5A4E)
 val ZiyOnPrimaryLight = Color(0xFFFFFFFF)

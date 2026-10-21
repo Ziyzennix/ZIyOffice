@@ -5,17 +5,15 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * Local copies of unsaved edits, one per document uri, in app-private storage.
- *
- * They exist so a crash or a killed process does not lose work that was never
- * written back to the user's file.
+ * Local copies of unsaved edits, one per document uri, in app-private storage,
+ * so a crash or a killed process does not lose work that was never written back
+ * to the user's file.
  *
  * The discard marker closes a real race: a debounced draft write may already be
- * running when the user taps Discard. Without the guard that write lands after
- * [discard] and the document the user threw away reappears on the next open. A
+ * running when the user taps Discard, and without the guard that write lands
+ * after [discard] and the thrown-away document reappears on the next open. A
  * discarded uri refuses further draft writes for the life of this instance; a
- * new editor session builds a new instance, so the next real edit recovers
- * normally.
+ * new session builds a new instance, so the next real edit recovers normally.
  */
 class DraftStore(context: Context) {
     private val dir = File(context.filesDir, "drafts").also { it.mkdirs() }

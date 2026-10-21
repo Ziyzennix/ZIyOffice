@@ -23,21 +23,14 @@ import org.ziyoffice.model.formatNumber
 import org.ziyoffice.model.rowHeight
 
 /**
- * Exports a [Workbook] to a paginated PDF using only the platform's [PdfDocument].
+ * Exports a [Workbook] to a paginated PDF with the platform's [PdfDocument].
  *
- * Each sheet starts on a new page, and only the rectangle that holds data is
- * printed. Column letters and a row-number gutter make it look like a
- * spreadsheet. Values are the strings the grid shows, so a formula prints its
- * result, not `=SUM(A1:A9)`. Custom column widths and row heights scale onto
- * the page and stay proportional to each other.
- *
- * The page shows what the grid shows: the cell fill, the faint line every cell
- * carries, the borders the format asks for, the text colour and the alignment.
- * A bordered table that loses its borders in the PDF is not a faithful export.
- *
- * A sheet too wide or too long continues onto further pages with the column
- * header repeated and every row printed exactly once. Nothing is truncated to
- * make a page fit; dropping rows silently would be worse than no export.
+ * Each sheet starts on a new page, only the rectangle holding data is printed,
+ * and values are the strings the grid shows, so a formula prints its result,
+ * not `=SUM(A1:A9)`. Custom column widths and row heights scale onto the page
+ * and stay proportional. The page shows what the grid shows: the fill, the
+ * faint line every cell carries, the borders, the text colour and the
+ * alignment.
  */
 object SheetExporter {
 
@@ -103,8 +96,8 @@ object SheetExporter {
                     }
                 }
                 val texts = mutableMapOf<Pair<Int, Int>, String>()
-                // Explicit sheet widths set the starting geometry; content can
-                // still widen a narrow column, but never narrows a wide one.
+                // Explicit widths set the geometry; content can widen a narrow
+                // column, but never narrows a wide one.
                 val widths = FloatArray(bounds.second.second - bounds.first.second + 1) { index ->
                     printColumnWidth(sheet, bounds.first.second + index)
                 }
@@ -114,8 +107,8 @@ object SheetExporter {
                         val text = displayValue(byPos[row to column], sheet)
                         if (text.isEmpty()) continue
                         texts[row to column] = text
-                        // A merged cell's text is measured against the width of
-                        // the whole block below, not against one narrow column.
+                        // A merged cell's text is measured against the whole
+                        // block, not against one narrow column.
                         if (row to column !in anchors) {
                             val index = column - bounds.first.second
                             val needed = (cellPaint.measureText(text) + 2 * CELL_PADDING)
@@ -143,16 +136,17 @@ object SheetExporter {
                 val columns = widths.mapIndexed { index, width ->
                     Column(bounds.first.second + index, width)
                 }
-                // The gutter is sized by the largest row number, never by the
-                // first data column: a wide A column must not push the numbers
-                // into a gap.
+                // The gutter is sized by the largest row number, never the first
+                // data column: a wide A column must not push the numbers away.
                 val gutter = headerPaint.measureText((lastRow + 1).toString()) + 2 * GUTTER_PADDING
                 val rowHeights = (firstRow..lastRow).map { row -> printRowHeight(sheet, row) }
                 val availableRowsHeight =
                     PAGE_HEIGHT - 2 * MARGIN - HEADER_HEIGHT - ROW_HEIGHT
 
                 // Page breaks come from the tested helper, so "every row and
-                // column prints exactly once" is a property, not an accident.
+                // column prints exactly once" is a property, not an accident. A
+                // sheet too wide or too long carries on over more pages with the
+                // column header repeated, and nothing is truncated to fit.
                 SheetPagination.columnPages(
                     columnWidths = columns.map { it.width },
                     gutter = gutter,
@@ -212,8 +206,8 @@ object SheetExporter {
                                 val cell = byPos[row to column.index]
                                 val format = cell?.format ?: CellFormat()
                                 // A merged anchor owns the width of its whole
-                                // block. Without this a title spanning A:C
-                                // would be clipped back to column A.
+                                // block, otherwise a title spanning A:C gets
+                                // clipped back to column A.
                                 val merge = anchors[row to column.index]
                                 var spanWidth = column.width
                                 if (merge != null) {
@@ -227,10 +221,9 @@ object SheetExporter {
                                 }
                                 val isCovered = row to column.index in covered
                                 if (!isCovered) {
-                                    // Fill, grid and borders are drawn for the
-                                    // cell itself; a cell hidden behind a merge
-                                    // is part of its anchor's block and must
-                                    // not draw a line through it.
+                                    // Fill, grid and borders are drawn for the cell
+                                    // itself. A cell hidden behind a merge belongs
+                                    // to its anchor's block, so it draws no line.
                                     drawCellBackground(
                                         canvas = canvas,
                                         format = format,
@@ -260,7 +253,7 @@ object SheetExporter {
                                     }
                                     canvas.save()
                                     // Clip so a long value cannot spill into its
-                                    // neighbour and turn the table into mush.
+                                    // neighbour and turn the table to mush.
                                     canvas.clipRect(
                                         x,
                                         y + 1f,
@@ -302,10 +295,7 @@ object SheetExporter {
         (DEFAULT_PRINT_COLUMN_WIDTH * (sheet.columnWidth(column) / DEFAULT_COLUMN_WIDTH_CHARS))
             .coerceIn(MIN_PRINT_COLUMN_WIDTH, MAX_PRINT_COLUMN_WIDTH)
 
-    /**
-     * Draws what the cell looks like on screen: its fill, the faint grid every
-     * cell carries, and the borders the format asks for.
-     */
+    /** Draws what the cell looks like on screen: fill, faint grid, borders. */
     private fun drawCellBackground(
         canvas: Canvas,
         format: CellFormat,
@@ -385,7 +375,7 @@ object SheetExporter {
     /**
      * The used rectangle as ((firstRow, firstColumn), (lastRow, lastColumn)), or
      * null when no cell holds anything. Empty cells that only carry formatting
-     * still count: a pre-formatted table is something the user made.
+     * still count, a pre-formatted table is something the user made.
      */
     private fun usedBounds(sheet: Sheet): Pair<Pair<Int, Int>, Pair<Int, Int>>? {
         val used = sheet.cells.filter { it.value.isNotEmpty() || it.format != CellFormat() }
@@ -395,8 +385,8 @@ object SheetExporter {
         val firstColumn = used.minOf { it.column }
         val lastColumn = used.maxOf { it.column }
         // A merge belongs to the printed area when it touches a used cell, and
-        // the whole block must fit: a three-column title merge anchored in A
-        // makes C part of the used width.
+        // the whole block must fit: a title merge anchored in A across three
+        // columns makes C part of the used width.
         val mergedBounds = sheet.mergedRanges.filter { merge ->
             merge.top <= lastRow &&
                 merge.bottom >= firstRow &&

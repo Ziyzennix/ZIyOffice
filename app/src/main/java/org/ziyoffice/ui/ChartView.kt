@@ -18,9 +18,9 @@ import org.ziyoffice.model.ChartPoint
 import org.ziyoffice.model.formatNumber
 
 /**
- * A minimal bar chart drawn with Canvas — no charting dependency, which is the
- * whole point of this app. Bars scale to the largest absolute value, so negative
- * numbers plot below the baseline instead of being clipped to zero.
+ * A minimal bar chart drawn with Canvas, no charting dependency, which is the
+ * whole point of this app. Bars scale to the largest absolute value, so
+ * negative numbers plot below the baseline instead of being clipped to zero.
  */
 @Composable
 fun BarChart(

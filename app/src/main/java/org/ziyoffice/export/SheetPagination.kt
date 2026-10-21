@@ -3,19 +3,15 @@ package org.ziyoffice.export
 /**
  * Page breaks for the sheet exporter, free of Android types so the one property
  * that matters is testable on the JVM: every row and every column is printed
- * exactly once.
- *
- * The exporter draws from these ranges and never recomputes them, so a fix here
- * is a fix to what actually prints.
+ * exactly once. The exporter draws from these ranges and never recomputes them,
+ * so a fix here is a fix to what actually prints.
  */
 internal object SheetPagination {
 
     /**
-     * Splits [count] columns into pages that fit [pageWidth] after the row-number
+     * Splits the columns into pages that fit [pageWidth] after the row-number
      * [gutter]. A column wider than the page still gets a page of its own rather
-     * than being dropped.
-     *
-     * Returns half-open index ranges into the column list: `[start, end)`.
+     * than being dropped. Returns half-open index ranges: `[start, end)`.
      */
     fun columnPages(
         columnWidths: List<Float>,
@@ -42,7 +38,7 @@ internal object SheetPagination {
     /**
      * Splits rows `[first, last]` into pages whose heights fit [availableHeight].
      * [rowHeights] is indexed from [first]. A row taller than the space still
-     * gets a page of its own; no row is dropped.
+     * gets a page of its own, no row is dropped.
      */
     fun rowPagesByHeight(
         first: Int,

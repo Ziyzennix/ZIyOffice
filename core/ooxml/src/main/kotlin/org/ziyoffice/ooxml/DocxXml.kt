@@ -15,14 +15,14 @@ import org.ziyoffice.model.VerticalMerge
  * Generates the WordprocessingML for the document model.
  *
  * Two writers use it: [DocxWriter], which builds a whole new package, and
- * [DocxEditor], which needs to synthesise the few blocks a user added to a
- * document that is otherwise copied through unchanged. Keeping the generation
- * in one place means a new document and an edited document are written the
- * same way.
+ * [DocxEditor], which only needs to synthesise the few blocks a user added to
+ * a document that is otherwise copied through unchanged. Keeping the
+ * generation in one place means a new document and an edited document are
+ * written the same way.
  *
  * Everything here produces direct formatting: the model stores resolved
- * formatting, so style names are flattened. That is a deliberate trade — a
- * document ZiyOffice writes itself has no styles to refer to — and it only
+ * formatting, so style names are flattened. That is a deliberate trade, a
+ * document ZiyOffice writes itself has no styles to refer to, and it only
  * applies to content ZiyOffice writes. Content it merely carries over keeps
  * its original markup.
  */
@@ -235,12 +235,11 @@ internal object DocxXml {
         if (kind == ListKind.BULLET) "•" else "%${level + 1}."
 
     /**
-     * Puts [fragment] inside the element named [container].
-     *
-     * The container may be written as a self-closing element — a document with
-     * no relationships has `<Relationships/>` — in which case it is opened up
-     * first. Dropping the fragment silently would leave the package pointing
-     * at something that is not there.
+     * Puts [fragment] inside the element named [container]. The container may
+     * be written as a self-closing element (a document with no relationships
+     * has `<Relationships/>`), in which case it is opened up first. Dropping
+     * the fragment silently would leave the package pointing at something
+     * that is not there.
      */
     fun insertIntoContainer(text: String, container: String, fragment: String): String {
         val index = text.lastIndexOf("</$container>")

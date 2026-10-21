@@ -8,10 +8,10 @@ import java.util.zip.ZipInputStream
 /**
  * A feature the source package contains that ZiyOffice keeps but cannot edit.
  *
- * Saving a document writes the edited parts back into the original package,
- * so nothing here is lost. It is reported because the user should know what
- * they will not be able to change, and how much of the document is out of
- * reach — not to warn about damage.
+ * Saving writes the edited parts back into the original package, so nothing
+ * here is lost. It is reported because the user should know what they will
+ * not be able to change, and how much of the document is out of reach, not to
+ * warn about damage.
  */
 data class PreservedFeature(
     /** What the user recognises, e.g. "Comments". */
@@ -24,14 +24,14 @@ data class PreservedFeature(
  * Reads a package and reports what it holds that ZiyOffice cannot edit.
  *
  * The readers model a documented subset and skip everything else. That is the
- * right reader behaviour — faking unsupported content would be worse — but it
+ * right reader behaviour (faking unsupported content would be worse), but it
  * means the editor cannot place the caret in some of it. The writers keep
  * those parts untouched, so the file stays complete; this audit says which
  * parts of it are read-only.
  *
- * The scan is intentionally conservative. It reports only content the user
- * would expect to be able to change, and it never reports a feature the
- * editor does handle.
+ * The scan is deliberately conservative: it reports only content the user
+ * would expect to be able to change, and never a feature the editor does
+ * handle.
  */
 object ContentAudit {
 
@@ -220,7 +220,7 @@ object ContentAudit {
     /**
      * Occurrences of element [name] in [xml]. Matches `<name>` and `<name ...`,
      * so `<w:delText>` does not count as a `<w:del>` and `<m:oMathPara>` is not
-     * mistaken for a second `<m:oMath>` — callers pass both when both matter.
+     * mistaken for a second `<m:oMath>`. Callers pass both when both matter.
      */
     private fun countTag(xml: String, name: String): Int {
         val needle = "<$name"

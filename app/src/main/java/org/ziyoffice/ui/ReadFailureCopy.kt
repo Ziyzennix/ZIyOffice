@@ -3,10 +3,10 @@ package org.ziyoffice.ui
 /**
  * Turns a read failure into something a person can act on.
  *
- * The raw message is whatever the platform threw, and it tends to be written for
- * a developer ("obtain access using ACTION_OPEN_DOCUMENT or related APIs").
- * This maps the failures that actually happen to one sentence each and falls
- * back to the raw message only when it is genuinely informative.
+ * The raw message is whatever the platform threw, and it tends to be written
+ * for a developer ("obtain access using ACTION_OPEN_DOCUMENT or related
+ * APIs"). This maps the failures that actually happen to one sentence each and
+ * falls back to a plain generic sentence for everything else.
  *
  * Unit-tested so the wording cannot drift back into stack-trace prose.
  */
@@ -18,9 +18,9 @@ internal object ReadFailureCopy {
         val lower = reason.lowercase()
         return when {
             "permission denial" in lower || "securityexception" in lower ->
-                "ZiyOffice was not granted access to this file. Open it with " +
-                    "\u201COpen a file\u201D so the app can ask for permission, or " +
-                    "share it to ZiyOffice again from the other app."
+                "ZiyOffice doesn't have permission for this file. Open it with " +
+                    "\u201COpen a file\u201D so the app can ask, or share it to " +
+                    "ZiyOffice again from the other app."
             // Before the plain "not found" branch: a missing package part is a
             // broken file, not a file that moved.
             "not found in the package" in lower ->
@@ -30,16 +30,16 @@ internal object ReadFailureCopy {
                 "The file is no longer where it was. It may have been moved, " +
                     "renamed or deleted."
             "safety limit" in lower || "audit limit" in lower ->
-                "This file is larger than ZiyOffice will open. The limit exists " +
-                    "so a malformed file cannot exhaust the phone's memory."
+                "This file is larger than ZiyOffice will open. The limit is there " +
+                    "so a malformed file can't eat the phone's memory."
             "not a valid" in lower || "zip" in lower || "malformed" in lower ->
-                "This does not look like a complete Office file. It may be " +
-                    "damaged, or saved in a format ZiyOffice cannot read."
+                "This doesn't look like a complete Office file. It might be " +
+                    "damaged, or saved in a format ZiyOffice can't read."
             else -> GENERIC
         }
     }
 
     private const val GENERIC =
-        "The file could not be read. It may be damaged, or saved in a format " +
-            "ZiyOffice cannot open."
+        "Couldn't read this file. It might be damaged, or saved in a format " +
+            "ZiyOffice doesn't open."
 }

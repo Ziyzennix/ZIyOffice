@@ -37,7 +37,7 @@ private val FILE_FILTERS = listOf("All", "Docs", "Sheets", "Slides", "PDF", "Oth
  * The Files tab: a category strip over the same local recents list.
  *
  * The heading and the empty state both say "recent", because this is not a scan
- * of device storage. The only way to anything else is the system picker.
+ * of device storage. The system picker is the only way to anything else.
  */
 @Composable
 fun FilesScreen(
@@ -58,7 +58,7 @@ fun FilesScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text("Recent files", style = MaterialTheme.typography.headlineSmall)
                 Text(
-                    "Files you have opened in ZiyOffice",
+                    "Files you've opened in ZiyOffice",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -103,8 +103,8 @@ fun FilesScreen(
                     )
                     Text(
                         if (recents.isEmpty()) {
-                            "Files you open appear here. They stay in your folders \u2014 " +
-                                "ZiyOffice does not copy or upload them."
+                            "Files you open appear here. They stay in your folders, " +
+                                "ZiyOffice doesn't copy or upload them."
                         } else {
                             "Try another category, or choose a file with \u201CBrowse device\u201D above."
                         },

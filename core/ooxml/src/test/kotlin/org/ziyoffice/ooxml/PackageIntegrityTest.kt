@@ -7,10 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-/**
- * A save is only worth reporting as successful when the file that was
- * written can be opened again.
- */
+/** A save is only worth reporting as successful when the file can be opened again. */
 class PackageIntegrityTest {
 
     private fun zipOf(parts: Map<String, String>): ByteArray {

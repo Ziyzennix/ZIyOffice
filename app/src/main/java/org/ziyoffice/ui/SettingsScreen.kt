@@ -25,7 +25,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import org.ziyoffice.BuildConfig
 
-/** Settings tab. No back button \u2014 this is a root destination now. */
+/** Settings tab. No back button, this is a root destination now. */
 @Composable
 fun SettingsScreen(onOpenAbout: () -> Unit) {
     Column(
@@ -43,7 +43,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             modifier = Modifier.padding(top = 8.dp),
         )
         Text(
-            "Light and dark follow your system setting. Manual override and more themes arrive later.",
+            "Light and dark follow your system setting. A manual override and more themes arrive later.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -56,8 +56,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
         Text(
             "Documents are opened through the system file picker and stay in the folders you choose. " +
                 "ZiyOffice keeps a local list of recent files and a local recovery copy of unsaved " +
-                "edits \u2014 no cloud, no uploads, no account. If a file lives in a folder that another " +
-                "app syncs (for example a cloud drive folder), that app may still sync it on its own.",
+                "edits, no cloud, no uploads, no account. If a file lives in a folder that another " +
+                "app syncs (a cloud drive folder, say), that app may still sync it on its own.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -78,7 +78,7 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 48.dp)
                 // One merged node: TalkBack reads "About ZiyOffice, button"
-                // instead of the label alone with no hint that it navigates.
+                // instead of a label with no hint that it navigates.
                 .semantics(mergeDescendants = true) {
                     contentDescription = "About ZiyOffice"
                     role = Role.Button
@@ -94,8 +94,8 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             )
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                // The row is the labelled, clickable node; the chevron only
-                // repeats its meaning, so it must not be announced twice.
+                // The row is the labelled, clickable node; the chevron repeats
+                // its meaning, so it must not be announced twice.
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

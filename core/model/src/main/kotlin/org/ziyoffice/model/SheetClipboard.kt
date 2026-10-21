@@ -1,11 +1,9 @@
 package org.ziyoffice.model
 
 /**
- * Copy and paste between cells.
- *
- * A copied range is plain tab-separated text, the shape every spreadsheet puts
- * on the clipboard, so a range can travel to another app and back. A cell keeps
- * its own text, so a copied formula stays a formula.
+ * Copy and paste between cells. A copied range is plain tab-separated text, the shape
+ * every spreadsheet puts on the clipboard, so a range can travel to another app and back.
+ * A cell keeps its own text, so a copied formula stays a formula.
  */
 
 /** The values of [range] as tab-separated text, one line per row. */
@@ -19,8 +17,8 @@ fun Sheet.tsvOf(range: CellRange): String {
 }
 
 /**
- * Writes tab-separated [text] into the sheet with its first cell at
- * ([row], [column]). Empty cells in the text clear the cell they land on.
+ * Writes tab-separated [text] into the sheet with its first cell at ([row], [column]).
+ * Empty cells in the text clear the cell they land on.
  */
 fun Sheet.withPastedText(text: String, row: Int, column: Int): Sheet {
     if (row < 0 || column < 0) return this

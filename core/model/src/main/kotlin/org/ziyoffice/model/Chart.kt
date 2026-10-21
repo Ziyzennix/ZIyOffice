@@ -1,14 +1,11 @@
 package org.ziyoffice.model
 
-/**
- * One bar in a chart: its label and its numeric value.
- */
 data class ChartPoint(val label: String, val value: Double)
 
 /**
- * Reads the numbers in [column] into chart points, using the first text cell in
- * the row to its left as the label. A row whose own cell is not a number is
- * skipped rather than plotted as zero, so a header row does not flatten the scale.
+ * Reads the numbers in [column] into chart points, using the text cell to the left as the
+ * label. A row whose cell is not a number is skipped rather than plotted as zero, so a
+ * header row does not flatten the scale.
  */
 fun chartPointsFrom(sheet: Sheet, column: Int, maxPoints: Int = 12): List<ChartPoint> {
     val byPosition = sheet.cells.associateBy { it.row to it.column }

@@ -9,15 +9,12 @@ import android.graphics.pdf.PdfRenderer
 import java.io.OutputStream
 
 /**
- * Page-level PDF operations built on the platform renderer and writer. No PDF
- * library, no network.
+ * Page-level PDF operations on the platform renderer and writer. No PDF library,
+ * no network.
  *
- * Every operation re-renders pages into a fresh document, which has one
- * deliberate consequence: the output is raster. That is the right trade here
- * because it makes redaction real - the removed text is gone from the file
- * instead of hidden under a black rectangle any editor can peel back. The cost
- * is that text in an edited file is no longer selectable, so operations that do
- * not rewrite a page never touch the original.
+ * Every operation re-renders into a fresh document, so the output is raster.
+ * That makes redaction real, the removed text is gone from the file rather than
+ * hidden under a peelable box. The cost is that text stops being selectable.
  */
 object PdfRewriter {
 
@@ -30,10 +27,9 @@ object PdfRewriter {
     )
 
     /**
-     * Writes a new PDF containing [pages], in the order given, taking each page
-     * from its [renderers] entry. [drawOn] runs per page after the page is
-     * drawn, for signatures and redaction boxes; its canvas is in bitmap
-     * coordinates.
+     * Writes a new PDF containing [pages], in the order given, each page coming
+     * from its [renderers] entry. [drawOn] runs per page after it is drawn, for
+     * signatures and redaction boxes, with its canvas in bitmap coordinates.
      */
     fun export(
         renderers: List<PdfRenderer>,
@@ -64,8 +60,7 @@ object PdfRewriter {
                 page.canvas.drawBitmap(bitmap, 0f, 0f, null)
                 document.finishPage(page)
                 bitmap.recycle()
-                // Reported after each page so a long export can show real
-                // progress instead of a spinner that never moves.
+                // Reported per page so a long export shows real progress.
                 onProgress?.invoke(outputIndex + 1, pages.size)
             }
             document.writeTo(output)
@@ -74,10 +69,7 @@ object PdfRewriter {
         }
     }
 
-    /**
-     * The "3 / 12" footer. Drawn after the marks so it is never covered by a
-     * highlight or a redaction box.
-     */
+    /** The "3 / 12" footer, drawn after the marks so nothing covers it. */
     private fun drawPageNumber(canvas: Canvas, index: Int, total: Int) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.argb(0x99, 0x33, 0x33, 0x33)
@@ -118,9 +110,6 @@ object PdfRewriter {
         }
     }
 
-    /**
-     * 2x render scale: enough that rasterised text stays legible when the result is
-     * re-rendered on a phone, without producing multi-megabyte pages.
-     */
+    /** 2x scale: rasterised text stays legible on a phone without huge pages. */
     private const val RENDER_SCALE = 2
 }
