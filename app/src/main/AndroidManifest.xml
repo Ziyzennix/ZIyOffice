@@ -2,7 +2,7 @@
 <!--
     ZiyOffice manifest.
 
-    PRIVACY CONTRACT: this app declares ZERO permissions.
+    PRIVACY CONTRACT: this app declares ZERO system permissions.
     In particular there is no android.permission.INTERNET, so the Android
     operating system makes it impossible for ZiyOffice to open a network
     connection — regardless of any code in the app.
@@ -37,6 +37,10 @@
                 these filters the app never appears in that chooser, which is
                 what users see in the screenshot ("no app can open this").
 
+                Only the formats ZiyOffice can actually read are listed here:
+                .docx, .xlsx, .pptx, .csv and .pdf. Claiming a MIME type the app
+                can't open just puts a broken entry in the chooser.
+
                 ACTION_VIEW is scoped to document MIME types only — no
                 BROWSABLE category, so a web link can never launch the app and
                 there is nothing that could fetch a URL.
@@ -50,11 +54,6 @@
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
                 <data android:mimeType="text/csv" />
-                <data android:mimeType="text/plain" />
-                <data android:mimeType="application/rtf" />
-                <data android:mimeType="application/vnd.oasis.opendocument.text" />
-                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" />
-                <data android:mimeType="application/vnd.oasis.opendocument.presentation" />
             </intent-filter>
 
             <!-- Share sheet: "Share to ZiyOffice" from a chat or mail app. -->
@@ -66,11 +65,6 @@
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
                 <data android:mimeType="text/csv" />
-                <data android:mimeType="text/plain" />
-                <data android:mimeType="application/rtf" />
-                <data android:mimeType="application/vnd.oasis.opendocument.text" />
-                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" />
-                <data android:mimeType="application/vnd.oasis.opendocument.presentation" />
             </intent-filter>
         </activity>
     </application>
