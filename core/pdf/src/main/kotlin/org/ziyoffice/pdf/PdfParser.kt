@@ -110,7 +110,15 @@ internal class PdfParser(private val bytes: ByteArray) {
                 continue
             }
             val key = parseName() as? PdfName ?: return null
-            val value = parseObject() ?: return null
+            val before = pos
+            val value = parseObject()
+            if (value == null) {
+                // A value that cannot be read is stepped over rather than
+                // losing the whole dictionary: one broken entry should not
+                // cost us the object it sits in.
+                if (!skipToNextKey()) return null
+                continue
+            }
             entries[key.value] = value
         }
         val dict = PdfDict(entries)
@@ -407,6 +415,25 @@ internal class PdfParser(private val bytes: ByteArray) {
         if (after >= bytes.size) return true
         val c = bytes[after].toInt().and(0xFF)
         return c <= 0x20 || isDelimiter(c)
+    }
+
+    /**
+     * Steps over whatever is left of a value that could not be read.
+     *
+     * The next key starts with a slash, so the search looks for one that is
+     * followed by something that can be part of a name. The end of the
+     * dictionary stops the search too.
+     */
+    private fun skipToNextKey(): Boolean {
+        while (pos < bytes.size) {
+            if (bytes[pos].toInt().and(0xFF) == '>'.code && peek(1) == '>'.code) return true
+            if (bytes[pos].toInt().and(0xFF) == '/'.code) {
+                val next = peek(1)
+                if (next > 0x20 && !isDelimiter(next)) return true
+            }
+            pos++
+        }
+        return false
     }
 
     private fun consumeTwo(first: Char): Boolean {
