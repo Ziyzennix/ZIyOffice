@@ -23,6 +23,8 @@ class PdfFile private constructor(
     private val scannedOffsets: Map<Int, Int>,
     /** The trailer: the root, the info dictionary, the file identifier. */
     val trailer: PdfDict,
+    /** Where the file's last cross-reference is, when it has one. */
+    val startXrefOffset: Int,
 ) {
 
     private val cache = HashMap<Int, PdfObject?>()
@@ -186,7 +188,13 @@ class PdfFile private constructor(
             val scanned = scanObjects(bytes)
             val xref = readXrefChain(bytes)
             val trailer = xref?.second ?: findTrailer(bytes, scanned)
-            return PdfFile(bytes, xref?.first ?: emptyMap(), scanned, trailer)
+            return PdfFile(
+                bytes,
+                xref?.first ?: emptyMap(),
+                scanned,
+                trailer,
+                findStartXref(bytes) ?: -1,
+            )
         }
 
         /** True when the bytes start with a PDF header. */
@@ -271,19 +279,21 @@ class PdfFile private constructor(
                 val parser = PdfParser(bytes)
                 parser.pos = start
                 parser.skipWhitespace()
-                if (parser.isKeywordAhead("xref")) {
+                val section = if (parser.isKeywordAhead("xref")) {
                     parser.pos += 4
-                    val section = readXrefTable(bytes, parser)
-                    offsets.putAll(section.first)
-                    trailer = section.second ?: trailer
-                    start = section.third
+                    readXrefTable(bytes, parser)
                 } else {
-                    val stream = parser.parseIndirectAt(start) as? PdfStream ?: return null
-                    val section = readXrefStream(stream, parser)
-                    offsets.putAll(section.first)
-                    trailer = section.second ?: trailer
-                    start = section.third
+                    val stream = parser.parseIndirectAt(start) as? PdfStream
+                        ?: return null
+                    readXrefStream(stream, parser)
                 }
+                // The chain is walked newest first, so what is already known
+                // is the newer one and must not be overwritten by the older.
+                section.first.forEach { (number, offset) ->
+                    offsets.putIfAbsent(number, offset)
+                }
+                if (trailer == null) trailer = section.second
+                start = section.third
             }
             return offsets to (trailer ?: PdfDict.EMPTY)
         }

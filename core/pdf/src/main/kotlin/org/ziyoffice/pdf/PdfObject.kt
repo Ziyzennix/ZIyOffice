@@ -70,6 +70,9 @@ data class PdfName(val value: String) : PdfObject {
  */
 class PdfString(val bytes: ByteArray) : PdfObject {
 
+    /** A string holding [text], encoded the way the file would write it. */
+    constructor(text: String) : this(encodeText(text))
+
     /** The string read as text. */
     val text: String by lazy { decodeText(bytes) }
 
