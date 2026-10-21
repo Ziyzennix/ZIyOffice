@@ -9,6 +9,12 @@
 | Usage patterns | Which files exist, when they were opened, how often |
 | Device integrity | The app must not become a beachhead for anything else |
 
+Metadata is protected by *not moving it anywhere*, not by deleting the user's own.
+A document ZiyOffice creates carries no `docProps/` at all, so there is nothing to
+leak. A document ZiyOffice edits keeps the metadata it came with, because that
+metadata belongs to the author and the file; ZiyOffice adds none of its own. Nothing
+in either case leaves the device — there is no network permission to leave it with.
+
 ## Adversaries and how we answer them
 
 | Adversary | Capability | Mitigation |

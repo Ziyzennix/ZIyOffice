@@ -3,11 +3,16 @@
 Living checklist. `Status` values: `done` · `in progress` · `planned` · `—` (not planned yet).
 The rule for this file: only mark `done` what a user can actually do on a phone today.
 
-**Content preservation.** Saving rebuilds each package from ZiyOffice's own model, so
-content the readers do not model is *removed* by a save, not preserved. The editors
-audit the file on open and warn before the first write that would do this; "Save as
-copy" leaves the original untouched. See the per-format rows below for exactly what is
-at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
+**Content preservation.** Saving writes the edited parts back into the package the file
+came from, rather than building a new one from ZiyOffice's own model. A paragraph the user
+did not touch comes out of a save byte for byte; a paragraph they did touch keeps its
+properties, its hyperlinks, its comment anchors and its drawings, and only the text and the
+formatting they changed are rewritten. Everything the editor cannot edit — comments,
+footnotes, tracked changes, equations, text boxes, section breaks, charts, pivot tables,
+conditional formatting, filters, hidden rows and columns — stays in the file exactly as it
+was. The editors audit the file on open and list what they cannot edit; nothing is removed
+by a save. See the per-format rows below, and `DocxPreservationTest` / `XlsxPreservationTest`
+for the enforced contract.
 
 ## Foundations (M0)
 
@@ -41,8 +46,8 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
 | Print via the system print service | yes | | done |
-| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. A document using first-page or even-page variants loses those variants (warned) | done |
-| Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Not editable — and **removed by a save** (warned) | — |
+| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. First-page and even-page variants are kept as they are but cannot be edited | done |
+| Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Kept as they are by a save — the file stays complete — but not editable here (listed on open) | — |
 | Equations, SmartArt | partial | | — |
 | Mail merge | yes | | — |
 
@@ -63,7 +68,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Charts (bar, from a column) | yes | | done |
 | Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths, heights, fills, borders and alignment are honoured | done |
 | Print via the system print service | yes | | done |
-| Content a save removes (charts, images, hidden rows/columns, validation, filters, protection) | no | Warned before the first save | done |
+| Content a save keeps but cannot edit (charts, images, pivot tables, conditional formatting, filters, protection, hidden rows/columns) | no | Kept as they are by a save; listed on open | done |
 | Pivot tables | yes | | — |
 | Macros | yes | | — |
 
@@ -87,7 +92,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Open/edit/save `.pptx` text (preserve other package parts) | yes | | done |
-| Slide strip + text editing | yes | | done |
+| Slide strip + text editing | yes | Editing a slide's text keeps the layout, the images, the animations and the rest of the package | done |
 | Print via the system print service | yes | | done |
 | Shape/image editing on slides | yes | | planned — text edits preserve other parts |
 | Present mode + speaker notes | yes | | done |
@@ -98,7 +103,7 @@ at risk, and `ContentAudit` / `ContentAuditTest` for the enforced list.
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
 | Encrypted vault + biometric lock | no | | planned |
-| Metadata scrub on share/export | no | Implemented by construction — writers rebuild every package from the model, so no `docProps/`, `core.xml`, or `app.xml` parts are ever written (verified by `MetadataScrubTest`) | done |
+| Metadata scrub on share/export | no | A document ZiyOffice *creates* carries no `docProps/` at all (verified by `MetadataScrubTest`). A document it *edits* keeps the metadata it came with, because the file stays the author's own, and adds none of its own | done |
 | Offline OCR (scan → text) | cloud, limited | | planned |
 | Handwriting / ink notes | premium | | planned |
 | Templates (create from built-in templates) | yes, account-gated | | done |

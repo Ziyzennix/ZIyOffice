@@ -33,10 +33,16 @@ is declared.
 
 You pick files through the system picker, and ZiyOffice shows up in Android's
 "Open with" and share sheets. Unsaved work is kept as a local draft, so a crash
-does not take your typing with it. Saving rebuilds the file from ZiyOffice's own
-model, so parts the model does not know (comments, tracked changes, embedded
-charts, hidden rows) are dropped — the app says so before the first write, and
-"Save as copy" always leaves the original alone.
+does not take your typing with it.
+
+Saving writes your edits back into the file you opened. A paragraph you did not
+touch comes out of a save byte for byte; a paragraph you did touch keeps
+everything around it — its hyperlink, its comment, its image — and only the
+text and the formatting you changed are rewritten. Comments, footnotes, tracked
+changes, charts, pivot tables, conditional formatting and hidden rows survive
+the save, even though the app cannot edit them. "Save as copy" always leaves the
+original alone, and a save is only reported as successful once the file has been
+written *and* read back.
 
 - **Documents** — text formatting, headings, lists, alignment, line spacing,
   indent and spacing, page breaks, tables, pictures, headers and footers, find
@@ -81,16 +87,17 @@ A signed release build needs `keystore.properties` in the repo root — copy
 
 Everything sits on Android platform APIs: no Apache POI, no PDFium, no
 third-party format library. `core/model` holds the document model in plain
-Kotlin, `core/ooxml` the DOCX/XLSX/PPTX readers and writers, `app` the screens,
-the PDF engine and the exporters. 310 unit tests run on the JVM in CI; device
-behaviour is still checked by hand.
+Kotlin, `core/ooxml` the DOCX/XLSX/PPTX readers, writers and preservation
+layer, `app` the screens, the PDF engine and the exporters. The unit tests run
+on the JVM in CI; device behaviour is still checked by hand.
 
 ## roadmap
 
-Next: conditional formatting, cell notes and named ranges (sheets); page
-numbers, footnotes and a table of contents (documents); images and shapes on
-slides; PDF form filling and OCR; copy/paste between apps; `.odt`/`.ods`/`.odp`
-support; an encrypted vault with a biometric lock.
+Next: editing the comments, footnotes and tracked changes the app now keeps;
+cell notes and named ranges (sheets); page numbers and a table of contents
+(documents); images and shapes on slides; PDF form filling and OCR;
+copy/paste between apps; `.odt`/`.ods`/`.odp` support; an encrypted vault with a
+biometric lock.
 
 ## bugs
 
