@@ -2,6 +2,11 @@
 #
 # Every entry needs an explicit review decision and a comment here explaining why.
 # android.permission.INTERNET is hard-banned by the check script and can never be
-# added by this list: ZiyOffice must remain technically unable to use the network.
+# added to this list: ZiyOffice must stay technically unable to use the network.
 #
-# Currently empty on purpose: ZiyOffice declares ZERO permissions (milestone M0).
+# The list is short on purpose. ZiyOffice declares no system permissions, so
+# anything new here is a decision someone has to defend.
+
+# AndroidX adds this one to every app it touches. It's a signature permission
+# scoped to this package, so it grants nothing to anyone else.
+org.ziyoffice.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
