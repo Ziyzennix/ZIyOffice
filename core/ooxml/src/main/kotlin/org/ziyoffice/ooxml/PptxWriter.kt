@@ -89,15 +89,24 @@ class PptxWriter {
         if (ranges.isEmpty()) return xml
         val out = StringBuilder(xml.length + 128)
         var cursor = 0
+        // Where the last paragraph ends in the rebuilt string. An offset taken
+        // from the original XML would drift as soon as an edit changed the
+        // length of the text, and the paragraph the user added would land in
+        // the middle of the slide.
+        var lastParagraphEnd = 0
         ranges.forEachIndexed { i, range ->
             out.append(xml, cursor, range.first)
             out.append(if (i < lines.size) replaceParagraphText(xml.substring(range), lines[i]) else xml.substring(range))
             cursor = range.last + 1
+            lastParagraphEnd = out.length
         }
         out.append(xml, cursor, xml.length)
         if (lines.size > ranges.size) {
             val template = xml.substring(ranges.last())
-            out.insert(ranges.last().last + 1, lines.drop(ranges.size).joinToString("") { replaceParagraphText(template, it) })
+            out.insert(
+                lastParagraphEnd,
+                lines.drop(ranges.size).joinToString("") { replaceParagraphText(template, it) },
+            )
         }
         return out.toString()
     }
