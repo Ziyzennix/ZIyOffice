@@ -6,11 +6,14 @@ import java.io.IOException
 import java.util.zip.ZipInputStream
 
 /**
- * A feature the source package contains but ZiyOffice cannot write back.
- * Saving through [DocxWriter] or [XlsxWriter] removes it, so the user is told
- * before the file changes rather than after.
+ * A feature the source package contains that ZiyOffice keeps but cannot edit.
+ *
+ * Saving a document writes the edited parts back into the original package,
+ * so nothing here is lost. It is reported because the user should know what
+ * they will not be able to change, and how much of the document is out of
+ * reach — not to warn about damage.
  */
-data class DroppedFeature(
+data class PreservedFeature(
     /** What the user recognises, e.g. "Comments". */
     val label: String,
     /** How many were found; the smallest honest count, never an estimate. */
@@ -18,55 +21,45 @@ data class DroppedFeature(
 )
 
 /**
- * Reads a package and reports what a rebuild-from-model save would destroy.
+ * Reads a package and reports what it holds that ZiyOffice cannot edit.
  *
- * [DocxReader] and [XlsxReader] deliberately model a documented subset and skip
- * everything else. That is the right reader behaviour — faking unsupported
- * content would be worse — but the writers emit only the model, so a skipped
- * part or tag disappears from the user's file. This audit is the missing half:
- * the editor asks it once per open and warns before the first save.
+ * The readers model a documented subset and skip everything else. That is the
+ * right reader behaviour — faking unsupported content would be worse — but it
+ * means the editor cannot place the caret in some of it. The writers keep
+ * those parts untouched, so the file stays complete; this audit says which
+ * parts of it are read-only.
  *
- * The scan is intentionally conservative. It reports only content whose loss
- * changes what the document shows or contains, and it never reports a feature
- * the writers do reproduce (text, run formatting, lists, tables, images,
- * formulas, cell formatting, frozen rows, merged cells, column widths, row
- * heights, sheet order).
+ * The scan is intentionally conservative. It reports only content the user
+ * would expect to be able to change, and it never reports a feature the
+ * editor does handle.
  */
 object ContentAudit {
 
-    /** Features a [DocxWriter] save removes, in the order the UI lists them. */
-    fun docx(bytes: ByteArray): List<DroppedFeature> {
+    /** Features a document keeps but cannot edit, in the order the UI lists them. */
+    fun docx(bytes: ByteArray): List<PreservedFeature> {
         val scan = scan(bytes) { name ->
             name == DOCUMENT_PART ||
                 name == COMMENTS_PART || name == FOOTNOTES_PART || name == ENDNOTES_PART ||
                 isHeaderOrFooterPart(name)
         }
         val body = scan.parts[DOCUMENT_PART]
-        val features = mutableListOf<DroppedFeature>()
+        val features = mutableListOf<PreservedFeature>()
 
         fun part(name: String, label: String) {
-            if (name in scan.names) features += DroppedFeature(label, 1)
+            if (name in scan.names) features += PreservedFeature(label, 1)
         }
-        // A save keeps a header only when the body references exactly one, and
-        // that reference is the default variant: the writer emits a single
-        // default header and footer. Counting parts alone is wrong — a document
-        // with a first-page-only header has one part and still loses it.
+
+        // The default header and footer are editable; the first-page and
+        // even-page variants are kept but cannot be reached.
         val headerTypes = body?.decodeToString()?.let { referenceTypes(it, "w:headerReference") }
             .orEmpty()
         val footerTypes = body?.decodeToString()?.let { referenceTypes(it, "w:footerReference") }
             .orEmpty()
-        val headerParts = scan.names.count { isHeaderOrFooterPart(it) && it.contains("header") }
-        val footerParts = scan.names.count { isHeaderOrFooterPart(it) && it.contains("footer") }
+        val headerVariants = headerTypes.count { it != null && it != "default" }
+        val footerVariants = footerTypes.count { it != null && it != "default" }
+        if (headerVariants > 0) features += PreservedFeature("Extra header pages", headerVariants)
+        if (footerVariants > 0) features += PreservedFeature("Extra footer pages", footerVariants)
 
-        fun isKept(types: List<String?>): Boolean =
-            types.size == 1 && (types.single() == null || types.single() == "default")
-
-        if (headerParts > 0 && !isKept(headerTypes)) {
-            features += DroppedFeature("Headers", headerParts)
-        }
-        if (footerParts > 0 && !isKept(footerTypes)) {
-            features += DroppedFeature("Footers", footerParts)
-        }
         part(COMMENTS_PART, "Comments")
         part(FOOTNOTES_PART, "Footnotes")
         part(ENDNOTES_PART, "Endnotes")
@@ -75,42 +68,42 @@ object ContentAudit {
             val xml = body.decodeToString()
             fun tags(vararg names: String): Int = names.sumOf { countTag(xml, it) }
             tags("w:ins", "w:del").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Tracked changes", it)
+                features += PreservedFeature("Tracked changes", it)
             }
             tags("w:hyperlink").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Hyperlinks", it)
+                features += PreservedFeature("Hyperlinks", it)
             }
             tags("w:txbxContent").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Text boxes", it)
+                features += PreservedFeature("Text boxes", it)
             }
             tags("m:oMath", "m:oMathPara").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Equations", it)
+                features += PreservedFeature("Equations", it)
             }
             // The body always ends with one sectPr; more than one means real
             // section breaks (different page size, margins or column layout).
             (tags("w:sectPr") - 1).takeIf { it > 0 }?.let {
-                features += DroppedFeature("Section breaks", it)
+                features += PreservedFeature("Section breaks", it)
             }
             tags("w:cols").takeIf { it > 0 }?.let {
-                features += DroppedFeature("Multi-column layout", it)
+                features += PreservedFeature("Multi-column layout", it)
             }
         }
         return features
     }
 
-    /** Features an [XlsxWriter] save removes, in the order the UI lists them. */
-    fun xlsx(bytes: ByteArray): List<DroppedFeature> {
+    /** Features a workbook keeps but cannot edit, in the order the UI lists them. */
+    fun xlsx(bytes: ByteArray): List<PreservedFeature> {
         val scan = scan(bytes) { name ->
             (name.startsWith("xl/worksheets/") && name.endsWith(".xml")) ||
                 name.startsWith("xl/charts/") || name.startsWith("xl/drawings/") ||
                 name.startsWith("xl/media/") || name.startsWith("xl/pivotTables/") ||
                 name.startsWith("xl/pivotCache/") || name.startsWith("xl/comments")
         }
-        val features = mutableListOf<DroppedFeature>()
+        val features = mutableListOf<PreservedFeature>()
 
         fun parts(prefix: String, label: String) {
             val count = scan.names.count { it.startsWith(prefix) }
-            if (count > 0) features += DroppedFeature(label, count)
+            if (count > 0) features += PreservedFeature(label, count)
         }
         parts("xl/charts/", "Charts")
         parts("xl/drawings/", "Drawings")
@@ -133,15 +126,13 @@ object ContentAudit {
                 val count = countTag(xml, tag)
                 if (count > 0) sheetTags[label] = (sheetTags[label] ?: 0) + count
             }
-            // A validation that is a plain list of values is kept by a save, so
-            // only the rules the model cannot hold are worth a warning.
+            // A validation that is a plain list of values can be edited; a rule
+            // that points at another range cannot.
             val droppedValidations = countDroppedValidations(xml)
             if (droppedValidations > 0) {
                 sheetTags["Data validation"] =
                     (sheetTags["Data validation"] ?: 0) + droppedValidations
             }
-            // Hidden rows and columns are attributes, not elements; a save
-            // rebuilds them as visible because the model has no hidden flag.
             hiddenRowsAndColumns += HIDDEN_ATTRIBUTE.findAll(xml).count()
         }
         // Stable, human order rather than map iteration order.
@@ -151,10 +142,10 @@ object ContentAudit {
             "Auto filters",
             "Sheet protection",
         ).forEach { label ->
-            sheetTags[label]?.let { features += DroppedFeature(label, it) }
+            sheetTags[label]?.let { features += PreservedFeature(label, it) }
         }
         if (hiddenRowsAndColumns > 0) {
-            features += DroppedFeature("Hidden rows and columns", hiddenRowsAndColumns)
+            features += PreservedFeature("Hidden rows and columns", hiddenRowsAndColumns)
         }
         return features
     }

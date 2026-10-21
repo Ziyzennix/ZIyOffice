@@ -4,14 +4,17 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.test.Test
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The audit exists to stop silent data loss: [DocxWriter] and [XlsxWriter]
- * rebuild packages from the model, so anything the readers skip is gone after a
- * save. These tests pin both halves — it must report what a save would destroy,
- * and it must stay silent about everything the writers reproduce.
+ * The audit exists to tell the user what they will not be able to edit.
+ *
+ * Saving writes the edited parts back into the original package, so nothing is
+ * thrown away. What the audit reports is the content that survives but cannot
+ * be edited — and it must stay silent about everything the editor does
+ * handle.
  */
 class ContentAuditTest {
 
@@ -32,7 +35,7 @@ class ContentAuditTest {
     }
 
     @Test
-    fun docxReportsPartsAndBodyFeaturesItCannotWrite() {
+    fun docxReportsContentItKeepsButCannotEdit() {
         val packageBytes = zip(
             mapOf(
                 "word/document.xml" to
@@ -53,10 +56,6 @@ class ContentAuditTest {
         val features = ContentAudit.docx(packageBytes)
         assertEquals(
             listOf(
-                // Parts with no section reference: a save drops them, and the
-                // audit must say so rather than assume the part alone is enough.
-                "Headers" to 1,
-                "Footers" to 1,
                 "Comments" to 1,
                 "Tracked changes" to 2,
                 "Hyperlinks" to 1,
@@ -64,6 +63,28 @@ class ContentAuditTest {
                 "Section breaks" to 1,
             ),
             features.map { it.label to it.count },
+        )
+    }
+
+    @Test
+    fun docxReportsTheHeaderVariantsItCannotEdit() {
+        val packageBytes = zip(
+            mapOf(
+                "word/document.xml" to
+                    "<w:document><w:body><w:p/>" +
+                    "<w:sectPr>" +
+                    "<w:headerReference w:type=\"default\" r:id=\"rId1\"/>" +
+                    "<w:headerReference w:type=\"first\" r:id=\"rId2\"/>" +
+                    "<w:footerReference w:type=\"even\" r:id=\"rId3\"/>" +
+                    "</w:sectPr></w:body></w:document>",
+                "word/header1.xml" to "<w:hdr/>",
+                "word/header2.xml" to "<w:hdr/>",
+                "word/footer1.xml" to "<w:ftr/>",
+            ),
+        )
+        assertEquals(
+            listOf("Extra header pages" to 1, "Extra footer pages" to 1),
+            ContentAudit.docx(packageBytes).map { it.label to it.count },
         )
     }
 
@@ -79,7 +100,7 @@ class ContentAuditTest {
     }
 
     @Test
-    fun xlsxReportsPartsAndSheetFeaturesItCannotWrite() {
+    fun xlsxReportsPartsAndSheetFeaturesItKeepsButCannotEdit() {
         val packageBytes = zip(
             mapOf(
                 "xl/workbook.xml" to "<workbook/>",
@@ -128,7 +149,7 @@ class ContentAuditTest {
     }
 
     @Test
-    fun xlsxReportsHiddenRowsAndColumnsThatASaveWouldReveal() {
+    fun xlsxReportsHiddenRowsAndColumnsItCannotEdit() {
         val packageBytes = zip(
             mapOf(
                 "xl/worksheets/sheet1.xml" to
@@ -169,26 +190,13 @@ class ContentAuditTest {
         assertTrue(ContentAudit.docx(packageBytes).isEmpty())
     }
 
-    private fun zip(entries: Map<String, String>): ByteArray {
-        val out = ByteArrayOutputStream()
-        ZipOutputStream(out).use { zip ->
-            entries.forEach { (name, content) ->
-                zip.putNextEntry(ZipEntry(name))
-                zip.write(content.encodeToByteArray())
-                zip.closeEntry()
-            }
-        }
-        return out.toByteArray()
-    }
-
     /**
-     * End-to-end proof that the warning is true: take a package with a header
-     * and a tracked insertion, read it with the real reader, write it with the
-     * real writer, and the audit must go from "these will be lost" to "nothing
-     * left to lose" — because the save actually removed them.
+     * End-to-end proof that the notice is true: a package with a header and a
+     * tracked insertion is opened, edited and saved, and everything the audit
+     * named is still there afterwards.
      */
     @Test
-    fun savingReallyRemovesWhatTheWarningNames() {
+    fun savingKeepsWhatTheAuditNames() {
         val base = DocxWriter().write(
             org.ziyoffice.model.Document(
                 listOf(org.ziyoffice.model.Paragraph(listOf(org.ziyoffice.model.Run("Body text")))),
@@ -207,8 +215,6 @@ class ContentAuditTest {
                 "<w:body><w:p><w:ins><w:r><w:t>tracked</w:t></w:r></w:ins></w:p>",
             )
             .encodeToByteArray()
-        // A realistic header: a part plus the section reference that points at
-        // it. A part nobody references would be dropped, and reported as such.
         parts["word/header1.xml"] =
             ("<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">" +
                 "<w:p/></w:hdr>").encodeToByteArray()
@@ -228,81 +234,29 @@ class ContentAuditTest {
             .encodeToByteArray()
         val withExtras = zipBytes(parts)
 
-        // The single default header survives the save now, so it is not
-        // reported; the tracked change still is.
         val before = ContentAudit.docx(withExtras).map { it.label }
         assertEquals(listOf("Tracked changes"), before)
 
-        // ...and what is left is genuinely gone: saving removes the tracked
-        // change, and the reopened package reports no loss it cannot explain.
-        val model = DocxReader().read(java.io.ByteArrayInputStream(withExtras))
-        assertEquals(emptyList(), ContentAudit.docx(DocxWriter().write(model)))
+        // The save keeps the tracked change and the header: the audit names
+        // content that is preserved, not content that is lost.
+        val source = DocxReader().readSource(java.io.ByteArrayInputStream(withExtras))
+        val saved = DocxEditor(source).save(source.document)
+        val document = zipEntries(saved).getValue("word/document.xml").decodeToString()
+        assertContains(document, "<w:ins>")
+        assertContains(document, "<w:headerReference w:type=\"default\"")
+        assertTrue(zipEntries(saved).containsKey("word/header1.xml"))
     }
 
-    /**
-     * Whether a header is kept depends on the section reference, not on the part
-     * existing: the writer emits a header only for a section that points at one.
-     * Reporting a kept header as lost would make the warning lie, and reporting a
-     * dropped one as kept would destroy it silently. Both directions are pinned.
-     */
-    @Test
-    fun headerLossFollowsTheSectionReferenceNotThePartCount() {
-        val header = ("<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/" +
-            "2006/main\"><w:p><w:r><w:t>Confidential</w:t></w:r></w:p></w:hdr>")
-            .encodeToByteArray()
-        val rel = "<Relationship Id=\"rIdH\" Type=\"http://schemas.openxmlformats.org/" +
-            "officeDocument/2006/relationships/header\" Target=\"header1.xml\"/>"
-
-        fun packageWith(reference: String?): ByteArray {
-            val body = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/" +
-                "wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/" +
-                "officeDocument/2006/relationships\"><w:body><w:p/>" +
-                "<w:sectPr>${reference.orEmpty()}</w:sectPr></w:body></w:document>"
-            return zipBytes(
-                mapOf(
-                    "word/document.xml" to body.encodeToByteArray(),
-                    "word/header1.xml" to header,
-                    "word/_rels/document.xml.rels" to
-                        ("<Relationships xmlns=\"http://schemas.openxmlformats.org/package/" +
-                            "2006/relationships\">$rel</Relationships>").encodeToByteArray(),
-                ),
-            )
+    private fun zip(entries: Map<String, String>): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zip ->
+            entries.forEach { (name, content) ->
+                zip.putNextEntry(ZipEntry(name))
+                zip.write(content.encodeToByteArray())
+                zip.closeEntry()
+            }
         }
-
-        // Referenced as the default: kept, so nothing to warn about.
-        assertEquals(
-            emptyList(),
-            ContentAudit.docx(
-                packageWith("<w:headerReference w:type=\"default\" r:id=\"rIdH\"/>"),
-            ),
-        )
-        // A reference with no type is also the default variant.
-        assertEquals(
-            emptyList(),
-            ContentAudit.docx(packageWith("<w:headerReference r:id=\"rIdH\"/>")),
-        )
-        // First-page only: the part exists but a save drops it, so it is reported.
-        assertEquals(
-            listOf("Headers" to 1),
-            ContentAudit.docx(
-                packageWith("<w:headerReference w:type=\"first\" r:id=\"rIdH\"/>"),
-            ).map { it.label to it.count },
-        )
-        // Two references: only one default pair is written, so it is reported.
-        assertEquals(
-            listOf("Headers" to 1),
-            ContentAudit.docx(
-                packageWith(
-                    "<w:headerReference w:type=\"default\" r:id=\"rIdH\"/>" +
-                        "<w:headerReference w:type=\"even\" r:id=\"rIdH\"/>",
-                ),
-            ).map { it.label to it.count },
-        )
-        // No reference at all: an orphan part is dropped.
-        assertEquals(
-            listOf("Headers" to 1),
-            ContentAudit.docx(packageWith(null)).map { it.label to it.count },
-        )
+        return out.toByteArray()
     }
 
     private fun zipBytes(entries: Map<String, ByteArray>): ByteArray {
@@ -315,5 +269,17 @@ class ContentAuditTest {
             }
         }
         return out.toByteArray()
+    }
+
+    private fun zipEntries(bytes: ByteArray): Map<String, ByteArray> {
+        val entries = linkedMapOf<String, ByteArray>()
+        java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                entries[entry.name] = zip.readBytes()
+                zip.closeEntry()
+            }
+        }
+        return entries
     }
 }

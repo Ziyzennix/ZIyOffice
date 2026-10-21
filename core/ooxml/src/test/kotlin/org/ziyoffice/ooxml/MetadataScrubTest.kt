@@ -12,9 +12,17 @@ import org.ziyoffice.model.SlideDeck
 import org.ziyoffice.model.Workbook
 
 /**
- * The writers rebuild every package from the model, so author, company, edit
- * history and application metadata are absent by construction. This test is the
- * receipt: no docProps part may appear in any file we write.
+ * What ZiyOffice writes about your documents.
+ *
+ * A document ZiyOffice *creates* carries no author, company, edit history or
+ * application metadata at all: the writers never emit a `docProps/` part, so
+ * there is nothing to leak. This test is the receipt.
+ *
+ * A document ZiyOffice *edits* keeps the metadata it came with. That is the
+ * opposite of a leak — it is the author's own file, unchanged — and the
+ * alternative would quietly rewrite somebody's document properties. What
+ * matters there is that ZiyOffice adds none of its own, which the second test
+ * pins down.
  */
 class MetadataScrubTest {
 
@@ -30,6 +38,16 @@ class MetadataScrubTest {
             assertFalse(parts.any { it.contains("core.xml") }, "$name kept core.xml")
             assertFalse(parts.any { it.contains("app.xml") }, "$name kept app.xml")
         }
+    }
+
+    @Test
+    fun editingADocumentAddsNoMetadataOfItsOwn() {
+        val original = Document(listOf(Paragraph(listOf(Run("text")))))
+        val bytes = DocxWriter().write(original)
+        val source = DocxReader().readSource(java.io.ByteArrayInputStream(bytes))
+        val saved = DocxEditor(source).save(source.document)
+
+        assertFalse(entryNames(saved).any { it.startsWith("docProps/") })
     }
 
     private fun entryNames(bytes: ByteArray): List<String> {
