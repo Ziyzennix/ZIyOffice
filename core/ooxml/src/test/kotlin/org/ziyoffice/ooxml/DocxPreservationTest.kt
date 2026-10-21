@@ -444,4 +444,88 @@ class DocxPreservationTest {
         assertEquals(partsOf(original).keys, after.keys)
         assertNotNull(after["word/document.xml"])
     }
+
+    @Test
+    fun addingAHeaderToADocumentThatHasNoneCreatesThePart() {
+        val original = zipOf(
+            mapOf(
+                "[Content_Types].xml" to contentTypes,
+                "_rels/.rels" to rootRels,
+                "word/document.xml" to documentXml(
+                    "<w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr/>",
+                ),
+                "word/_rels/document.xml.rels" to
+                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>",
+            ),
+        )
+        val source = reader.readSource(ByteArrayInputStream(original))
+        val withHeader = source.document.copy(
+            header = listOf(Paragraph(runs = listOf(Run("Running head")))),
+        )
+
+        val saved = DocxEditor(source).save(withHeader)
+        val after = partsOf(saved)
+
+        assertNotNull(after["word/header1.xml"], "the header part must exist")
+        assertContains(after.getValue("word/header1.xml")!!, "Running head")
+        assertContains(after["word/_rels/document.xml.rels"]!!, "header1.xml")
+        assertContains(after["[Content_Types].xml"]!!, "/word/header1.xml")
+        assertContains(after["word/document.xml"]!!, "<w:headerReference")
+    }
+
+    @Test
+    fun aHeaderAddedToADocumentThatHasNoneReadsBack() {
+        val original = zipOf(
+            mapOf(
+                "[Content_Types].xml" to contentTypes,
+                "_rels/.rels" to rootRels,
+                "word/document.xml" to documentXml(
+                    "<w:p><w:r><w:t>Body</w:t></w:r></w:p><w:sectPr/>",
+                ),
+            ),
+        )
+        val source = reader.readSource(ByteArrayInputStream(original))
+        val withHeader = source.document.copy(
+            header = listOf(Paragraph(runs = listOf(Run("Running head")))),
+        )
+
+        val saved = DocxEditor(source).save(withHeader)
+        val reread = reader.read(ByteArrayInputStream(saved))
+
+        assertEquals(
+            listOf("Running head"),
+            reread.header.orEmpty().map { block ->
+                (block as Paragraph).runs.joinToString("") { it.text }
+            },
+        )
+    }
+
+    @Test
+    fun removingTheHeaderDropsTheReference() {
+        val original = zipOf(
+            mapOf(
+                "[Content_Types].xml" to contentTypes,
+                "_rels/.rels" to rootRels,
+                "word/document.xml" to documentXml(
+                    "<w:p><w:r><w:t>Body</w:t></w:r></w:p>" +
+                        "<w:sectPr><w:headerReference w:type=\"default\" r:id=\"rIdH1\"/></w:sectPr>",
+                ),
+                "word/_rels/document.xml.rels" to
+                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">" +
+                    "<Relationship Id=\"rIdH1\" " +
+                    "Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/header\" " +
+                    "Target=\"header1.xml\"/></Relationships>",
+                "word/header1.xml" to
+                    "<w:hdr xmlns:w=\"$WORDPROCESSINGML_NAMESPACE\"><w:p/></w:hdr>",
+            ),
+        )
+        val source = reader.readSource(ByteArrayInputStream(original))
+
+        val saved = DocxEditor(source).save(source.document.copy(header = emptyList()))
+
+        assertTrue(
+            !partsOf(saved).getValue("word/document.xml")!!.contains("headerReference"),
+            "the reference to a removed header must go",
+        )
+    }
 }

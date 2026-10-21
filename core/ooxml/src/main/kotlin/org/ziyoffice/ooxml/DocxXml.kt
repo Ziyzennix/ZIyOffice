@@ -234,6 +234,25 @@ internal object DocxXml {
     fun levelText(kind: ListKind, level: Int): String =
         if (kind == ListKind.BULLET) "•" else "%${level + 1}."
 
+    /**
+     * Puts [fragment] inside the element named [container].
+     *
+     * The container may be written as a self-closing element — a document with
+     * no relationships has `<Relationships/>` — in which case it is opened up
+     * first. Dropping the fragment silently would leave the package pointing
+     * at something that is not there.
+     */
+    fun insertIntoContainer(text: String, container: String, fragment: String): String {
+        val index = text.lastIndexOf("</$container>")
+        if (index >= 0) {
+            return text.substring(0, index) + fragment + text.substring(index)
+        }
+        val selfClosing = Regex("<$container\\b[^>]*/>").find(text) ?: return text
+        val opened = selfClosing.value.removeSuffix("/>") + ">"
+        return text.substring(0, selfClosing.range.first) + opened + fragment +
+            "</$container>" + text.substring(selfClosing.range.last + 1)
+    }
+
     fun escapeText(value: String): String = buildString(value.length) {
         value.forEach { ch ->
             when (ch) {

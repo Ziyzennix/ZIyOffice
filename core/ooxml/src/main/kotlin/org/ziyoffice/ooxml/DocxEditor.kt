@@ -50,7 +50,14 @@ class DocxEditor(private val source: DocxSource) {
     /** Saves [document] into the source package and returns the new bytes. */
     fun save(document: Document): ByteArray {
         val parts = LinkedHashMap(source.parts)
-        val bodyMedia = MediaRegistry(parts, source.documentRelsPart, source.contentTypesPart)
+        // A package that has no relationship part yet still needs one to point
+        // a new part at, so the name is fixed here rather than taken from the
+        // source.
+        val bodyMedia = MediaRegistry(
+            parts,
+            source.documentRelsPart ?: DOCUMENT_RELS_PART,
+            source.contentTypesPart,
+        )
 
         parts[source.body.partName] = editBody(source.body, document.blocks, bodyMedia)
             .encodeToByteArray()
@@ -842,6 +849,14 @@ class DocxEditor(private val source: DocxSource) {
         val reference = "<w:$elementName w:type=\"default\" r:id=\"$relId\"/>"
         val sectPr = XmlScanner.parse(xml).root.descendants()
             .firstOrNull { it.localName == "sectPr" } ?: return xml
+        if (sectPr.selfClosing) {
+            // `<w:sectPr/>` has no room for a reference; it has to be opened
+            // up first, or the reference would land outside the element.
+            val openTag = xml.substring(sectPr.start, sectPr.contentEnd)
+            val opened = openTag.removeSuffix("/>") + ">"
+            return xml.substring(0, sectPr.start) + opened + reference + "</w:sectPr>" +
+                xml.substring(sectPr.end)
+        }
         val insertAt = sectPr.contentStart
         return xml.substring(0, insertAt) + reference + xml.substring(insertAt)
     }
@@ -903,6 +918,9 @@ class DocxEditor(private val source: DocxSource) {
     private data class Fragment(val name: String, val xml: String)
 
     private companion object {
+        /** The relationship part of the document, when one is needed. */
+        const val DOCUMENT_RELS_PART = "word/_rels/document.xml.rels"
+
         /** The order `w:pPr` children must appear in. */
         val PPR_ORDER = listOf(
             "pStyle", "keepNext", "keepLines", "pageBreakBefore", "framePr", "widowControl",
@@ -965,12 +983,12 @@ internal class MediaRegistry(
     /** Adds a relationship to the part's relationship file. */
     fun addRelationship(relId: String, kind: String, target: String) {
         val name = relsPartName ?: return
-        val text = parts[name]?.decodeToString() ?: return
+        // A package with no relationships yet has no relationship part, or an
+        // empty one. Both have to end up with a relationship in them.
+        val text = parts[name]?.decodeToString() ?: EMPTY_RELATIONSHIPS
         val relationship = "<Relationship Id=\"$relId\" " +
             "Type=\"${DocxXml.RELATIONSHIPS_NAMESPACE}/$kind\" Target=\"$target\"/>"
-        val index = text.lastIndexOf("</Relationships>")
-        if (index < 0) return
-        parts[name] = (text.substring(0, index) + relationship + text.substring(index))
+        parts[name] = DocxXml.insertIntoContainer(text, "Relationships", relationship)
             .encodeToByteArray()
     }
 
@@ -986,16 +1004,20 @@ internal class MediaRegistry(
         parts[name] = (text.substring(0, at) + declaration + text.substring(at)).encodeToByteArray()
     }
 
+
     /** Declares the content type of a part, when it is missing. */
     fun addContentTypeOverride(partName: String, contentType: String) {
         val name = contentTypesPartName ?: return
         val text = parts[name]?.decodeToString() ?: return
-        if (text.contains("PartName=\"/$partName\"")) return
-        val declaration = "<Override PartName=\"/$partName\" ContentType=\"$contentType\"/>"
-        val index = text.lastIndexOf("</Types>")
-        if (index < 0) return
-        parts[name] = (text.substring(0, index) + declaration + text.substring(index))
+        if (text.contains("PartName=\"$partName\"")) return
+        val declaration = "<Override PartName=\"$partName\" ContentType=\"$contentType\"/>"
+        parts[name] = DocxXml.insertIntoContainer(text, "Types", declaration)
             .encodeToByteArray()
+    }
+
+    private companion object {
+        const val EMPTY_RELATIONSHIPS =
+            "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"/>"
     }
 
     private fun nextMediaIndex(): Int {

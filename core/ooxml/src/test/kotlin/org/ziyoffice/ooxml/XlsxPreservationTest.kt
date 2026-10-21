@@ -333,13 +333,47 @@ class XlsxPreservationTest {
         val source = XlsxSource.capture(original)
 
         val withSecond = source.workbook.copy(
-            sheets = source.workbook.sheets + Sheet(name = "Extra", cells = listOf(Cell(0, 0, "hi"))),
+            sheets = source.workbook.sheets + Sheet(
+                name = "Extra",
+                cells = listOf(Cell(0, 0, "hi"), Cell(1, 1, "42")),
+            ),
         )
         val saved = XlsxEditor(source).save(withSecond)
+        val after = partsOf(saved)
 
-        // The new sheet has no part of its own, so it is not written; what
-        // matters is that the save did not damage the sheet that does.
-        assertContains(partsOf(saved)["xl/workbook.xml"]!!, "Data")
-        assertContains(partsOf(saved)["xl/worksheets/sheet1.xml"]!!, "Header")
+        // The new sheet has a part of its own...
+        assertTrue(after.containsKey("xl/worksheets/sheet2.xml"))
+        assertContains(after.getValue("xl/worksheets/sheet2.xml")!!, "hi")
+        // ...a relationship that points at it...
+        assertContains(after["xl/_rels/workbook.xml.rels"]!!, "worksheets/sheet2.xml")
+        // ...a content type that declares it...
+        assertContains(after["[Content_Types].xml"]!!, "/xl/worksheets/sheet2.xml")
+        // ...and the workbook lists it.
+        assertContains(after["xl/workbook.xml"]!!, "name=\"Extra\"")
+
+        // The sheet that was already there is untouched.
+        assertContains(after["xl/worksheets/sheet1.xml"]!!, "Header")
+        assertContains(after["xl/charts/chart1.xml"]!!, "chartSpace")
+    }
+
+    @Test
+    fun aNewSheetReadsBackWithItsCells() {
+        val original = richWorkbook()
+        val source = XlsxSource.capture(original)
+
+        val withSecond = source.workbook.copy(
+            sheets = source.workbook.sheets + Sheet(
+                name = "Extra",
+                cells = listOf(Cell(0, 0, "hi"), Cell(1, 1, "42")),
+            ),
+        )
+        val saved = XlsxEditor(source).save(withSecond)
+        val reread = reader.read(ByteArrayInputStream(saved))
+
+        assertEquals(2, reread.sheets.size)
+        assertEquals("Extra", reread.sheets[1].name)
+        val cells = reread.sheets[1].cells.associateBy { it.row to it.column }
+        assertEquals("hi", cells[0 to 0]?.value)
+        assertEquals("42", cells[1 to 1]?.value)
     }
 }

@@ -37,16 +37,171 @@ class XlsxEditor(private val source: XlsxSource) {
     fun save(workbook: Workbook): ByteArray {
         val parts = LinkedHashMap(source.parts)
 
-        val sheets = workbook.sheets
-        for (index in sheets.indices) {
-            val sheetSource = source.sheets.getOrNull(index) ?: continue
-            parts[sheetSource.partName] = editSheet(sheetSource, sheets[index]).encodeToByteArray()
+        // A sheet the user added has no part of its own yet: it needs one, a
+        // relationship and a content type, or the workbook would point at
+        // nothing.
+        val relIds = mutableListOf<String>()
+        var relationships = parts[WORKBOOK_RELS_PART]?.decodeToString()
+        var contentTypes = parts[CONTENT_TYPES_PART]?.decodeToString()
+        var nextRel = nextRelationshipNumber(relationships)
+        var nextSheet = nextSheetNumber(parts)
+
+        workbook.sheets.forEachIndexed { index, sheet ->
+            val sheetSource = source.sheets.getOrNull(index)
+            if (sheetSource != null) {
+                parts[sheetSource.partName] = editSheet(sheetSource, sheet).encodeToByteArray()
+                relIds += sheetSource.relId
+            } else {
+                val partName = "xl/worksheets/sheet$nextSheet.xml"
+                val relId = "rId$nextRel"
+                parts[partName] = renderNewSheet(sheet).encodeToByteArray()
+                relationships = addRelationship(
+                    relationships,
+                    relId,
+                    "worksheet",
+                    "worksheets/sheet$nextSheet.xml",
+                )
+                contentTypes = addContentType(
+                    contentTypes,
+                    "/$partName",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml",
+                )
+                relIds += relId
+                nextRel++
+                nextSheet++
+            }
         }
+        relationships?.let { parts[WORKBOOK_RELS_PART] = it.encodeToByteArray() }
+        contentTypes?.let { parts[CONTENT_TYPES_PART] = it.encodeToByteArray() }
 
         parts[STYLES_PART] = source.styles.toXml().encodeToByteArray()
-        parts[WORKBOOK_PART] = editWorkbook(workbook).encodeToByteArray()
+        parts[WORKBOOK_PART] = editWorkbook(workbook, relIds).encodeToByteArray()
 
         return zip(parts)
+    }
+
+    /**
+     * A worksheet for a sheet the user added.
+     *
+     * The cells carry the formatting the model holds, added to the workbook's
+     * own style sheet, so a new sheet looks like the others.
+     */
+    private fun renderNewSheet(sheet: Sheet): String = buildString {
+        append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
+        append("<worksheet xmlns=\"$SPREADSHEETML_NAMESPACE\">")
+        append("<dimension ref=\"A1:").append(columnName(maxOf(sheet.columnCount - 1, 0)))
+            .append(maxOf(sheet.rowCount, 1)).append("\"/>")
+        if (sheet.frozenRows > 0) {
+            append("<sheetViews><sheetView workbookViewId=\"0\">")
+            append("<pane ySplit=\"").append(sheet.frozenRows)
+                .append("\" topLeftCell=\"A").append(sheet.frozenRows + 1)
+                .append("\" activePane=\"bottomLeft\" state=\"frozen\"/>")
+            append("<selection pane=\"bottomLeft\"/>")
+            append("</sheetView></sheetViews>")
+        }
+        val widths = sheet.columnWidths
+        if (widths.isNotEmpty()) {
+            append("<cols>")
+            widths.forEach { column ->
+                append("<col min=\"").append(column.firstColumn + 1)
+                    .append("\" max=\"").append(minOf(column.lastColumn, MAX_COLUMN) + 1)
+                    .append("\" width=\"").append(formatFloat(column.width))
+                    .append("\" customWidth=\"1\"/>")
+            }
+            append("</cols>")
+        }
+        append("<sheetData>")
+        val byRow = sheet.cells.groupBy { it.row }.toSortedMap()
+        byRow.forEach { (row, cells) ->
+            append("<row r=\"").append(row + 1).append("\">")
+            cells.sortedBy { it.column }.forEach { cell ->
+                val styleIndex = source.styles.indexFor(cell.format)
+                append("<c r=\"").append(columnName(cell.column)).append(row + 1).append('"')
+                if (styleIndex > 0) append(" s=\"").append(styleIndex).append('"')
+                val value = cell.value
+                when {
+                    value.startsWith("=") -> {
+                        append("><f>").append(escapeXmlText(value.substring(1))).append("</f></c>")
+                    }
+                    value == "TRUE" || value == "FALSE" -> {
+                        append(" t=\"b\"><v>").append(if (value == "TRUE") "1" else "0")
+                            .append("</v></c>")
+                    }
+                    value.toDoubleOrNull() != null -> append("><v>").append(value).append("</v></c>")
+                    value.isEmpty() -> append("/>")
+                    else -> {
+                        append(" t=\"inlineStr\"><is><t xml:space=\"preserve\">")
+                            .append(escapeXmlText(value)).append("</t></is></c>")
+                    }
+                }
+            }
+            append("</row>")
+        }
+        append("</sheetData>")
+        val merges = sheet.mergedRanges
+        if (merges.isNotEmpty()) {
+            append("<mergeCells count=\"").append(merges.size).append("\">")
+            merges.forEach { range ->
+                append("<mergeCell ref=\"").append(columnName(range.left)).append(range.top + 1)
+                    .append(':').append(columnName(range.right)).append(range.bottom + 1)
+                    .append("\"/>")
+            }
+            append("</mergeCells>")
+        }
+        val validations = sheet.validations.filter { it.values.isNotEmpty() }
+        if (validations.isNotEmpty()) {
+            append("<dataValidations count=\"").append(validations.size).append("\">")
+            validations.forEach { validation ->
+                append("<dataValidation type=\"list\" allowBlank=\"1\" showInputMessage=\"0\"")
+                append(" showErrorMessage=\"1\" sqref=\"")
+                    .append(columnName(validation.range.left)).append(validation.range.top + 1)
+                    .append(':').append(columnName(validation.range.right))
+                    .append(validation.range.bottom + 1)
+                    .append("\"><formula1>\"")
+                    .append(escapeXmlAttribute(validation.values.joinToString(",")))
+                    .append("\"</formula1></dataValidation>")
+            }
+            append("</dataValidations>")
+        }
+        append("</worksheet>")
+    }
+
+    /** The next relationship number that is not in use yet. */
+    private fun nextRelationshipNumber(relationships: String?): Int {
+        val highest = relationships?.let { text ->
+            Regex("Id=\"rId(\\d+)\"").findAll(text).mapNotNull { it.groupValues[1].toIntOrNull() }
+                .maxOrNull()
+        } ?: 0
+        return highest + 1
+    }
+
+    /** The next worksheet part number that is not in use yet. */
+    private fun nextSheetNumber(parts: Map<String, ByteArray>): Int {
+        val highest = parts.keys.mapNotNull {
+            Regex("xl/worksheets/sheet(\\d+)\\.xml").find(it)?.groupValues?.get(1)?.toIntOrNull()
+        }.maxOrNull() ?: 0
+        return highest + 1
+    }
+
+    /** Adds a relationship to the workbook's relationship part. */
+    private fun addRelationship(
+        relationships: String?,
+        relId: String,
+        kind: String,
+        target: String,
+    ): String? {
+        val text = relationships ?: return null
+        val relationship = "<Relationship Id=\"$relId\" " +
+            "Type=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE/$kind\" Target=\"$target\"/>"
+        return DocxXml.insertIntoContainer(text, "Relationships", relationship)
+    }
+
+    /** Declares the content type of a part, when it is missing. */
+    private fun addContentType(contentTypes: String?, partName: String, type: String): String? {
+        val text = contentTypes ?: return null
+        if (text.contains("PartName=\"$partName\"")) return text
+        val declaration = "<Override PartName=\"$partName\" ContentType=\"$type\"/>"
+        return DocxXml.insertIntoContainer(text, "Types", declaration)
     }
 
     // ------------------------------------------------------------------ sheet
@@ -394,7 +549,7 @@ class XlsxEditor(private val source: XlsxSource) {
      * The relationships are not touched, so a sheet keeps the charts,
      * drawings and pivot tables that point at it.
      */
-    private fun editWorkbook(workbook: Workbook): String {
+    private fun editWorkbook(workbook: Workbook, relIds: List<String>): String {
         val xml = source.workbookXml
         val root = source.workbookRoot
         val edits = mutableListOf<Edit>()
@@ -403,7 +558,7 @@ class XlsxEditor(private val source: XlsxSource) {
             val builder = StringBuilder("<sheets>")
             workbook.sheets.forEachIndexed { index, sheet ->
                 val sourceSheet = source.sheets.getOrNull(index)
-                val relId = sourceSheet?.relId ?: ""
+                val relId = relIds.getOrNull(index) ?: sourceSheet?.relId.orEmpty()
                 val sheetId = sourceSheet?.sheetId ?: (index + 1).toString()
                 builder.append("<sheet name=\"")
                     .append(escapeXmlAttribute(sheet.name.ifEmpty { "Sheet${index + 1}" }))
@@ -492,8 +647,14 @@ class XlsxEditor(private val source: XlsxSource) {
 
     private companion object {
         const val WORKBOOK_PART = "xl/workbook.xml"
+        const val WORKBOOK_RELS_PART = "xl/_rels/workbook.xml.rels"
+        const val CONTENT_TYPES_PART = "[Content_Types].xml"
         const val STYLES_PART = "xl/styles.xml"
         const val MAX_COLUMN = 16383
+        const val SPREADSHEETML_NAMESPACE =
+            "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+        const val DOCUMENT_RELATIONSHIPS_NAMESPACE =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
         /** Row attributes the model does not hold but the workbook may. */
         val PRESERVED_ROW_ATTRIBUTES = setOf(
