@@ -20,33 +20,22 @@ import org.ziyoffice.ooxml.xml.XmlElement
 import org.ziyoffice.ooxml.xml.XmlScanner
 
 /**
- * A `.docx` package that has been opened for editing, together with a snapshot
- * of everything the editor is allowed to change.
+ * A `.docx` package opened for editing, plus a snapshot of everything the
+ * editor is allowed to change.
  *
- * The old writer rebuilt a document from the model alone: a save produced a
- * brand-new package holding only what the model could express, so comments,
- * footnotes, tracked changes, hyperlinks, equations, text boxes, section
- * breaks, styles and document properties were dropped on the first save. That
- * is data loss disguised as a save.
- *
- * [DocxSource] keeps the original package instead. The model is the editable
- * view of it; the snapshot says which bytes each part of the model came from.
- * [DocxEditor] then writes the edited model back into the original package,
- * changing only the elements the user actually touched and copying everything
- * else through untouched.
+ * The old writer rebuilt a document from the model alone, so a save dropped
+ * comments, footnotes, tracked changes, hyperlinks, equations, text boxes,
+ * section breaks, styles and document properties. [DocxSource] keeps the
+ * original package instead: the model is the editable view of it, the
+ * snapshot says which bytes each part came from, and [DocxEditor] writes the
+ * edited model back in, changing only what the user touched.
  */
 class DocxSource internal constructor(
-    /** Every entry of the original package, keyed by its name inside the zip. */
     val parts: Map<String, ByteArray>,
-    /** The document as the model sees it. */
     val document: Document,
     internal val body: SourceBody,
     internal val header: SourceBody?,
     internal val footer: SourceBody?,
-    /**
-     * Parts the writer owns and must rebuild: styles, numbering and the
-     * relationship parts. Null when the document has none.
-     */
     internal val stylesPart: String?,
     internal val numberingPart: String?,
     internal val documentRelsPart: String?,
@@ -54,37 +43,25 @@ class DocxSource internal constructor(
 ) {
 
     companion object {
-        /** Reads a package from a stream. */
         fun read(input: InputStream): DocxSource = DocxSourceReader().read(input)
 
-        /** Reads a package from bytes. */
         fun capture(bytes: ByteArray): DocxSource = read(bytes.inputStream())
     }
 }
 
-/**
- * One part of a document (the body, a header or a footer) with the source
- * elements its model blocks came from.
- */
+/** One part of a document (a body, a header or a footer) and its source elements. */
 internal class SourceBody internal constructor(
-    /** The name of the package part, e.g. `word/document.xml`. */
     val partName: String,
-    /** The relationship part that belongs to it, e.g. `word/_rels/document.xml.rels`. */
     val relsPartName: String,
-    /** The root element (`w:body`, `w:hdr` or `w:ftr`). */
     val container: XmlElement,
-    /** The original XML of the part. */
     val xml: String,
-    /** The source blocks, in the same order as the model's blocks. */
     val blocks: List<SourceBlock>,
 )
 
 /** A block of a document that the model can also represent. */
 internal sealed interface SourceBlock {
-    /** The element the block came from. */
     val element: XmlElement
 
-    /** The model block this source produced. */
     val modelBlock: Block
 }
 
@@ -95,17 +72,11 @@ internal sealed interface SourceBlock {
  * equals it, the paragraph is written back byte for byte.
  */
 internal class SourceParagraph internal constructor(
-    /** The `w:p` element. */
     override val element: XmlElement,
-    /** Its `w:pPr`, when it has one. */
     val properties: XmlElement?,
-    /** The text-bearing runs, in document order. */
     val runs: List<SourceRun>,
-    /** The inline images, in document order. */
     val images: List<SourceImage>,
-    /** The model paragraph this source produced. */
     val model: Paragraph,
-    /** The XML of the part this paragraph belongs to. */
     val xml: String,
 ) : SourceBlock {
     override val modelBlock: Block get() = model
@@ -115,81 +86,56 @@ internal class SourceParagraph internal constructor(
      * relationships resolved to. A picture that points at a missing or remote
      * target stays in the package but is not editable.
      */
-    val modelledImages: List<SourceImage> get() = images.filter { it.bytes != null }
+        val modelledImages: List<SourceImage> get() = images.filter { it.bytes != null }
 }
 
-/** One run of a source paragraph. */
 internal class SourceRun internal constructor(
-    /** The `w:r` element. */
     val element: XmlElement,
-    /** Its text-bearing children (`w:t`, `w:tab`, `w:br`, `w:cr`), in order. */
     val contentNodes: List<XmlElement>,
-    /** The model run this source produced. */
     val model: Run,
 )
 
-/** An inline image inside a source paragraph. */
 internal class SourceImage internal constructor(
-    /** The `w:drawing` or `w:pict` element that carries the picture. */
     val element: XmlElement,
-    /** The relationship id the picture points at, when it has one. */
     val relId: String?,
     /** Display width in dp; null when the source gives no extent. */
     val widthDp: Float?,
-    /** Display height in dp; null when the source gives no extent. */
     val heightDp: Float?,
-    /** The media bytes the relationship resolves to. */
     val bytes: ByteArray?,
 )
 
-/** A source table and the model table it produced. */
 internal class SourceTable internal constructor(
-    /** The `w:tbl` element. */
     override val element: XmlElement,
-    /** The rows, in document order. */
     val rows: List<SourceRow>,
-    /** The model table this source produced. */
     val model: Table,
-    /** The XML of the part this table belongs to. */
     val xml: String,
 ) : SourceBlock {
     override val modelBlock: Block get() = model
 }
 
-/** One row of a source table. */
 internal class SourceRow internal constructor(
-    /** The `w:tr` element. */
     val element: XmlElement,
-    /** The cells, in document order. */
     val cells: List<SourceCell>,
-    /** The model row this source produced. */
     val model: TableRow,
-    /** The XML of the part this row belongs to. */
     val xml: String,
 )
 
-/** One cell of a source table. */
 internal class SourceCell internal constructor(
-    /** The `w:tc` element. */
     val element: XmlElement,
-    /** The blocks inside the cell. */
     val blocks: List<SourceBlock>,
-    /** The model cell this source produced. */
     val model: TableCell,
-    /** True when the cell draws its own borders. */
     val drawsBorders: Boolean,
-    /** The XML of the part this cell belongs to. */
     val xml: String,
 )
 
 /**
- * Reads a `.docx` package into a [DocxSource]: the model plus the snapshot of
- * the elements the model came from.
+ * Reads a `.docx` package into a [DocxSource]: the model plus the snapshot
+ * of the elements the model came from.
  *
- * The reader is built on [XmlScanner] rather than the platform pull parser
- * because the writer needs to know where each element sits in the original
- * XML. One parser serves both directions, so the model and the snapshot can
- * never disagree about what the document contains.
+ * Built on [XmlScanner] rather than the platform pull parser, because the
+ * writer needs to know where each element sits in the original XML. One
+ * parser serves both directions, so the model and the snapshot can never
+ * disagree.
  */
 internal class DocxSourceReader {
 
@@ -237,7 +183,6 @@ internal class DocxSourceReader {
         )
     }
 
-    /** Reads a header or footer part and the model blocks inside it. */
     private fun readSidePart(
         parts: Map<String, ByteArray>,
         rels: Map<String, Relationship>,
@@ -268,7 +213,6 @@ internal class DocxSourceReader {
         )
     }
 
-    /** Reads every entry of the package, with a size limit on the whole thing. */
     private fun readParts(input: InputStream): Map<String, ByteArray> {
         val parts = linkedMapOf<String, ByteArray>()
         var total = 0L
@@ -302,12 +246,10 @@ internal class DocxSourceReader {
         return out.toByteArray()
     }
 
-    // ------------------------------------------------------------------ styles
-
     /**
-     * Paragraph styles resolved over `w:docDefaults`. Style chains are followed
-     * through `w:basedOn` (cycle-safe), ancestors first, so the leaf style wins.
-     * Table styles are only inspected for borders.
+     * Paragraph styles resolved over `w:docDefaults`. Chains are followed
+     * through `w:basedOn` (cycle-safe), ancestors first, so the leaf style
+     * wins. Table styles are only looked at for borders.
      */
     internal class StyleSheet(
         val docDefaultsRun: RunProps,
@@ -354,13 +296,12 @@ internal class DocxSourceReader {
         val isDefault: Boolean,
     )
 
-    /** Paragraph properties where null means "not specified here". */
+    /** Paragraph properties; null means "not specified here". */
     internal class ParagraphProps(
         val spacingBeforeTwips: Int? = null,
         val spacingAfterTwips: Int? = null,
         val lineSpacingPercent: Int? = null,
     ) {
-        /** This style's explicit values layered on top of inherited [base] ones. */
         fun on(base: ParagraphProps): ParagraphProps = ParagraphProps(
             spacingBeforeTwips = spacingBeforeTwips ?: base.spacingBeforeTwips,
             spacingAfterTwips = spacingAfterTwips ?: base.spacingAfterTwips,
@@ -368,7 +309,7 @@ internal class DocxSourceReader {
         )
     }
 
-    /** Run properties where null means "not specified here". */
+    /** Run properties; null means "not specified here". */
     internal class RunProps(
         val bold: Boolean? = null,
         val italic: Boolean? = null,
@@ -377,7 +318,6 @@ internal class DocxSourceReader {
         val sizePt: Float? = null,
         val colorRgb: Int? = null,
     ) {
-        /** This style's explicit values layered on top of inherited [base] ones. */
         fun on(base: RunProps): RunProps = RunProps(
             bold = bold ?: base.bold,
             italic = italic ?: base.italic,
@@ -452,7 +392,6 @@ internal class DocxSourceReader {
         )
     }
 
-    /** Reads a `w:pPr` for spacing values. */
     private fun parseParagraphProps(element: XmlElement): ParagraphProps {
         val spacing = element.child("spacing")
         return ParagraphProps(
@@ -481,8 +420,6 @@ internal class DocxSourceReader {
         }
         return RunProps(bold, italic, underline, strike, sizePt, colorRgb)
     }
-
-    // --------------------------------------------------------------- numbering
 
     private fun parseNumbering(bytes: ByteArray): Map<Pair<Int, Int>, ListInfo> {
         val tree = XmlScanner.parse(bytes.decodeToString())
@@ -527,7 +464,6 @@ internal class DocxSourceReader {
         else -> ListKind.OTHER
     }
 
-
     internal companion object {
         const val DOCUMENT_PART = "word/document.xml"
         const val STYLES_PART = "word/styles.xml"
@@ -557,9 +493,9 @@ internal class DocxSourceReader {
         }
 
         /**
-         * `w:line` with the automatic rule is a line-height multiplier in 240ths
-         * of a line; exact and at-least rules are absolute twips and are not
-         * read here.
+         * `w:line` with the automatic rule is a line-height multiplier in
+         * 240ths of a line. The exact and at-least rules are absolute twips
+         * and are not read here.
          */
         fun lineSpacingPercent(spacing: XmlElement): Int? {
             val rule = spacing.attr("lineRule") ?: "auto"
@@ -569,7 +505,6 @@ internal class DocxSourceReader {
             return (line * 100 + 120) / 240
         }
 
-        /** True when any edge of a border element is drawn. */
         fun bordersDrawn(element: XmlElement?): Boolean {
             if (element == null) return false
             return element.children.any { child ->
@@ -580,10 +515,7 @@ internal class DocxSourceReader {
     }
 }
 
-/**
- * Reads the blocks of one container — a body, a header or a footer — into the
- * model, keeping the source elements alongside.
- */
+/** Reads the blocks of one container into the model, keeping the source elements. */
 internal class BodyReader(
     private val xml: String,
     private val styles: DocxSourceReader.StyleSheet,
@@ -592,31 +524,34 @@ internal class BodyReader(
     private val parts: Map<String, ByteArray>,
 ) {
 
-    /** Relationship ids of the default header and footer, read from `w:sectPr`. */
+    /** Relationship ids of the default header and footer, from `w:sectPr`. */
     var headerRelId: String? = null
         private set
     var footerRelId: String? = null
         private set
 
     /**
-     * A page break inside a run belongs to the paragraph that follows it, so it
-     * is carried over the same way the reader always did.
+     * A page break inside a run belongs to the paragraph that follows it, so
+     * it is carried over instead of staying with the run.
      */
     private var pendingPageBreak = false
-
     fun readBlocks(container: XmlElement): List<SourceBlock> {
         val blocks = mutableListOf<SourceBlock>()
         container.children.forEach { child ->
             when {
                 child.localName == "p" && child.isWord() -> blocks += readParagraph(child)
                 child.localName == "tbl" && child.isWord() -> blocks += readTable(child)
+                // A content control wraps its content in w:sdtContent. Word
+                // uses these for cover pages, TOCs and templates, so skipping
+                // them would make whole documents look empty.
+                child.localName == "sdt" && child.isWord() ->
+                    child.child("sdtContent")?.let { blocks += readBlocks(it) }
                 child.localName == "sectPr" && child.isWord() -> readSectionProperties(child)
             }
         }
         return blocks
     }
 
-    /** Records the default header/footer relationship ids of a section. */
     private fun readSectionProperties(sectPr: XmlElement) {
         sectPr.children.forEach { child ->
             val type = child.attr("type")
@@ -709,13 +644,12 @@ internal class BodyReader(
     }
 
     /**
-     * Collects the runs of a paragraph.
-     *
-     * Runs inside a text box are left alone: they belong to a shape, not to the
-     * paragraph's flow, and the editor cannot place the caret inside one. The
-     * text box itself is preserved untouched when the document is saved.
+     * Collects the runs of a paragraph. Runs inside a text box are left alone:
+     * they belong to a shape, not to the paragraph's flow, and the editor
+     * cannot put a caret inside one. The text box itself is preserved
+     * untouched on save.
      */
-    private fun collectRuns(
+        private fun collectRuns(
         element: XmlElement,
         resolved: DocxSourceReader.ResolvedStyle,
         runs: MutableList<SourceRun>,
@@ -914,7 +848,6 @@ internal data class Relationship(
     val external: Boolean,
 )
 
-/** Reads a `.rels` part into its relationships. */
 internal fun parseRelationships(bytes: ByteArray): Map<String, Relationship> {
     val tree = XmlScanner.parse(bytes.decodeToString())
     val result = mutableMapOf<String, Relationship>()
@@ -932,7 +865,6 @@ internal fun parseRelationships(bytes: ByteArray): Map<String, Relationship> {
     return result
 }
 
-/** Turns a relationship target into a package entry name. */
 internal fun resolvePartPath(target: String): String {
     val raw = if (target.startsWith("/")) target.removePrefix("/") else "word/$target"
     val segments = mutableListOf<String>()
@@ -946,15 +878,12 @@ internal fun resolvePartPath(target: String): String {
     return segments.joinToString("/")
 }
 
-/** The relationship part that belongs to a package part. */
 internal fun relsNameOf(partName: String): String =
     partName.substringBeforeLast('/') + "/_rels/" + partName.substringAfterLast('/') + ".rels"
 
-/** The relationship namespace. */
 internal const val RELATIONSHIPS_NAMESPACE =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
-/** True when the element is in the WordprocessingML namespace. */
 internal fun XmlElement.isWord(): Boolean = namespaceUri == WORDPROCESSINGML_NAMESPACE
 
 /** `word/header1.xml`, `word/footer2.xml`, … but not their `_rels` parts. */
@@ -963,7 +892,7 @@ internal fun isHeaderOrFooterPart(name: String): Boolean =
         name.endsWith(".xml") &&
         !name.contains("_rels/")
 
-/** `word/_rels/header1.xml.rels`, … — the relationship part of a header or footer. */
+/** `word/_rels/header1.xml.rels`, the relationship part of a header or footer. */
 internal fun isHeaderOrFooterRels(name: String): Boolean =
     name.startsWith("word/_rels/") &&
         (name.contains("header") || name.contains("footer")) &&
