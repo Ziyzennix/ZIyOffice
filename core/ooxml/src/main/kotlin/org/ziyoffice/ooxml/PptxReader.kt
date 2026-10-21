@@ -16,13 +16,13 @@ const val PRESENTATIONML_NAMESPACE =
 const val DRAWINGML_NAMESPACE = "http://schemas.openxmlformats.org/drawingml/2006/main"
 
 /**
- * Reads a `.pptx` package into a [SlideDeck] using only platform APIs —
+ * Reads a `.pptx` package into a [SlideDeck] using only platform APIs:
  * `java.util.zip` for the container and the XML pull parser for the parts.
  *
- * What is read: every slide's text lines in shape order, speaker notes, and the
- * slide size. What is not: images, shape geometry, transitions and animation.
- * Those are preserved untouched by [PptxWriter], which patches text in place
- * rather than re-rendering the deck.
+ * Read: every slide's text lines in shape order, speaker notes, and the slide
+ * size. Not read: images, shape geometry, transitions and animation. Those
+ * are preserved untouched by [PptxWriter], which patches text in place rather
+ * than re-rendering the deck.
  */
 class PptxReader(
     private val newParser: () -> XmlPullParser = {
@@ -41,8 +41,8 @@ class PptxReader(
             .mapNotNull { relId -> rels[relId] }
             .filter { it in parts }
 
-        // Fall back to scanning the package when presentation.xml lists nothing —
-        // some generators write the list without relationships.
+        // Fall back to scanning the package when presentation.xml lists
+        // nothing: some generators write the list without relationships.
         val partsInOrder = if (order.isNotEmpty()) {
             order
         } else {
@@ -186,7 +186,8 @@ class PptxReader(
 
     /**
      * Text of one slide part: every DrawingML paragraph, in document order.
-     * Placeholder text on the master is not part of the slide part and is not read.
+     * Placeholder text on the master is not part of the slide part and is not
+     * read.
      */
     private fun parseTextLines(bytes: ByteArray): List<String> {
         val lines = mutableListOf<String>()

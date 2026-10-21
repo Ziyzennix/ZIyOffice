@@ -44,7 +44,7 @@ class AccessibilityCopyTest {
     @Test
     fun everyFillSwatchHasADistinctSpokenName() {
         // A swatch carries its meaning in colour alone, so the names are what a
-        // screen-reader user actually picks from — they must not collide.
+        // screen-reader user actually picks from, and they must not collide.
         val names = listOf<Int?>(
             null, 0xFFF2CC, 0xD8F3E4, 0xDCE7FF, 0xFBD9D9, 0xEFE4FF, 0xEDEDED,
         ).map { fillColourName(it) }

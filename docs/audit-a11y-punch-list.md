@@ -1,42 +1,49 @@
-# ZiyOffice Accessibility Audit — Punch List
+# ZiyOffice accessibility audit — punch list
 
-**Status (2026-10-21):** items 1–15 below are addressed in code, item 11 included:
-the create tile's icon surface is 48 dp.
+**Status (2026-10-21):** items 1–15 below are addressed in code, item 11 included, the
+create tile's icon surface is 48 dp.
 
-**Checked on a device (TECNO CK8n, Android 15, 360×806 dp at 320 dpi):** the
-accessibility tree was dumped with `uiautomator` on the Home screen and in the
-document editor. Every one of the 12 clickable nodes on Home is at least 48 dp
-in both dimensions — the smallest is 48 dp exactly — and each one carries an
-accessible name, either its own `content-desc` or the text of its child. The
-document editor's toolbar exposes labelled buttons (Back, Undo, Redo, Save, More
-actions) and the formatting rail exposes labelled controls (Bold, Italic,
-Underline, Strikethrough, Font size, Font colour, More formatting). No
-`contentDescription` was found on an editable field, so nothing suppresses the
-read-back of what the user types.
+**Checked on a device (TECNO CK8n, Android 15, 360×806 dp at 320 dpi):** the accessibility
+tree was dumped with `uiautomator` on the Home screen and in the document editor. All 12
+clickable nodes on Home are at least 48 dp in both dimensions, the smallest is exactly 48 dp,
+and each one carries an accessible name from its own `content-desc` or the text of its child.
+The document editor's toolbar exposes labelled buttons (Back, Undo, Redo, Save, More actions)
+and the formatting rail exposes labelled controls (Bold, Italic, Underline, Strikethrough,
+Font size, Font colour, More formatting). No `contentDescription` sits on an editable field,
+so nothing suppresses the read-back of what the user types.
 
-**Still needs a device:** TalkBack announcement order and wording (a dump shows
-names and bounds, not what a screen reader actually says); measured contrast for
-`onSurfaceVariant` on `surfaceVariant` and `outline` on `surfaceContainer`;
-large-font and keyboard-open layouts; focus order through the sheet grid.
+**Still needs a device:** TalkBack announcement order and wording (a dump shows names and
+bounds, not what a screen reader actually says), measured contrast for `onSurfaceVariant` on
+`surfaceVariant` and `outline` on `surfaceContainer`, large-font and keyboard-open layouts,
+and focus order through the sheet grid.
 
-This document is kept as the audit record, so the findings are preserved
-verbatim below the status note.
+The rest of this file is the original audit, kept as the record so the findings stay
+verbatim.
 
-**Addressed:** recent rows / template rows / create tiles / About row are labelled `Role.Button` nodes with ≥48 dp targets (1, 2, 3, 4); KindBadge minimum touch target raised to 48 dp (10); sheet tabs announce name + selection with `Role.Tab` (5, 8); slide thumbnails announce position/title/selection (6); fill and font-colour swatches have distinct spoken names plus a selection state (7, 9); Docs and Sheets format toggles expose On/Off state instead of relying on tint (15); list markers use a minimum width so large font scales do not clip them (12); `contentDescription` was removed from the search and formula fields because on an editable node it suppresses read-back (see "Corrections to this audit"); document text style no longer hardcodes 11.sp so system font scale is respected (12); recent-row file names no longer ellipsis-clipped (14); slide titles and body previews no longer ellipsis-clipped in slide cards (14).
+**Addressed:** recent rows / template rows / create tiles / About row are labelled
+`Role.Button` nodes with ≥48 dp targets (1, 2, 3, 4); the KindBadge minimum touch target
+went up to 48 dp (10); sheet tabs announce name and selection with `Role.Tab` (5, 8); slide
+thumbnails announce position, title and selection (6); fill and font-colour swatches have
+distinct spoken names plus a selection state (7, 9); Docs and Sheets format toggles expose
+On/Off state instead of relying on tint (15); list markers use a minimum width so large font
+scales don't clip them (12); `contentDescription` came off the search and formula fields
+because on an editable node it suppresses read-back (see "Corrections to this audit"); document
+text style no longer hardcodes 11.sp so the system font scale is respected (12); recent-row
+file names no longer get ellipsis-clipped (14); slide titles and body previews no longer get
+ellipsis-clipped in slide cards (14).
 
 ## Corrections to this audit
 
-- Item 12/13 proposed replacing hardcoded `.sp` sizes with typography tokens. That premise
-  was wrong for the *scaling* concern: `.sp` already follows the system font scale, and
-  changing document text to a Material token would misrepresent the document's own point
-  size. The real large-font defect was the fixed `22.dp` list-marker gutter, now a minimum
-  width.
+- Item 12/13 proposed replacing hardcoded `.sp` sizes with typography tokens. The premise was
+  wrong for the *scaling* concern: `.sp` already follows the system font scale, and changing
+  document text to a Material token would misrepresent the document's own point size. The
+  real large-font defect was the fixed `22.dp` list-marker gutter, now a minimum width.
 - Adding `contentDescription` to `OutlinedTextField`/`TextField` (as the first pass did for
-  the Home search field and the Sheets formula bar) *replaces* the node's text semantics,
-  so TalkBack stops reading back what the user types. Those two were reverted; the field
-  label and the adjacent address text carry the name instead.
-- `presentation of "Selected"` via `contentDescription` on a check icon duplicates state.
-  The container item now carries `stateDescription` and the icon is decorative.
+  the Home search field and the Sheets formula bar) *replaces* the node's text semantics, so
+  TalkBack stops reading back what the user types. Those two were reverted; the field label
+  and the adjacent address text carry the name instead.
+- Presenting "Selected" via `contentDescription` on a check icon duplicates state. The
+  container item now carries `stateDescription` and the icon is decorative.
 
 ---
 

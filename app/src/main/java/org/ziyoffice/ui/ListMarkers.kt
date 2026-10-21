@@ -5,8 +5,8 @@ import org.ziyoffice.model.ListKind
 
 /**
  * Resolves a list item's display marker ("•", "1.", "a.", "iv.") and advances
- * the running counter for that (numId, level). Shared by the editor and the
- * PDF exporter so both render the same numbers.
+ * the counter for that (numId, level). Shared by the editor and the PDF
+ * exporter so both render the same numbers.
  */
 internal fun listMarker(list: ListInfo, counters: MutableMap<Pair<Int, Int>, Int>): String {
     if (list.kind == ListKind.BULLET) return "\u2022"

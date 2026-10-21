@@ -2,7 +2,7 @@ package org.ziyoffice.model
 
 /**
  * Built-in document templates. Everything here is authored for ZiyOffice and
- * ships as plain model data — no downloaded files, no fonts, no licences.
+ * ships as plain model data: no downloaded files, no fonts, no licences.
  */
 data class DocumentTemplate(
     val id: String,

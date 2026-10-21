@@ -1,10 +1,8 @@
 package org.ziyoffice.model
 
 /**
- * CSV import/export for Sheets.
- *
- * RFC 4180: quoted fields may contain commas, quotes (doubled) and newlines;
- * records end with CRLF, LF or a lone CR. Plain Kotlin, no dependencies.
+ * CSV import/export for Sheets. RFC 4180: quoted fields may hold commas, quotes
+ * (doubled) and newlines; records end with CRLF, LF or a lone CR.
  */
 
 /** Parses [text] into a [Sheet] named [name]; empty fields become absent cells. */
@@ -68,8 +66,8 @@ fun parseCsv(text: String, name: String): Sheet {
 }
 
 /**
- * Renders [sheet] as CSV. Formula cells are written as their computed value:
- * CSV has no formula syntax, so writing `=SUM(A1:A2)` would be a lie.
+ * Renders [sheet] as CSV. Formula cells are written as their computed value: CSV has
+ * no formula syntax, so writing `=SUM(A1:A2)` would be a lie.
  */
 fun writeCsv(sheet: Sheet): String {
     val maxRow = sheet.cells.maxOfOrNull { it.row } ?: return ""

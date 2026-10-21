@@ -1,9 +1,8 @@
 package org.ziyoffice.model
 
 /**
- * One A1 reference found inside a formula. Kept separate from the formula
- * parser because structural edits only need to move coordinates; they never
- * need to evaluate an expression.
+ * One A1 reference found inside a formula. Kept apart from the parser because structural
+ * edits only need to move coordinates, never to evaluate an expression.
  */
 internal data class FormulaReference(
     val row: Int,
@@ -20,13 +19,12 @@ internal data class FormulaReference(
 }
 
 /**
- * Rewrites every cell reference in [formula], leaving function names, numbers,
- * operators and string literals untouched.
+ * Rewrites every cell reference in [formula], leaving function names, numbers, operators
+ * and string literals untouched.
  *
- * [rewrite] receives both corners of a range. Returning null keeps the original
- * spelling, including `$` anchors; returning a string replaces the reference or
- * the whole `A1:B2` pair. A range is handled as one unit so a deletion can
- * shrink it instead of invalidating each endpoint separately.
+ * [rewrite] gets both corners of a range. Null keeps the original spelling, `$` anchors
+ * included; a string replaces the reference or the whole `A1:B2` pair. A range is one
+ * unit, so a deletion can shrink it instead of breaking each end.
  */
 internal fun rewriteFormulaReferences(
     formula: String,
@@ -135,10 +133,9 @@ private fun parseReference(text: String, start: Int): ParsedReference? {
 }
 
 /**
- * A reference may follow an operator, bracket, comma or another reference's
- * colon, but must not be the tail of a longer identifier. A leading `!` means a
- * sheet-qualified name, which this app does not model and must not partially
- * rewrite.
+ * A reference may follow an operator, bracket, comma or another reference's colon, but
+ * must not be the tail of a longer identifier. A leading `!` means a sheet-qualified
+ * name, which this app does not model and must not rewrite.
  */
 private fun isReferenceBoundaryBefore(text: String, start: Int): Boolean {
     if (start <= 1) return true

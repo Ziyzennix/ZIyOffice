@@ -12,9 +12,9 @@ import org.ziyoffice.model.SlideDeck
 /**
  * Writes a [SlideDeck] back into a .pptx package.
  *
- * [edit] patches slide text and notes in the original package; other parts pass
- * through unchanged, so layout, image and animation data survives. [create]
- * makes a minimal title-and-content deck for new presentations.
+ * [edit] patches slide text and notes in the original package; other parts
+ * pass through unchanged, so layout, image and animation data survives.
+ * [create] makes a minimal title-and-content deck for new presentations.
  */
 class PptxWriter {
 
@@ -83,7 +83,7 @@ class PptxWriter {
         return zip(parts)
     }
 
-    /** Replaces existing paragraph text, appending extra lines and keeping untouched tail paragraphs. */
+    /** Replaces paragraph text, appends extra lines and keeps the tail paragraphs. */
     internal fun rewriteSlideText(xml: String, lines: List<String>): String {
         val ranges = paragraphRanges(xml)
         if (ranges.isEmpty()) return xml

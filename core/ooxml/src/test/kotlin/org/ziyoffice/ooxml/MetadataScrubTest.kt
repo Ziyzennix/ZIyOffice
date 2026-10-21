@@ -19,10 +19,10 @@ import org.ziyoffice.model.Workbook
  * there is nothing to leak. This test is the receipt.
  *
  * A document ZiyOffice *edits* keeps the metadata it came with. That is the
- * opposite of a leak — it is the author's own file, unchanged — and the
+ * opposite of a leak (it is the author's own file, unchanged) and the
  * alternative would quietly rewrite somebody's document properties. What
- * matters there is that ZiyOffice adds none of its own, which the second test
- * pins down.
+ * matters is that ZiyOffice adds none of its own, which the second test pins
+ * down.
  */
 class MetadataScrubTest {
 

@@ -1,11 +1,8 @@
 package org.ziyoffice.model
 
 /**
- * The line around a cell.
- *
- * A border is stored per cell and per edge, which is what a worksheet keeps.
- * A table drawn with "all borders" is one where every cell carries all four
- * edges, and one drawn with a box carries the outer edges only.
+ * The line around a cell, stored per cell and per edge the way a worksheet keeps it.
+ * "All borders" puts all four edges on every cell, a box only the outer ones.
  */
 enum class BorderStyle {
     NONE,
@@ -16,7 +13,6 @@ enum class BorderStyle {
     DOTTED,
 }
 
-/** The four edges of a cell. */
 data class CellBorders(
     val top: BorderStyle = BorderStyle.NONE,
     val bottom: BorderStyle = BorderStyle.NONE,
@@ -30,14 +26,11 @@ data class CellBorders(
             right == BorderStyle.NONE
 }
 
-/** Which edges a border action draws. */
 enum class BorderKind { NONE, TOP, BOTTOM, LEFT, RIGHT, ALL, BOX }
 
 /**
- * Draws borders on every cell of [range].
- *
- * "All" draws the four edges of every cell in the range; "box" draws the
- * outline of the range, so the edges on the inside stay free.
+ * Draws borders on every cell of [range]. "All" draws the four edges of every cell,
+ * "box" draws the outline of the range so the edges on the inside stay free.
  */
 fun Sheet.withBorders(range: CellRange, kind: BorderKind): Sheet {
     val positions = buildSet {

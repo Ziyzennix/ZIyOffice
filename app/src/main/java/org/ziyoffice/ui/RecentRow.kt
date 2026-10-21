@@ -33,8 +33,8 @@ import org.ziyoffice.model.RecentFile
  * A file row with a colour-coded type badge, shared by Home and Files.
  *
  * The row's text children already spell out the name and the type/size/date
- * line, but TalkBack would read them as two separate nodes. Collapsing the row
- * into one labelled node with Role.Button gives a single meaningful sentence.
+ * line, but TalkBack would read them as two nodes. One labelled node with
+ * Role.Button gives a single sentence.
  */
 @Composable
 internal fun RecentRow(file: RecentFile, onClick: () -> Unit) {
@@ -111,8 +111,7 @@ internal fun formatSize(bytes: Long): String = when {
  * degrades gracefully instead of leaving dangling separators.
  *
  * [openedLabel] is passed in rather than read from [DateUtils] here, so the
- * wording can be asserted in a JVM test; on Android the caller supplies the
- * relative time.
+ * wording can be asserted in a JVM test.
  */
 internal fun recentRowDescription(file: RecentFile, openedLabel: String): String {
     val size = formatSize(file.sizeBytes).takeIf { it.isNotEmpty() }

@@ -31,14 +31,12 @@ import org.ziyoffice.model.Table
 import org.ziyoffice.ui.listMarker
 
 /**
- * Exports a [Document] to a real PDF using only the platform's [PdfDocument]
- * and text layout. No third-party code, no network.
+ * Exports a [Document] to a real PDF with the platform's [PdfDocument] and text
+ * layout. No third-party code, no network.
  *
- * Fidelity is layout-based, not pixel-based: paragraphs flow onto A4 pages at
- * 72 dpi, styled runs keep their bold/italic/underline/size/colour, lists keep
- * their resolved markers, page breaks are honoured, images scale to the text
- * column and tables are drawn as a ruled grid. That is what most people mean by
- * "export to PDF": something they can send straight from the phone.
+ * Fidelity is layout-based, not pixel-based: paragraphs flow onto A4 pages,
+ * styled runs keep their styling, lists keep their markers, page breaks are
+ * honoured, images scale to the text column and tables are drawn as a grid.
  */
 object PdfExporter {
     /** Writes the rendered PDF; the caller owns the stream. */
@@ -70,7 +68,6 @@ private class Renderer(private val output: OutputStream) {
     private var canvas: Canvas = Canvas()
     private var y = MARGIN
 
-    /** Header and footer blocks of the document being exported, if any. */
     private var headerBlocks: List<Block> = emptyList()
     private var footerBlocks: List<Block> = emptyList()
 
@@ -101,8 +98,7 @@ private class Renderer(private val output: OutputStream) {
 
     /**
      * The header is drawn at the top margin of every page and the body starts
-     * below it, so header text can never overlap the first paragraph. It is
-     * drawn with the same run styling as body text.
+     * below it, so header text can never overlap the first paragraph.
      */
     private fun drawHeader() {
         if (headerBlocks.isEmpty()) return
@@ -110,7 +106,6 @@ private class Renderer(private val output: OutputStream) {
         y = MARGIN + height + HEADER_FOOTER_GAP
     }
 
-    /** The footer is drawn last, pinned to the bottom margin. */
     private fun finishPage() {
         val current = page
         if (current != null) {
@@ -123,7 +118,6 @@ private class Renderer(private val output: OutputStream) {
         page = null
     }
 
-    /** Draws [blocks] starting at [top]; returns the height they occupied. */
     private fun drawBand(blocks: List<Block>, top: Float): Float {
         val savedY = y
         y = top
@@ -140,8 +134,8 @@ private class Renderer(private val output: OutputStream) {
 
     /**
      * Height the footer will occupy. Measured with the same layout code the page
-     * uses, and with a throwaway counter map so the document's real list
-     * numbering is not advanced by a measurement.
+     * uses, and with a throwaway counter map so a measurement does not advance
+     * the document's real list numbering.
      */
     private fun bandHeight(blocks: List<Block>): Float {
         val measureCounters = mutableMapOf<Pair<Int, Int>, Int>()
@@ -161,7 +155,6 @@ private class Renderer(private val output: OutputStream) {
         return height
     }
 
-    /** Starts a new page unless [height] still fits below the current cursor. */
     private fun ensureSpace(height: Float) {
         if (y + height > PAGE_HEIGHT - MARGIN && y > MARGIN) newPage()
     }
@@ -199,7 +192,7 @@ private class Renderer(private val output: OutputStream) {
 
     private fun drawImage(image: InlineImage, x: Float, maxWidth: Float) {
         val bitmap = BitmapFactory.decodeByteArray(image.bytes, 0, image.bytes.size) ?: return
-        // dp (1/96 inch) -> points (1/72 inch); same 0.75 factor for both cases.
+        // dp (1/96 inch) -> points (1/72 inch); same 0.75 factor for both.
         val naturalWidth = (image.widthDp ?: (bitmap.width * 0.75f)) * 0.75f
         val naturalHeight = (image.heightDp ?: (bitmap.height * 0.75f)) * 0.75f
         if (naturalWidth <= 0f || naturalHeight <= 0f) return
@@ -343,8 +336,8 @@ private class Renderer(private val output: OutputStream) {
             .obtain(text, 0, text.length, paint, width.roundToInt().coerceAtLeast(12))
             .setAlignment((paragraph?.alignment ?: ParagraphAlignment.START).toLayoutAlignment())
             .setIncludePad(false)
-        // The paragraph's line spacing percentage scales the line height,
-        // matching how the editor renders it (100% = the default leading).
+        // The line spacing percentage scales the line height, as in the editor
+        // (100% = the default leading).
         paragraph?.lineSpacingPercent?.let { builder.setLineSpacing(0f, it / 100f) }
         if (paragraph?.alignment == ParagraphAlignment.JUSTIFY) {
             builder.setJustificationMode(LineBreaker.JUSTIFICATION_MODE_INTER_WORD)

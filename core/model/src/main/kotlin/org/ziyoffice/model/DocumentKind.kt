@@ -1,10 +1,9 @@
 package org.ziyoffice.model
 
 /**
- * The document families ZiyOffice recognises.
- *
- * This model is deliberately platform-independent (plain Kotlin, no Android classes)
- * so it can be unit-tested fast and reused by future non-Android front-ends.
+ * The document families ZiyOffice recognises. Deliberately platform-independent (plain
+ * Kotlin, no Android classes) so it unit-tests fast and can be reused by a non-Android
+ * front end later.
  */
 enum class DocumentKind(val label: String, val extensions: Set<String>) {
     DOCUMENT("Document", setOf("docx", "doc", "odt", "rtf", "txt")),
@@ -22,10 +21,9 @@ enum class DocumentKind(val label: String, val extensions: Set<String>) {
         }
 
         /**
-         * The family an intent's MIME type names. A share or view intent always
-         * carries one, and it is more reliable than the file name: some content
-         * providers hand back a display name with no extension at all
-         * ("document:1000142160"), which would otherwise read as [UNKNOWN].
+         * The family an intent's MIME type names. A share or view intent always carries one, and it beats
+         * the file name: some content providers hand back a display name with no extension at all
+         * ("document:1000142160"), which would read as [UNKNOWN].
          */
         fun fromMimeType(mimeType: String?): DocumentKind? = when (mimeType?.lowercase()) {
             "application/pdf" -> PDF

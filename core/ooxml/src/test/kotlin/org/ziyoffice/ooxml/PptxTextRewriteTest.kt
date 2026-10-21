@@ -13,8 +13,8 @@ import kotlin.test.assertTrue
  * appended paragraph was computed from an offset in the *original* XML while
  * being inserted into the *rebuilt* string, so it drifted as soon as the
  * edits changed the length of the text. The extra paragraph then landed in
- * the middle of the slide — sometimes inside a shape, sometimes outside the
- * tree.
+ * the middle of the slide, sometimes inside a shape and sometimes outside
+ * the tree.
  */
 class PptxTextRewriteTest {
 

@@ -1,6 +1,6 @@
-# ADR 0001 — OOXML (.docx/.xlsx/.pptx) format layer
+# ADR 0001: OOXML (.docx/.xlsx/.pptx) format layer
 
-**Status:** Accepted (2026-10-18) — own ZIP + XML layer in `core:ooxml`, decided by spike.
+**Status:** Accepted (2026-10-18). Own ZIP + XML layer in `core:ooxml`, decided by spike.
 **Date:** 2026-10-18 (proposed) · 2026-10-18 (accepted)
 
 ## Context
@@ -28,7 +28,7 @@ packaging friction (XMLBeans, reflection, class-path size), and its own model is
 Implement the subset ourselves: unzip with `java.util.zip`, parse XML with the platform's
 XML pull parser, map to our model, serialise back with a small writer. Upsides: total
 control, tiny footprint, testable on the JVM, no license surprises, and we understand every
-byte. Downsides: more work per supported feature; risk of subtle spec misses — mitigated by
+byte. Downsides: more work per supported feature; risk of subtle spec misses, mitigated by
 the round-trip test corpus (LibreOffice used as a *test oracle* on the developer machine,
 never shipped).
 
@@ -52,7 +52,7 @@ Option A was tested to the point of decisive evidence:
    community "POI for Android" ports are unmaintained forks of a much older POI.
 4. **Weight:** the resolved stack (`poi` ~3 MB, `poi-ooxml` 2.0 MB, `xmlbeans` 2.2 MB, plus
    commons-compress, commons-io, log4j-api, SparseBitSet) is roughly **15 MB of jars
-   before dexing** — already over the < 8 MB budget, and it would still need a fork to run.
+   before dexing**, already over the < 8 MB budget, and it would still need a fork to run.
 
 Option B was validated with a proof of concept in the same timebox:
 
@@ -65,7 +65,7 @@ Option B was validated with a proof of concept in the same timebox:
 - Verified on device: the editor shell opens a real `.docx` and renders its paragraphs.
 ## Decision
 
-**Adopt option B — our own ZIP + XML layer in `core:ooxml` — for both reading and writing.**
+**Adopt option B: our own ZIP + XML layer in `core:ooxml`, for both reading and writing.**
 
 - The read path grows first (docx text → document model → rendering), milestone by milestone.
 - The write path follows for each format, with metadata scrubbing (M5) as a first-class,
@@ -81,7 +81,7 @@ Option B was validated with a proof of concept in the same timebox:
 - ~~The `engine` interfaces (`DocumentImporter`, `DocumentExporter`) keep this decision
   reversible without touching UI code.~~ Superseded: no separate engine interface layer was shipped; the UI calls `DocxReader`/`DocxWriter` (and `XlsxReader`/`XlsxWriter`/`PptxReader`/`PptxWriter`) directly.
 - Metadata handling (scrubbing on export, M5) is a first-class concern of whichever writer
-  we ship — with our own writer it is a guarantee rather than a hope.
+  we ship. With our own writer it is a guarantee rather than a hope.
 - We carry the maintenance load for the supported subset. The fidelity corpus is the
   objective measure of "does it look right", replacing guesswork with a score that grows
   release by release.

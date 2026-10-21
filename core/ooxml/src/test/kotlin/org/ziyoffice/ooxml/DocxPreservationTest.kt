@@ -18,16 +18,14 @@ import org.ziyoffice.model.Run
  * What a save must not lose.
  *
  * The old writer rebuilt a document from the model, so everything the model
- * could not express — comments, footnotes, hyperlinks, tracked changes, text
- * boxes, section breaks, styles, document properties — disappeared on the
+ * could not express (comments, footnotes, hyperlinks, tracked changes, text
+ * boxes, section breaks, styles, document properties) disappeared on the
  * first save. These tests pin down the opposite contract: a save changes what
  * the user changed and nothing else.
  */
 class DocxPreservationTest {
 
     private val reader = DocxReader()
-
-    // ---------------------------------------------------------------- helpers
 
     private fun zipOf(parts: Map<String, String>): ByteArray {
         val out = ByteArrayOutputStream()
@@ -132,8 +130,6 @@ class DocxPreservationTest {
         return DocxEditor(source).save(document)
     }
 
-    // ------------------------------------------------------------------ tests
-
     @Test
     fun anUntouchedDocumentIsSavedByteForByte() {
         val original = richDocument()
@@ -209,7 +205,7 @@ class DocxPreservationTest {
         val reread = reader.read(ByteArrayInputStream(saved))
 
         // The equation paragraph holds no WordprocessingML text, so it reads
-        // back as an empty paragraph; it is still in the package.
+        // back as an empty paragraph, but it is still in the package.
         assertEquals(
             listOf("Heading", "Edited", "A link", "Inserted", "", "Last paragraph"),
             reread.blocks.filterIsInstance<Paragraph>().map { paragraph ->

@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 import org.ziyoffice.ooxml.PreservedFeature
 
 /**
- * The notice about content the app keeps but cannot edit has to be accurate.
+ * The notice about content the app keeps but can't edit has to be accurate.
  *
  * A save no longer removes anything, so the wording must not claim that it
  * does: the user should learn which parts of their document are out of reach,
@@ -44,7 +44,7 @@ class PreservedCopyTest {
     fun theBodySaysWhatIsKeptAndNotThatAnythingIsLost() {
         val body = PreservedCopy.body(features, ".docx")
 
-        assertTrue(body.contains("keeps but cannot edit"))
+        assertTrue(body.contains("keeps but can't edit"))
         assertTrue(body.contains("Comments"))
         assertTrue(body.contains("Footnotes"))
         assertTrue(body.contains("Tracked changes"))

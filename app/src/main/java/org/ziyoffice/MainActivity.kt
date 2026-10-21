@@ -15,9 +15,9 @@ import org.ziyoffice.ui.ZiyOfficeApp
 class MainActivity : ComponentActivity() {
 
     /**
-     * A document handed to us by another app ("Open with", "Share to").
-     * Kept as state so the Compose shell picks it up whether it arrives with
-     * the launch intent or with a later [onNewIntent] while we are running.
+     * A document handed over by another app ("Open with", "Share to"). Kept as
+     * state so the shell picks it up whether it arrives with the launch intent
+     * or a later [onNewIntent].
      */
     private var incoming by mutableStateOf<IncomingFile?>(null)
 
@@ -44,9 +44,8 @@ class MainActivity : ComponentActivity() {
 
     /**
      * The document a VIEW or SEND intent points at, with the MIME type the
-     * sending app declared. The type matters: content providers sometimes report
-     * a display name with no extension, and without a type such a file would be
-     * unopenable.
+     * sending app declared. The type matters: providers sometimes report a name
+     * with no extension, and without a type such a file is unopenable.
      */
     private fun incomingFrom(intent: Intent?): IncomingFile? {
         val action = intent?.action ?: return null

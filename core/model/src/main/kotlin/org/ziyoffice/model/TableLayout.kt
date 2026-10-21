@@ -1,13 +1,10 @@
 package org.ziyoffice.model
 
 /**
- * Where one table cell belongs in the grid, once horizontal and vertical merges
- * are taken into account.
- *
- * [row] and [column] are grid coordinates; [rowIndex] and [cellIndex] are the
- * same cell inside [Table.rows], which is what [FocusPath] addresses. Keeping
- * both lets the renderer lay out a merged grid while the editor still refers to
- * cells the way the model stores them.
+ * Where one table cell belongs in the grid, once merges are taken into account. [row] and
+ * [column] are grid coordinates; [rowIndex] and [cellIndex] are the same cell inside
+ * [Table.rows], which is what [FocusPath] addresses. Keeping both lets the renderer lay
+ * out a merged grid while the editor still refers to cells the way the model stores them.
  */
 data class PlacedCell(
     val row: Int,
@@ -20,14 +17,11 @@ data class PlacedCell(
 )
 
 /**
- * Every cell that draws, with the grid area it covers.
- *
- * A cell that continues a vertical merge is not placed: the cell above it
- * already covers that area, and its content is empty by definition. So a 2-row
- * merge produces one placed cell with `rowSpan = 2`, not two cells.
- *
- * Ragged rows (a row with fewer cells than the grid) are tolerated: the walk
- * simply leaves the remaining columns empty instead of failing.
+ * Every cell that draws, with the grid area it covers. A cell that continues a vertical
+ * merge is not placed: the cell above it already covers that area, and its content is
+ * empty by definition. So a 2-row merge produces one placed cell with `rowSpan = 2`, not
+ * two cells. Ragged rows (a row with fewer cells than the grid) are tolerated: the walk
+ * leaves the remaining columns empty instead of failing.
  */
 fun Table.placedCells(): List<PlacedCell> {
     val placed = mutableListOf<PlacedCell>()
@@ -73,13 +67,10 @@ fun Table.placedCells(): List<PlacedCell> {
 
 /**
  * The continuation cells a merge opened at [rowIndex] covers, below its own row.
- *
- * Continues only while the cells below line up exactly: same grid column, same
- * horizontal span, and marked as a continuation. A mismatch ends the merge
- * rather than stretching it over a cell that never agreed to it.
- *
- * A continuation with no restart above it is not in this list, and the caller
- * draws it as an ordinary cell. A malformed file must not make content vanish.
+ * Continues only while the cells below line up exactly: same grid column, same horizontal
+ * span, and marked as a continuation. A mismatch ends the merge rather than stretching it
+ * over a cell that never agreed to it. A continuation with no restart above it is not in
+ * this list, so the caller draws it as an ordinary cell.
  */
 private fun Table.continuationCellsBelow(
     rowIndex: Int,

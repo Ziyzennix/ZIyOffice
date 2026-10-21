@@ -87,13 +87,13 @@ import org.ziyoffice.ooxml.PptxReader
 import org.ziyoffice.ooxml.PptxWriter
 
 /**
- * Presentation editor: a slide strip, a text editor for the selected slide
- * (title, body, speaker notes) and a full-screen present mode.
+ * Presentation editor: a slide strip, a text editor for the selected slide and
+ * a full-screen present mode.
  *
  * The model edits text only, because the writer patches text in the original
- * package. Layouts, images, themes and animation survive an edit untouched but
- * are not editable here, and the strip is honest about that: it shows the text
- * a slide carries, not a broken imitation of its artwork.
+ * package. Layouts, images, themes and animation survive an edit but are not
+ * editable here, and the strip is honest about that: it shows the text a slide
+ * carries, not a bad imitation of its artwork.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,8 +105,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
     var original by remember(file.uri) { mutableStateOf<ByteArray?>(null) }
     var deck by remember(file.uri) { mutableStateOf<SlideDeck?>(null) }
     var dirty by remember(file.uri) { mutableStateOf(false) }
-    // Bumped by every deck edit, so an in-flight write can tell whether newer
-    // edits appeared while it was running.
+    // Bumped by every deck edit, so an in-flight write can spot newer edits.
     var writeVersion by remember(file.uri) { mutableStateOf(0L) }
     var saving by remember { mutableStateOf(false) }
     var presenting by remember(file.uri) { mutableStateOf(false) }
@@ -117,7 +116,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
 
     /**
      * The name the SAF provider reports for [uri], so export messages can name
-     * the file the user actually picked. Falls back to the last path segment.
+     * the file the user picked.
      */
     fun pdfName(uri: Uri): String {
         val queried = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -140,7 +139,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
             withContext(Dispatchers.IO) {
                 val bytes = drafts.load(file.uri) ?: context.contentResolver
                     .openInputStream(Uri.parse(file.uri))?.use { it.readBytes() }
-                    ?: error("The presentation could not be opened")
+                    ?: error("the presentation couldn't be opened")
                 bytes to PptxReader().read(ByteArrayInputStream(bytes))
             }
         }.onSuccess { (bytes, parsed) ->
@@ -149,14 +148,14 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
             dirty = drafts.load(file.uri) != null
         }.onFailure {
             loadError = it.message ?: "invalid PPTX"
-            snackbar.showSnackbar("Could not open presentation: ${it.message ?: "invalid PPTX"}")
+            snackbar.showSnackbar("Couldn't open that presentation: ${it.message ?: "invalid PPTX"}")
         }
     }
 
     LaunchedEffect(file.uri) { loadDeck() }
 
     // Recovery silence is the bug: a failed draft write used to vanish into
-    // runCatching, so crash protection stopped working without saying so.
+    // runCatching, so crash protection stopped working without a word.
     var draftAutosaveHealthy by remember(file.uri) { mutableStateOf(true) }
     LaunchedEffect(deck, dirty) {
         val current = deck ?: return@LaunchedEffect
@@ -168,17 +167,16 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
         }
         if (!saved && draftAutosaveHealthy) {
             draftAutosaveHealthy = false
-            snackbar.showSnackbar("Could not save your draft — your work may not be recoverable")
+            snackbar.showSnackbar("Couldn't save your draft, your work may not be recoverable")
         } else if (saved) {
             draftAutosaveHealthy = true
         }
     }
 
     // Same last-chance flush as the other editors: an edit made between the
-    // draft write above and leaving composition exists only in this process.
+    // draft write above and leaving lives only in this process.
     val flushTarget = remember(file.uri) { mutableStateOf<SlideDeck?>(null) }
-    // Set when the user explicitly discards: the last-chance flush must not
-    // resurrect the draft that Discard just deleted.
+    // Set when the user discards: the flush must not resurrect the draft.
     val discardDraft = remember(file.uri) { mutableStateOf(false) }
     SideEffect { flushTarget.value = deck?.takeIf { dirty } }
     DisposableEffect(file.uri) {
@@ -188,9 +186,9 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
             val source = original ?: return@onDispose
             val uri = file.uri
             val store = drafts
-            // A composition scope is cancelled before onDispose runs, so a plain
-            // scope.launch would never land. A daemon thread always finishes,
-            // and this is a small file write (a few milliseconds).
+            // A composition scope is cancelled before onDispose runs, so a
+            // plain scope.launch would never land. A daemon thread always
+            // finishes, and this is a small file write (a few milliseconds).
             Thread {
                 runCatching { store.save(uri, PptxWriter().edit(source, current)) }
             }.apply { name = "draft-flush" }.start()
@@ -207,7 +205,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                 runCatching {
                     val output = PptxWriter().edit(bytes, current)
                     context.contentResolver.openOutputStream(Uri.parse(file.uri), "wt")
-                        ?.use { it.write(output) } ?: error("The file could not be opened for writing")
+                        ?.use { it.write(output) } ?: error("the file couldn't be opened for writing")
                     output
                 }
             }
@@ -220,20 +218,19 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                     snackbar.showSnackbar("Saved \u00B7 ${file.displayName}")
                     onSaved()
                 } else {
-                    // Edits landed while the write was running: the newer work
-                    // stays dirty and keeps its draft recovery copy.
+                    // Edits landed while the write ran: the newer work stays
+                    // dirty and keeps its draft recovery copy.
                     snackbar.showSnackbar("Saved \u00B7 newer edits kept")
                 }
             }.onFailure {
-                snackbar.showSnackbar("Could not save: ${it.message ?: it.javaClass.simpleName}")
+                snackbar.showSnackbar("Couldn't save that: ${it.message ?: it.javaClass.simpleName}")
             }
         }
     }
 
     /**
-     * The single exit path: leave present mode, leave outright when clean, or
-     * ask what to do about unsaved edits. Both the system back gesture and the
-     * toolbar arrow use it.
+     * The single exit path: leave present mode, leave when clean, or ask what
+     * to do about unsaved edits.
      */
     fun tryExit() {
         if (presenting) {
@@ -259,33 +256,33 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
         scope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    // Render to memory first, so success can be claimed only
-                    // once real bytes exist.
+                    // Render to memory first, so success is only claimed once
+                    // real bytes exist.
                     val buffer = ByteArrayOutputStream()
                     DeckExporter.export(current, buffer)
                     val bytes = buffer.toByteArray()
                     check(bytes.isNotEmpty()) { "the PDF came back empty" }
                     context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
                         out.write(bytes)
-                    } ?: error("the file could not be created")
-                    // A write that did not throw can still leave nothing behind:
-                    // a full disk, a revoked grant or an aborted stream all end
-                    // silently. Read the destination back before claiming success.
+                    } ?: error("the file couldn't be created")
+                    // A write that did not throw can still leave nothing
+                    // behind (a full disk, a revoked grant, an aborted stream),
+                    // so the destination is read back before success is claimed.
                     val size = context.contentResolver.openFileDescriptor(uri, "r")
                         ?.use { it.statSize }
-                        ?: error("the saved file could not be read back")
+                        ?: error("the saved file couldn't be read back")
                     if (size <= 0L) error("nothing was written to ${pdfName(uri)}")
                     bytes.size
                 }
             }
             if (!isActive) return@launch
             result.onFailure {
-                snackbar.showSnackbar("Could not export PDF: ${it.message ?: "unknown error"}")
+                snackbar.showSnackbar("Couldn't export the PDF: ${it.message ?: "unknown error"}")
             }.onSuccess {
                 // The user picked the name in the picker; report that, not the
                 // deck it came from. The PDF carries text only.
                 snackbar.showSnackbar(
-                    "PDF exported to ${pdfName(uri)} \u00B7 text only \u2014 " +
+                    "PDF exported to ${pdfName(uri)} \u00B7 text only, " +
                         "images, shapes and transitions are not included",
                 )
             }
@@ -301,12 +298,12 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
             }
             if (!isActive) return@launch
             if (bytes == null) {
-                snackbar.showSnackbar("Could not prepare the presentation for printing")
+                snackbar.showSnackbar("Couldn't prepare the presentation for printing")
                 return@launch
             }
             val name = file.displayName.substringBeforeLast('.', file.displayName)
             if (!Printer.print(context, name, bytes)) {
-                snackbar.showSnackbar("This device has no print service")
+                snackbar.showSnackbar("No print service on this device")
             }
         }
     }
@@ -317,10 +314,10 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
             title = { Text("Save changes?") },
-            text = { Text("Unsaved edits to ${file.displayName} will be lost if you leave now.") },
+            text = { Text("Unsaved edits to ${file.displayName} will be lost if you leave now") },
             confirmButton = {
-                // Three actions in the confirm row: Cancel keeps the user in the
-                // editor, Discard leaves, Save writes then leaves only on success.
+                // Three actions: Cancel stays, Discard leaves, Save writes then
+                // leaves only on success.
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.End,
@@ -329,8 +326,8 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                     TextButton(
                         onClick = {
                             showExitDialog = false
-                            // Discard must also drop the recovery draft, or the
-                            // next open would silently restore what was thrown away.
+                            // Discard must drop the recovery draft too, or the
+                            // next open would restore what was thrown away.
                             discardDraft.value = true
                             dirty = false
                             val store = drafts
@@ -378,8 +375,8 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                 actions = {
                     // Present is the reason this screen exists, so it keeps its
                     // icon; Save is next to it. Add slide, export and print move
-                    // into the menu — five icons left the title reading "Dec…"
-                    // on a 360 dp phone.
+                    // into the menu, because five icons left the title reading
+                    // "Dec…" on a small phone.
                     IconButton(
                         onClick = { slideIndex = 0; presenting = true },
                         enabled = current?.slides?.isNotEmpty() == true,
@@ -442,7 +439,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
-                    "${file.displayName} could not be opened",
+                    "couldn't open ${file.displayName}",
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
@@ -565,8 +562,7 @@ private fun SlideStrip(
 
 /**
  * Text editor for one slide: title and body lines as separate fields (the model
- * is line-based), plus speaker notes. Line add/remove is explicit so nothing
- * changes silently while typing.
+ * is line-based), plus speaker notes. Line add/remove is explicit.
  */
 @Composable
 private fun SlideEditor(
@@ -675,8 +671,8 @@ private fun SlideEditor(
 }
 
 /**
- * Full-screen present mode. Tap to advance, tap past the last slide to leave;
- * the bottom bar carries page controls, a speaker-notes toggle and an exit button.
+ * Full-screen present mode. Tap to advance, tap past the last slide to leave.
+ * The bottom bar carries page controls, a notes toggle and an exit button.
  */
 @Composable
 private fun PresentingOverlay(
@@ -729,7 +725,7 @@ private fun PresentingOverlay(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Speaker notes", style = MaterialTheme.typography.labelMedium)
                         Text(
-                            slide?.notes?.takeIf { it.isNotBlank() } ?: "No notes for this slide.",
+                            slide?.notes?.takeIf { it.isNotBlank() } ?: "no notes for this slide",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

@@ -19,13 +19,13 @@ import org.ziyoffice.model.normaliseMerges
  * only. The counterpart of [XlsxReader].
  *
  * The package is minimal but standards-valid: content types, the package and
- * workbook relationships, xl/workbook.xml, xl/styles.xml and one worksheet part
- * per sheet. Values are written inline where possible: numbers as <v>, text as
- * inline strings, formulas as <f> with a cached <v>.
+ * workbook relationships, xl/workbook.xml, xl/styles.xml and one worksheet
+ * part per sheet. Values are written inline where possible: numbers as <v>,
+ * text as inline strings, formulas as <f> with a cached <v>.
  *
  * Cell formatting is flattened into direct cellXfs entries, so bold, italic,
- * underline, strike, size, colour, fill, borders, alignment and number formats
- * all survive a round trip.
+ * underline, strike, size, colour, fill, borders, alignment and number
+ * formats all survive a round trip.
  */
 class XlsxWriter {
 
@@ -123,8 +123,9 @@ class XlsxWriter {
             append("</sheetView></sheetViews>")
         }
 
-        // Column widths precede sheetData in the schema. A run is written as one
-        // <col> so a default width covering every column does not become 16k tags.
+        // Column widths come before sheetData in the schema. A run is written
+        // as one <col> so a default width covering every column does not
+        // become 16k tags.
         val widths = sheet.columnWidths
             .filter {
                 it.firstColumn in 0 until MAX_SHEET_COLUMNS &&
@@ -249,7 +250,6 @@ class XlsxWriter {
         append("</c>")
     }
 
-    /** Deduplicated cell formats and their `cellXfs` indices. */
     private class StylePlan(
         private val formats: List<CellFormat>,
         private val index: Map<CellFormat, Int>,

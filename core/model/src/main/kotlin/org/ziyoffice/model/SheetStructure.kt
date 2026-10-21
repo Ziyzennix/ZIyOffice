@@ -1,13 +1,11 @@
 package org.ziyoffice.model
 
 /**
- * Whole-row and whole-column edits.
- *
- * These move the sheet around: cells below or to the right shift, merged ranges
- * grow or shrink, sizing follows its axis, and formulas are rewritten so they
- * keep pointing at the same data. Deleting a referenced row or column gives
- * #REF!, the way every spreadsheet does it. Cached results are cleared because
- * the sheet behind them changed.
+ * Whole-row and whole-column edits. These move the sheet around: cells below or to the
+ * right shift, merged ranges grow or shrink, sizing follows its axis, and formulas are
+ * rewritten so they keep pointing at the same data. Deleting a referenced row or column
+ * gives #REF!, the way every spreadsheet does it. Cached results are cleared because the
+ * sheet behind them changed.
  */
 
 fun Sheet.insertRows(at: Int, count: Int): Sheet {

@@ -11,9 +11,9 @@ import kotlin.test.assertTrue
 /**
  * The audit exists to tell the user what they will not be able to edit.
  *
- * Saving writes the edited parts back into the original package, so nothing is
- * thrown away. What the audit reports is the content that survives but cannot
- * be edited — and it must stay silent about everything the editor does
+ * Saving writes the edited parts back into the original package, so nothing
+ * is thrown away. What the audit reports is the content that survives but
+ * cannot be edited, and it must stay silent about everything the editor does
  * handle.
  */
 class ContentAuditTest {
@@ -193,7 +193,7 @@ class ContentAuditTest {
     /**
      * End-to-end proof that the notice is true: a package with a header and a
      * tracked insertion is opened, edited and saved, and everything the audit
-     * named is still there afterwards.
+     * named is still there.
      */
     @Test
     fun savingKeepsWhatTheAuditNames() {

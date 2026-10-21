@@ -6,13 +6,9 @@ enum class DocumentRegion { BODY, HEADER, FOOTER }
 /**
  * Addresses one editable paragraph inside a document.
  *
- * [region] matters because a header paragraph is not reachable from the body
- * list: Word keeps headers and footers in their own package parts, and so does
- * the model. Editing a header is therefore the same operation as editing a body
- * paragraph, applied to a different block list.
- *
- * [blockIndex] and the cell fields address the paragraph inside that region's
- * blocks, so the same path shape works for body, header and footer.
+ * [region] matters because a header paragraph is not reachable from the body list: Word
+ * keeps headers and footers in their own package parts, and so does the model. Editing a
+ * header is then the same operation on a different block list.
  */
 data class FocusPath(
     val blockIndex: Int,
@@ -129,19 +125,14 @@ fun Document.mapParagraphAt(path: FocusPath, transform: (Paragraph) -> Paragraph
     )
 }
 
-/**
- * Inserts [paragraph] directly after the paragraph at [path], in whichever
- * region and container that paragraph lives in.
- */
 fun Document.withParagraphAddedAfter(path: FocusPath, paragraph: Paragraph): Document =
     mapAtPath(path) { blocks, index ->
         blocks.toMutableList().apply { add(index + 1, paragraph) }
     }
 
 /**
- * Removes the paragraph at [path]. A container never ends up with zero
- * paragraphs, because Word requires at least one `w:p` per body, cell, header
- * and footer.
+ * Removes the paragraph at [path]. A container never ends up with zero paragraphs: Word
+ * requires at least one `w:p` per body, cell, header and footer.
  */
 fun Document.withParagraphRemovedAt(path: FocusPath): Document =
     mapAtPath(path) { blocks, index ->
@@ -152,11 +143,8 @@ fun Document.withParagraphRemovedAt(path: FocusPath): Document =
     }
 
 /**
- * Applies [transform] to the block list that contains the paragraph at [path],
- * handing the transform the list and the index of that paragraph.
- *
- * Header, footer, body and table-cell paragraphs all go through here, so a
- * structural edit only has to be written once.
+ * Applies [transform] to the block list holding the paragraph at [path]. Header, footer,
+ * body and table-cell paragraphs all go through here, so one edit covers them all.
  */
 private fun Document.mapAtPath(
     path: FocusPath,

@@ -1,12 +1,10 @@
 package org.ziyoffice.model
 
 /**
- * A presentation: its slides in presentation order.
- *
- * The model is deliberately flat - text lines per slide - because that is what
- * can be edited without a full DrawingML renderer. The writer patches the text
- * runs in the original package, so themes, layouts, images, notes and animation
- * survive an edit untouched.
+ * A presentation: its slides in presentation order. The model is deliberately flat (text
+ * lines per slide) because that is what can be edited without a full DrawingML renderer.
+ * The writer patches the text runs in the original package, so themes, layouts, images,
+ * notes and animation survive an edit untouched.
  */
 data class SlideDeck(
     val slides: List<Slide>,
@@ -18,7 +16,7 @@ data class SlideDeck(
     val aspectRatio: Float get() = widthEmu.toFloat() / heightEmu.coerceAtLeast(1)
 
     companion object {
-        /** 13.333 in — the PowerPoint widescreen default. */
+        /** 13.333 in, the PowerPoint widescreen default. */
         const val DEFAULT_WIDTH_EMU = 12_192_000
         const val DEFAULT_HEIGHT_EMU = 6_858_000
 
@@ -31,12 +29,10 @@ data class SlideDeck(
 }
 
 /**
- * One slide: its text lines in reading order, plus the index of its part in the
- * package (`ppt/slides/slide<number>.xml`).
- *
- * [number] is the *part* index, not the position in the deck: reordering slides
- * must not rename parts, and the writer needs the part index to patch the right
- * file.
+ * One slide: its text lines in reading order, plus the index of its part in the package
+ * (`ppt/slides/slide<number>.xml`). [number] is the *part* index, not the position in
+ * the deck: reordering slides must not rename parts, and the writer needs the index to
+ * patch the right file.
  */
 data class Slide(
     val number: Int,
@@ -48,7 +44,6 @@ data class Slide(
     val body: List<String> get() = lines.drop(1)
 }
 
-/** Replaces the text lines of the slide at [index]. */
 fun SlideDeck.withLines(index: Int, lines: List<String>): SlideDeck {
     if (index !in slides.indices) return this
     val updated = slides.toMutableList()

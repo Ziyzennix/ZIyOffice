@@ -27,7 +27,7 @@ import org.ziyoffice.model.RecentFile
 
 /**
  * Honest refusal for the file kinds this app cannot open yet. Replaces the
- * placeholder canvas and the fake toolbar chips that used to live in the editor.
+ * placeholder canvas and fake toolbar chips that used to live in the editor.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +70,7 @@ fun UnsupportedScreen(
             )
             Text(
                 "ZiyOffice opens Word (.docx), Excel (.xlsx, .csv), " +
-                    "PowerPoint (.pptx) and PDF files today. ${file.kind.label} support is not built yet.",
+                    "PowerPoint (.pptx) and PDF files today. ${file.kind.label} support isn't built yet.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

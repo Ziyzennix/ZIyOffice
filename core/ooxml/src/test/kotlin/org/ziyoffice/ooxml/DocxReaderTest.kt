@@ -21,8 +21,6 @@ class DocxReaderTest {
 
     private val reader = DocxReader()
 
-    // ------------------------------------------------------------- text layout
-
     @Test
     fun readsParagraphs() {
         val bytes = docx(
@@ -114,8 +112,6 @@ class DocxReaderTest {
         assertFailsWith<IOException> { reader.read(ByteArrayInputStream(out.toByteArray())) }
     }
 
-    // ------------------------------------------------------- run-level styling
-
     @Test
     fun readsBoldItalicAndUnderline() {
         val bytes = docx(
@@ -176,8 +172,6 @@ class DocxReaderTest {
         assertEquals(null, runs[1].sizePt)
         assertEquals(null, runs[1].colorRgb)
     }
-
-    // ---------------------------------------------------- paragraph-level info
 
     @Test
     fun readsParagraphAlignment() {
@@ -299,8 +293,6 @@ class DocxReaderTest {
         assertEquals(null, paragraphs[3].lineSpacingPercent)
     }
 
-    // ------------------------------------------------------------ style sheets
-
     private val styleChain = styles(
         "<w:docDefaults><w:rPrDefault><w:rPr><w:sz w:val=\"22\"/></w:rPr></w:rPrDefault></w:docDefaults>" +
             "<w:style w:type=\"paragraph\" w:styleId=\"Normal\"><w:rPr><w:sz w:val=\"24\"/></w:rPr></w:style>" +
@@ -366,8 +358,6 @@ class DocxReaderTest {
         assertEquals(15f, run.sizePt)
     }
 
-    // ---------------------------------------------------------------- numbering
-
     @Test
     fun resolvesBulletNumbering() {
         val bytes = docx(
@@ -417,8 +407,6 @@ class DocxReaderTest {
 
         assertEquals(null, paragraphsOf(bytes).single().list)
     }
-
-    // ------------------------------------------------------------------ tables
 
     private val twoByTwoTable = """
         <w:tbl>
@@ -543,8 +531,6 @@ class DocxReaderTest {
         assertIs<Table>(cell.blocks[1])
     }
 
-    // ------------------------------------------------------------------ images
-
     private val relationshipsNamespace =
         "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 
@@ -635,8 +621,6 @@ class DocxReaderTest {
         assertContentEquals(gifBytes, image.bytes)
         assertEquals(null, image.widthDp)
     }
-
-    // ------------------------------------------------------------------ helpers
 
     private fun blocksOf(bytes: ByteArray): List<Block> =
         reader.read(ByteArrayInputStream(bytes)).blocks

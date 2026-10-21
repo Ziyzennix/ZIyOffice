@@ -28,27 +28,22 @@ class DocxCorpusTest {
         val fakePng = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0)
         val doc = Document(
             blocks = listOf(
-                // 1. Title paragraph (bold, 24pt, spacingAfter 240)
                 Paragraph(
                     runs = listOf(Run("Quarterly Strategy Report", bold = true, sizePt = 24f)),
                     spacingAfterTwips = 240,
                 ),
-                // 2. Body paragraph (11pt, spacingAfter 160)
                 Paragraph(
                     runs = listOf(Run("This document summarizes our Q1 results and projections.", sizePt = 11f)),
                     spacingAfterTwips = 160,
                 ),
-                // 3. Bullet paragraph (ListInfo(1, 0, ListKind.BULLET))
                 Paragraph(
                     runs = listOf(Run("Revenue exceeded target by 14%", sizePt = 11f)),
                     list = ListInfo(1, 0, ListKind.BULLET),
                 ),
-                // 4. Numbered paragraph (ListInfo(2, 0, ListKind.NUMBER))
                 Paragraph(
                     runs = listOf(Run("Open European office", sizePt = 11f)),
                     list = ListInfo(2, 0, ListKind.NUMBER),
                 ),
-                // 5. 2x2 bordered table with header row, cells containing bold 11pt text
                 Table(
                     rows = listOf(
                         TableRow(
@@ -69,7 +64,6 @@ class DocxCorpusTest {
                     columnCount = 2,
                     borders = true,
                 ),
-                // 6. Paragraph with strike = true and an InlineImage
                 Paragraph(
                     runs = listOf(Run("Draft notes (confidential)", strike = true, sizePt = 11f)),
                     images = listOf(InlineImage(fakePng, widthDp = 120f, heightDp = 80f)),

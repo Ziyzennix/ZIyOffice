@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
  *
  * The picker is a Storage Access Framework flow: the user picks a real file in
  * a real folder and the app gets a revocable grant. No broad storage
- * permission, no access to anything the user did not explicitly pick.
+ * permission, no access to anything the user did not pick.
  */
 private val SUPPORTED_MIME_TYPES = arrayOf(
     "application/pdf",
@@ -26,8 +26,8 @@ private val SUPPORTED_MIME_TYPES = arrayOf(
 )
 
 /**
- * Returns a function that launches the document picker; [onPicked] receives the chosen URI.
- * Pass [mimeTypes] to narrow the picker to one kind of file (Home's PDF tile does this).
+ * Returns a function that launches the document picker; [onPicked] gets the uri.
+ * Pass [mimeTypes] to narrow it to one kind of file (Home's PDF tile does this).
  */
 @Composable
 fun rememberDocumentPicker(
@@ -56,9 +56,9 @@ const val PPTX_MIME_TYPE =
 
 /**
  * Returns a function that launches the system "create document" flow for a new
- * file of [mimeType]; [onCreated] receives the URI of the empty file the user
- * named. The app then writes a fresh package into it — the new document lives
- * where the user chose, owned by the user, not in some app-private sandbox.
+ * file of [mimeType]; [onCreated] receives the uri of the empty file the user
+ * named. The app then writes a fresh package into it, so the new document lives
+ * where the user chose, owned by them, not in an app-private sandbox.
  */
 @Composable
 fun rememberDocumentCreator(

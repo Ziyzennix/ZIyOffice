@@ -18,7 +18,7 @@ import org.ziyoffice.model.Run
  *
  * A paragraph is not just a run of text: it can hold a hyperlink, a tab, a
  * line break, characters that have to be escaped and spaces that have to be
- * kept. A writer that rebuilds it from the model loses those; a writer that
+ * kept. A writer that rebuilds it from the model loses those, a writer that
  * patches it has to keep them.
  */
 class DocxEditingTest {

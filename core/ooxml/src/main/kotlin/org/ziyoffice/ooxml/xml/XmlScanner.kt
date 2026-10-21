@@ -3,21 +3,21 @@ package org.ziyoffice.ooxml.xml
 /**
  * A minimal XML scanner that keeps the source offsets of everything it finds.
  *
- * The platform pull parser (`org.xmlpull`) can read a document but throws away
- * the byte offsets, and the OOXML preservation work needs them: a paragraph the
- * user did not touch must come out of a save byte-identical, and a paragraph
- * they did touch must keep every element the editor does not understand.
+ * The platform pull parser (`org.xmlpull`) reads a document but throws away the
+ * byte offsets, and the OOXML preservation work needs them: a paragraph the
+ * user did not touch must come out of a save byte-identical, and one they did
+ * touch must keep every element the editor does not understand. With offsets
+ * both are easy: copy the original source span verbatim, or splice a
+ * replacement into it.
  *
- * With offsets, both are easy: copy the original source span verbatim, or
- * splice a replacement into it. This scanner is deliberately small — it reads
- * the subset of XML that OOXML parts use (elements, attributes, text, CDATA,
- * comments, processing instructions) and keeps the original text so nothing is
- * normalised away.
- *
+ * The scanner is deliberately small. It reads the subset of XML that OOXML
+ * parts use (elements, attributes, text, CDATA, comments, processing
+ * instructions) and keeps the original text so nothing is normalised away.
  * It is not a validating parser: it never resolves namespaces beyond the
- * prefix and local name, and it does not check well-formedness beyond matching
- * tags. Malformed input produces a tree that stops at the problem rather than
- * throwing, so a damaged document still opens with whatever was readable.
+ * prefix and local name, and it does not check well-formedness beyond
+ * matching tags. Malformed input produces a tree that stops at the problem
+ * rather than throwing, so a damaged document still opens with whatever was
+ * readable.
  */
 internal class XmlElement(
     /** Qualified name exactly as written, e.g. `w:p`. */
@@ -41,7 +41,6 @@ internal class XmlElement(
     /** The namespace this element's own name resolves to, or null when none. */
     val namespaceUri: String? = null,
 ) {
-    /** Name without its namespace prefix. */
     val localName: String get() = qName.substringAfterLast(':')
 
     /** Namespace prefix, or an empty string when the element has none. */
@@ -54,22 +53,20 @@ internal class XmlElement(
     fun innerSource(xml: String): String = xml.substring(contentStart, contentEnd)
 
     /**
-     * The value of the attribute whose local name is [name], ignoring its
-     * namespace prefix. Attribute names in OOXML are effectively unique by
-     * local name inside one element, so this is the lookup almost every caller
-     * wants.
+     * The attribute with this local name, namespace prefix ignored. Attribute
+     * names in OOXML are effectively unique by local name inside one element,
+     * so this is the lookup most callers want.
      */
     fun attr(name: String): String? =
         attributes.firstOrNull { it.localName == name }?.value
 
     /**
-     * The value of the attribute with local name [name] whose namespace is
-     * [namespaceUri], or — when [namespaceUri] is null — an attribute that has
-     * no namespace at all.
+     * The attribute with this local name in the given namespace, or, when the
+     * namespace is null, one that has no namespace at all.
      *
-     * This mirrors how a namespace-aware pull parser resolves attributes:
-     * an unprefixed attribute is in no namespace, so `<x val="1"/>` is found
-     * by `attr(null, "val")` but `<x r:val="1"/>` is not.
+     * This mirrors how a namespace-aware pull parser resolves attributes: an
+     * unprefixed attribute is in no namespace, so `<x val="1"/>` is found by
+     * `attr(null, "val")` but `<x r:val="1"/>` is not.
      */
     fun attr(namespaceUri: String?, name: String): String? {
         for (attribute in attributes) {
@@ -87,7 +84,6 @@ internal class XmlElement(
         return namespaces[prefix]
     }
 
-    /** The value of the attribute with the exact qualified name [qName]. */
     fun attrExact(qName: String): String? =
         attributes.firstOrNull { it.qName == qName }?.value
 
@@ -99,10 +95,8 @@ internal class XmlElement(
         }
     }
 
-    /** Direct children whose local name is [name]. */
     fun childrenNamed(name: String): List<XmlElement> = children.filter { it.localName == name }
 
-    /** The first direct child whose local name is [name]. */
     fun child(name: String): XmlElement? = children.firstOrNull { it.localName == name }
 
     /** Concatenated direct text of this element, with entities decoded. */
@@ -135,8 +129,8 @@ internal class XmlElement(
 /**
  * One attribute of an element.
  *
- * [start] and [end] are the offsets the attribute occupies in the source, so a
- * writer can replace one attribute without touching the rest of the element.
+ * [start] and [end] are the offsets the attribute occupies in the source, so
+ * a writer can replace one attribute without touching the rest of the element.
  */
 internal data class XmlAttribute(
     val qName: String,
@@ -151,10 +145,9 @@ internal data class XmlAttribute(
 internal class XmlDocument(val xml: String, val root: XmlElement)
 
 /**
- * Scans [xml] into a tree of [XmlElement]s.
- *
- * Text between elements becomes a child element named `#text`, so the tree can
- * reproduce the original source exactly when it is spliced back.
+ * Scans [xml] into a tree of [XmlElement]s. Text between elements becomes a
+ * child element named `#text`, so the tree can reproduce the original source
+ * exactly when it is spliced back.
  */
 internal object XmlScanner {
 
@@ -184,8 +177,7 @@ internal object XmlScanner {
             )
         }
 
-        /** Parses children until a closing tag or the end of input. */
-        private fun parseChildren(): List<XmlElement> {
+    private fun parseChildren(): List<XmlElement> {
             val children = mutableListOf<XmlElement>()
             while (pos < xml.length) {
                 val lt = xml.indexOf('<', pos)
@@ -348,7 +340,6 @@ internal object XmlScanner {
             return element
         }
 
-        /** Finds where the inner content of a non-self-closing element ends. */
         private fun findContentEnd(contentStart: Int, end: Int): Int {
             val close = xml.lastIndexOf("</", end)
             return if (close in contentStart..end) close else contentStart
@@ -373,7 +364,6 @@ internal object XmlScanner {
             return result
         }
 
-        /** Resolves the namespace URI of a qualified name. */
         private fun resolveNamespace(scope: Map<String, String>, qName: String): String? {
             if (!qName.contains(':')) return scope[""]
             return scope[qName.substringBefore(':', "")]

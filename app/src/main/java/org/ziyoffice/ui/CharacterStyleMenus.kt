@@ -62,8 +62,8 @@ internal fun SizeMenu(
                             if (isCurrent) {
                                 Icon(
                                     imageVector = Icons.Filled.Check,
-                                    // The item's state is announced below; a
-                                    // description here would say "Selected" twice.
+                                    // The item's state is announced below, so a
+                                    // description here would say it twice.
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary,
@@ -118,9 +118,9 @@ internal fun ColourMenu(
                                 Box(
                                     modifier = Modifier
                                         .size(20.dp)
-                                        // The swatch itself is decorative: the
-                                        // colour name beside it is the label, so
-                                        // TalkBack never has to describe a colour.
+                                        // The swatch is decorative: the name beside
+                                        // it is the label, so TalkBack never has
+                                        // to describe a colour.
                                         .background(
                                             color = Color(0xFF000000.toInt() or rgb),
                                             shape = CircleShape,

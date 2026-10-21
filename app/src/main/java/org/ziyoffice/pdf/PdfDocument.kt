@@ -11,12 +11,10 @@ import org.ziyoffice.ui.PdfMark
 import org.ziyoffice.ui.bakeMarks
 
 /**
- * Reads a PDF using only the platform's [PdfRenderer]. No PDFium, no network.
- * It is the same engine Android uses for print preview, so a file renders here
- * the way the system renders it.
+ * Reads a PDF with the platform's [PdfRenderer], the same engine Android uses
+ * for print preview, so a file renders here the way the system renders it.
  *
- * The renderer holds an open file descriptor, so [close] has to be called. The
- * viewer does that when the screen goes away.
+ * The renderer holds an open file descriptor, so [close] has to be called.
  */
 class PdfDocument private constructor(
     private val descriptor: ParcelFileDescriptor,
@@ -52,8 +50,8 @@ class PdfDocument private constructor(
     companion object {
         /**
          * Exports pages taken from any of [documents], in [pages] order, baking
-         * [marks] into the pages they belong to. This is what merge, reorder and
-         * page deletion are built on.
+         * [marks] into the pages they belong to. Merge, reorder and page
+         * deletion are built on this.
          */
         fun exportTo(
             output: OutputStream,

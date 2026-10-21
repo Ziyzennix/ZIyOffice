@@ -16,6 +16,8 @@ import org.ziyoffice.model.ColumnWidth
 import org.ziyoffice.model.DataValidation
 import org.ziyoffice.model.MAX_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.MIN_ROW_HEIGHT_POINTS
+import org.ziyoffice.model.MIN_SHEET_COLUMNS
+import org.ziyoffice.model.MIN_SHEET_ROWS
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnIndex
@@ -66,7 +68,6 @@ class XlsxReader(
         return Workbook(sheets = resolved, activeSheet = active)
     }
 
-    /** Maps `rId*` from workbook.xml.rels to package part names. */
     private fun parseWorkbookTargets(bytes: ByteArray): Map<String, String> {
         val parser = newParser()
         parser.setInput(ByteArrayInputStream(bytes), null)
@@ -286,7 +287,6 @@ class XlsxReader(
         )
     }
 
-    /** The four edges of one `<border>` element. */
     private fun parseBorder(parser: XmlPullParser): CellBorders {
         var top = BorderStyle.NONE
         var bottom = BorderStyle.NONE
@@ -358,7 +358,6 @@ class XlsxReader(
         }
     }
 
-    /** Maps built-in numFmt ids and custom codes to a pattern string. */
     private fun builtinOrCustomFormat(id: Int, custom: Map<Int, String>): String? {
         custom[id]?.let { return it }
         return when (id) {
@@ -422,7 +421,7 @@ class XlsxReader(
         var columnCount = 0
         var frozenRows = 0
         if (bytes.isEmpty()) {
-            return Sheet(name = name, cells = emptyList(), rowCount = MIN_ROWS, columnCount = MIN_COLUMNS)
+            return Sheet(name = name, cells = emptyList(), rowCount = MIN_SHEET_ROWS, columnCount = MIN_SHEET_COLUMNS)
         }
 
         val parser = newParser()
@@ -585,8 +584,8 @@ class XlsxReader(
         return Sheet(
             name = name,
             cells = cells,
-            rowCount = maxOf(rowCount, MIN_ROWS),
-            columnCount = maxOf(columnCount, MIN_COLUMNS),
+            rowCount = maxOf(rowCount, MIN_SHEET_ROWS),
+            columnCount = maxOf(columnCount, MIN_SHEET_COLUMNS),
             frozenRows = frozenRows.coerceAtMost(rowCount),
             mergedRanges = mergedRanges.normaliseMerges(),
             columnWidths = columnWidths.normaliseColumnWidths(),
@@ -595,7 +594,6 @@ class XlsxReader(
         )
     }
 
-    /** Turns the stored value into the model's raw string (formula or literal). */
     private fun buildRawValue(
         type: String?,
         value: String,
@@ -636,8 +634,6 @@ class XlsxReader(
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
         const val MAX_ENTRY_BYTES = 64L * 1024 * 1024
         const val MAX_TOTAL_BYTES = 256L * 1024 * 1024
-        const val MIN_ROWS = 100
-        const val MIN_COLUMNS = 26
         val WANTED_PARTS = setOf(
             WORKBOOK_PART,
             WORKBOOK_RELS_PART,

@@ -26,7 +26,7 @@ import org.ziyoffice.R
 
 /**
  * The About screen is also the privacy receipt: it reads the permissions the
- * installed APK *actually* declares from the system and shows them to the user.
+ * installed APK *actually* declares and shows them to the user.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +44,7 @@ fun AboutScreen(onBack: () -> Unit) {
     }
 
     val permissionSummary = when {
-        declaredPermissions.isFailure -> "Could not read permissions."
+        declaredPermissions.isFailure -> "couldn't read permissions"
         declaredPermissions.getOrDefault(emptyList()).isEmpty() -> {
             "None. So Android itself makes it impossible for ZiyOffice to reach the network."
         }
@@ -72,7 +72,7 @@ fun AboutScreen(onBack: () -> Unit) {
         ) {
             Text("ZiyOffice", style = MaterialTheme.typography.headlineSmall)
             Text(
-                "Version ${BuildConfig.VERSION_NAME} \u00B7 Documents, Sheets, Slides and PDF \u2014 offline",
+                "Version ${BuildConfig.VERSION_NAME} \u00B7 Documents, Sheets, Slides and PDF, offline",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -97,7 +97,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 modifier = Modifier.padding(top = 8.dp),
             )
             Text(
-                "GNU GPL-3.0-or-later \u2014 free software, forever. The full source text ships in the project repository.",
+                "GNU GPL-3.0-or-later, free software forever. The full source text ships in the project repository.",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }

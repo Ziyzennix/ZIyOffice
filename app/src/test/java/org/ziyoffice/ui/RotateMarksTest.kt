@@ -9,7 +9,7 @@ class RotateMarksTest {
     @Test
     fun rotatingNinetyDegreesMovesTheTopLeftCornerToTheTopRight() {
         val rotated = rotateMarks(listOf(highlight), 0, 0, 90).single() as PdfMark.Highlight
-        // (0.1, 0.2) -> (0.8, 0.1); (0.4, 0.3) -> (0.7, 0.4) — so the new box is
+        // (0.1, 0.2) -> (0.8, 0.1); (0.4, 0.3) -> (0.7, 0.4), so the new box is
         // x 0.7..0.8, y 0.1..0.4.
         assertEquals(0.7f, rotated.left, 0.0001f)
         assertEquals(0.1f, rotated.top, 0.0001f)

@@ -15,6 +15,7 @@ import org.ziyoffice.model.Table
 import org.ziyoffice.model.TableCell
 import org.ziyoffice.model.TableRow
 import org.ziyoffice.model.VerticalMerge
+import org.ziyoffice.model.hasSameFormattingAs
 import org.ziyoffice.ooxml.xml.XmlElement
 import org.ziyoffice.ooxml.xml.XmlScanner
 import org.ziyoffice.ooxml.xml.escapeXmlAttribute
@@ -23,27 +24,24 @@ import org.ziyoffice.ooxml.xml.escapeXmlText
 /**
  * Writes an edited document back into the package it came from.
  *
- * The previous writer rebuilt a document from the model alone, which meant a
- * save produced a new package holding only what the model could express:
- * comments, footnotes, tracked changes, hyperlinks, equations, text boxes,
- * section breaks, styles, themes and document properties were all dropped.
+ * The old writer rebuilt the document from the model alone, so a save threw
+ * away everything the model could not hold: comments, footnotes, tracked
+ * changes, hyperlinks, equations, text boxes, section breaks, styles, themes,
+ * document properties.
  *
- * This writer takes the opposite approach. It starts from the original package
- * and changes only what the user changed:
+ * This one starts from the original package and only touches what changed:
  *
  *  - a paragraph nobody touched is copied through byte for byte;
- *  - a paragraph that was edited keeps its `w:pPr`, its run properties, its
- *    hyperlinks, comment anchors and drawings, and only the text and the
- *    formatting the user actually changed are rewritten;
- *  - every other part of the package — styles, numbering, theme, settings,
- *    footnotes, comments, headers and footers the editor does not touch — is
- *    copied through untouched;
- *  - content the editor cannot represent is preserved but not editable, and
- *    the package keeps working because its relationships stay intact.
+ *  - an edited paragraph keeps its `w:pPr`, its run properties, its hyperlinks,
+ *    comment anchors and drawings, and only the text and formatting that
+ *    actually changed get rewritten;
+ *  - every other part of the package is copied through untouched;
+ *  - stuff the editor can't represent stays in the file, and the package keeps
+ *    working because its relationships stay intact.
  *
- * When the structure changes — a paragraph added, a row inserted — the new
+ * When the structure changes (a paragraph added, a row inserted) the new
  * content is generated from the model and spliced into the original XML, so
- * the surrounding document keeps its own markup.
+ * the rest of the document keeps its own markup.
  */
 class DocxEditor(private val source: DocxSource) {
 
@@ -104,12 +102,11 @@ class DocxEditor(private val source: DocxSource) {
     // ------------------------------------------------------------------- body
 
     /**
-     * Rewrites one part — body, header or footer — and returns its new XML.
+     * Rewrites one part: body, header or footer.
      *
-     * The model blocks are matched to the source blocks by position. A block
-     * that changed is replaced; a block that did not is left alone; blocks the
-     * user added are generated and appended; blocks the user removed are
-     * dropped.
+     * Model blocks are matched to source blocks by position. A changed block
+     * gets replaced, an unchanged one is left alone, added blocks are
+     * generated and appended, removed ones are dropped.
      */
     private fun editBody(
         body: SourceBody,
@@ -206,10 +203,10 @@ class DocxEditor(private val source: DocxSource) {
     /**
      * Builds the new XML of a paragraph.
      *
-     * The paragraph's own markup is the starting point: its attributes, its
-     * properties, the elements around its runs — a hyperlink wrapper, a comment
-     * anchor, a bookmark — are all kept. Only the runs the user edited and the
-     * properties the user changed are rewritten.
+     * The paragraph's own markup is the starting point: attributes, properties
+     * and the elements around its runs (a hyperlink wrapper, a comment anchor,
+     * a bookmark) all stay. Only the runs the user edited and the properties
+     * they changed get rewritten.
      */
     private fun renderParagraph(
         source: SourceParagraph,
@@ -217,7 +214,7 @@ class DocxEditor(private val source: DocxSource) {
         media: MediaRegistry,
     ): String {
         val xml = source.xml
-        val slots = source.runs.associateBy { it.element }
+        val slots = source.runs.mapIndexed { index, run -> run.element to index }.toMap()
         val removedImages = mutableSetOf<XmlElement>()
         mapImages(source, model, removedImages)
 
@@ -225,10 +222,10 @@ class DocxEditor(private val source: DocxSource) {
         builder.append(openTag(source.element, xml))
         builder.append(renderParagraphProperties(source, model))
 
-        val state = RunState(model)
+        val alignment = RunAlignment.of(source.model.runs, model.runs)
         val content = StringBuilder()
-        rebuildChildren(source.element, xml, slots, state, removedImages, content, isParagraph = true)
-        content.append(renderExtraRuns(state))
+        rebuildChildren(source.element, xml, source.runs, slots, alignment, removedImages, content, isParagraph = true)
+        content.append(renderStandalonePieces(alignment.trailing))
         builder.append(content)
 
         // Images the model has that the source did not.
@@ -244,23 +241,19 @@ class DocxEditor(private val source: DocxSource) {
         return builder.toString()
     }
 
-    /** How far through the model's runs the rebuild has got. */
-    private class RunState(val model: Paragraph) {
-        var index = 0
-    }
-
     /**
      * Rebuilds the children of an element.
      *
-     * Runs are patched; a wrapper such as a hyperlink is rebuilt around its
-     * own children so the runs inside it are patched too; a text box is copied
-     * through untouched, because the editor cannot place a caret inside one.
+     * Runs get patched, a wrapper like a hyperlink is rebuilt around its own
+     * children so the runs inside it get patched too, and a text box is copied
+     * through untouched since there's no way to put a caret inside one.
      */
     private fun rebuildChildren(
         parent: XmlElement,
         xml: String,
-        slots: Map<XmlElement, SourceRun>,
-        state: RunState,
+        runs: List<SourceRun>,
+        slots: Map<XmlElement, Int>,
+        alignment: RunAlignment,
         removedImages: Set<XmlElement>,
         out: StringBuilder,
         isParagraph: Boolean,
@@ -270,35 +263,22 @@ class DocxEditor(private val source: DocxSource) {
                 isParagraph && child.localName == "pPr" && child.isWord() -> Unit
                 child.localName == "txbxContent" -> out.append(child.source(xml))
                 child.localName == "r" && child.isWord() -> {
-                    val slot = slots[child]
-                    if (slot != null) {
-                        val modelRun = state.model.runs.getOrNull(state.index)
-                        state.index++
-                        out.append(renderRun(slot, modelRun, removedImages, xml))
-                    } else {
+                    val index = slots[child]
+                    if (index == null) {
                         renderPlainRun(child, removedImages, xml)?.let { out.append(it) }
+                    } else {
+                        out.append(renderRunPieces(runs[index], alignment.pieces[index], removedImages, xml))
                     }
                 }
                 child.isText || child.selfClosing -> out.append(child.source(xml))
                 else -> {
                     val open = openTag(child, xml)
                     out.append(open)
-                    rebuildChildren(child, xml, slots, state, removedImages, out, isParagraph = false)
+                    rebuildChildren(child, xml, runs, slots, alignment, removedImages, out, isParagraph = false)
                     out.append("</").append(child.qName).append(">")
                 }
             }
         }
-    }
-
-    /** The runs the model has that the source did not. */
-    private fun renderExtraRuns(state: RunState): String {
-        val builder = StringBuilder()
-        for (index in state.index until state.model.runs.size) {
-            val sb = StringBuilder()
-            DocxXml.writeRun(sb, state.model.runs[index])
-            builder.append(sb)
-        }
-        return builder.toString()
     }
 
     /**
@@ -315,17 +295,122 @@ class DocxEditor(private val source: DocxSource) {
     }
 
     /**
+     * Rebuilds a run from the pieces that landed on it.
+     *
+     * A run the user split comes back as several runs: the first one keeps the
+     * original element, the rest are written next to it. When every piece
+     * looks the same the run is written once with the text joined back up.
+     */
+    private fun renderRunPieces(
+        slot: SourceRun,
+        pieces: List<Piece>,
+        removedImages: Set<XmlElement>,
+        xml: String,
+    ): String {
+        if (pieces.isEmpty()) {
+            // The text was deleted. The run itself stays when it carries
+            // something that is not text, so an image is not lost with it.
+            return renderRun(slot, null, removedImages, xml)
+        }
+        val element = slot.element
+        val properties = element.child("rPr")
+        val first = pieces.first()
+        val builder = StringBuilder()
+
+        if (pieces.size == 1 || pieces.all { it.model.hasSameFormattingAs(first.model) }) {
+            val text = pieces.joinToString("") { it.text }
+            builder.append(openTag(element, xml))
+            val newProperties = renderRunProperties(properties, slot.model, first.model, xml)
+            if (properties == null && newProperties.isNotEmpty()) builder.append(newProperties)
+            var written = false
+            element.children.forEach { child ->
+                when {
+                    child.localName == "rPr" && child.isWord() -> builder.append(newProperties)
+                    slot.contentNodes.any { it === child } -> {
+                        if (!written) {
+                            written = true
+                            builder.append(renderRunText(text))
+                        }
+                    }
+                    child.localName == "drawing" || child.localName == "pict" -> {
+                        if (!removedImages.any { it === child }) builder.append(child.source(xml))
+                    }
+                    else -> builder.append(child.source(xml))
+                }
+            }
+            builder.append("</w:r>")
+            return builder.toString()
+        }
+
+        pieces.forEachIndexed { index, piece ->
+            if (index == 0) {
+                builder.append(renderRun(slot, piece.model, removedImages, xml, piece.text))
+            } else {
+                builder.append(renderNewRun(slot, piece, xml))
+            }
+        }
+        return builder.toString()
+    }
+
+    /** A run written next to the one it was split off from. */
+    private fun renderNewRun(slot: SourceRun, piece: Piece, xml: String): String {
+        val element = slot.element
+        val builder = StringBuilder()
+        builder.append(openTag(element, xml))
+        val properties = element.child("rPr")
+        val newProperties = renderRunProperties(properties, slot.model, piece.model, xml)
+        if (properties == null && newProperties.isNotEmpty()) builder.append(newProperties)
+        builder.append(renderRunText(piece.text))
+        builder.append("</w:r>")
+        return builder.toString()
+    }
+
+    /** Text that belongs to no run of the source, written on its own. */
+    private fun renderStandalonePieces(pieces: List<Piece>): String {
+        if (pieces.isEmpty()) return ""
+        val builder = StringBuilder()
+        pieces.forEach { piece ->
+            builder.append("<w:r>")
+            builder.append(renderAbsoluteProperties(piece.model))
+            builder.append(renderRunText(piece.text))
+            builder.append("</w:r>")
+        }
+        return builder.toString()
+    }
+
+    /** The run properties of a run with no source to copy them from. */
+    private fun renderAbsoluteProperties(model: Run): String {
+        val fragments = mutableListOf<Fragment>()
+        if (model.bold) fragments += Fragment("b", "<w:b/>")
+        if (model.italic) fragments += Fragment("i", "<w:i/>")
+        if (model.strike) fragments += Fragment("strike", "<w:strike/>")
+        model.colorRgb?.let { fragments += Fragment("color", "<w:color w:val=\"${DocxXml.hexColor(it)}\"/>") }
+        model.sizePt?.let {
+            val halfPoints = (it * 2f).toInt()
+            fragments += Fragment("sz", "<w:sz w:val=\"$halfPoints\"/>")
+        }
+        if (model.underline) fragments += Fragment("u", "<w:u w:val=\"single\"/>")
+        if (fragments.isEmpty()) return ""
+        val builder = StringBuilder("<w:rPr>")
+        fragments.sortedBy { RPR_ORDER.indexOf(it.name).takeIf { index -> index >= 0 } ?: RPR_ORDER.size }
+            .forEach { builder.append(it.xml) }
+        builder.append("</w:rPr>")
+        return builder.toString()
+    }
+
+    /**
      * Rebuilds a run.
      *
-     * The run's properties are kept and only the properties the user changed
-     * are rewritten; its text is replaced with the model's text; everything
-     * else the run carries — a drawing, a footnote reference — stays.
+     * Its properties are kept and only the ones the user changed get
+     * rewritten. Its text is replaced with the model's text. Everything else
+     * it carries (a drawing, a footnote reference) stays.
      */
     private fun renderRun(
         slot: SourceRun,
         modelRun: Run?,
         removedImages: Set<XmlElement>,
         xml: String,
+        text: String? = null,
     ): String {
         val element = slot.element
         val builder = StringBuilder()
@@ -343,7 +428,8 @@ class DocxEditor(private val source: DocxSource) {
                 contentNodes.any { it === child } -> {
                     if (!written) {
                         written = true
-                        modelRun?.let { run -> builder.append(renderRunText(run.text)) }
+                        val value = text ?: modelRun?.text
+                        if (value != null) builder.append(renderRunText(value))
                     }
                 }
                 child.localName == "drawing" || child.localName == "pict" -> {
@@ -357,7 +443,7 @@ class DocxEditor(private val source: DocxSource) {
     }
 
     /**
-     * Rebuilds a run that carries no text — usually a run holding a drawing.
+     * Rebuilds a run that carries no text, usually a run holding a drawing.
      * It is dropped when the drawing it holds was removed and nothing else is
      * left.
      */
@@ -421,13 +507,13 @@ class DocxEditor(private val source: DocxSource) {
     /**
      * Rewrites the paragraph properties.
      *
-     * The properties the editor understands are compared with what the source
-     * resolved to. When they differ, the property is written explicitly; when
-     * they agree, the source's own markup is left in place — so a style that
-     * supplies the spacing keeps supplying it.
+     * The properties the editor understands get compared against what the
+     * source resolved to. When they differ the property is written out, when
+     * they agree the source's own markup stays, so a style that supplies the
+     * spacing keeps supplying it.
      *
-     * Properties the editor does not understand — keepNext, tabs, shading, the
-     * paragraph mark's own run properties — are copied through.
+     * Properties the editor doesn't understand (keepNext, tabs, shading, the
+     * paragraph mark's own run properties) are copied through.
      */
     private fun renderParagraphProperties(source: SourceParagraph, model: Paragraph): String {
         val original = source.model
@@ -495,7 +581,7 @@ class DocxEditor(private val source: DocxSource) {
 
     /**
      * The `w:spacing` element. Only the values the user changed are written;
-     * the rest of the source's spacing — line rule, before-lines — is kept.
+     * the rest of the source's spacing (line rule, before-lines) is kept.
      */
     private fun renderSpacing(model: Paragraph, original: Paragraph): String {
         val builder = StringBuilder("<w:spacing")
@@ -517,9 +603,9 @@ class DocxEditor(private val source: DocxSource) {
     /**
      * Rewrites the run properties.
      *
-     * The same rule as for paragraphs: a property is written only when the
-     * model disagrees with what the source resolved to. That keeps a run that
-     * inherits its bold from a style free of a redundant `<w:b/>`.
+     * Same rule as for paragraphs: a property gets written only when the model
+     * disagrees with what the source resolved to. That's what keeps a run
+     * that inherits its bold from a style free of a redundant `<w:b/>`.
      */
     private fun renderRunProperties(
         properties: XmlElement?,
@@ -608,9 +694,9 @@ class DocxEditor(private val source: DocxSource) {
      * Rewrites a table.
      *
      * Rows and cells that exist on both sides keep their own markup and get
-     * their contents patched. Rows the user added are generated; rows the user
-     * removed are dropped. The table's own properties and grid are kept even
-     * when the shape changes.
+     * their contents patched. Added rows are generated, removed ones are
+     * dropped. The table's own properties and grid stay even when the shape
+     * changes.
      */
     private fun editTable(
         source: SourceTable,
@@ -618,6 +704,10 @@ class DocxEditor(private val source: DocxSource) {
         media: MediaRegistry,
         edits: MutableList<Edit>,
     ) {
+        // A table nobody touched is left exactly as it was. Re-rendering it
+        // would rewrite every cell and lose the source's own markup.
+        if (sameTable(source, model)) return
+
         val xml = source.xml
         val rows = mutableListOf<String>()
         val shared = minOf(model.rows.size, source.rows.size)
@@ -638,6 +728,22 @@ class DocxEditor(private val source: DocxSource) {
         builder.append("</w:tbl>")
 
         edits += Edit(source.element.start, source.element.end, builder.toString())
+    }
+
+    /** True when the model table still says what the source table said. */
+    private fun sameTable(source: SourceTable, model: Table): Boolean {
+        if (model.columnCount != source.model.columnCount) return false
+        if (model.borders != source.model.borders) return false
+        if (model.rows.size != source.rows.size) return false
+        model.rows.forEachIndexed { index, row ->
+            val sourceRow = source.rows[index]
+            if (row.header != sourceRow.model.header) return false
+            if (row.cells.size != sourceRow.cells.size) return false
+            row.cells.forEachIndexed { cellIndex, cell ->
+                if (!sameCell(sourceRow.cells[cellIndex], cell)) return false
+            }
+        }
+        return true
     }
 
     /**
@@ -716,7 +822,14 @@ class DocxEditor(private val source: DocxSource) {
             val sourceBlock = source.blocks[index]
             when {
                 modelBlock is Paragraph && sourceBlock is SourceParagraph ->
-                    builder.append(renderParagraph(sourceBlock, modelBlock, media))
+                    builder.append(
+                        if (sameParagraph(sourceBlock, modelBlock)) {
+                            // Nothing changed in here, so it is copied as it was.
+                            sourceBlock.element.source(sourceBlock.xml)
+                        } else {
+                            renderParagraph(sourceBlock, modelBlock, media)
+                        }
+                    )
                 modelBlock is Table && sourceBlock is SourceTable -> {
                     val nested = mutableListOf<Edit>()
                     editTable(sourceBlock, modelBlock, media, nested)
@@ -800,7 +913,7 @@ class DocxEditor(private val source: DocxSource) {
      * Adds a header or footer part to a document that had none.
      *
      * The new part is written from the model, the relationship and the content
-     * type are registered, and the section properties get a reference to it.
+     * type get registered, and the section properties get a reference to it.
      */
     private fun addSidePart(
         parts: MutableMap<String, ByteArray>,
@@ -947,9 +1060,8 @@ class DocxEditor(private val source: DocxSource) {
  * Registers the media a document gains while it is edited.
  *
  * A new image needs three things: the bytes in the package, a relationship
- * that points at them and a content type that says what they are. All three
- * are added to the parts the original package already had, so nothing else in
- * the package changes.
+ * pointing at them and a content type saying what they are. All three go into
+ * parts the original package already had, so nothing else changes.
  */
 internal class MediaRegistry(
     private val parts: MutableMap<String, ByteArray>,
