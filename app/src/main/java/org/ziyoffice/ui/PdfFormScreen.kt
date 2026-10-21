@@ -165,6 +165,8 @@ fun PdfFormScreen(
                 values = loaded.form.fields.associate { field ->
                     field.name to field.value
                 }
+                // The first field is the one to start on.
+                focused = loaded.form.fields.firstOrNull()?.name
             },
             onFailure = { error ->
                 failure = error.message ?: error.javaClass.simpleName
@@ -221,7 +223,8 @@ fun PdfFormScreen(
                     Column {
                         Text("Fill the form", style = MaterialTheme.typography.titleMedium)
                         val filled = session?.form?.fields?.count { field ->
-                            (values[field.name] ?: "").isNotEmpty()
+                            val value = values[field.name].orEmpty()
+                            value.isNotEmpty() && value != "Off"
                         } ?: 0
                         val total = session?.form?.size ?: 0
                         if (total > 0) {
@@ -345,14 +348,22 @@ private fun FormFields(
         fields.forEach { field ->
             val widget = field.widgets.firstOrNull { it.pageIndex == pageIndex } ?: return@forEach
             val fraction = widget.rect.fractionsOn(page)
-            val left = width * fraction.left.toFloat()
-            val top = height * fraction.top.toFloat()
             val fieldWidth = (width * fraction.width.toFloat()).coerceAtLeast(4.dp)
             val fieldHeight = (height * fraction.height.toFloat()).coerceAtLeast(4.dp)
+            // A tick box in a form is often tiny, so the thing that answers
+            // the tap is bigger than the box and sits around it.
+            val reach = if (field.isToggle) 48.dp else fieldWidth
+            val reachHeight = if (field.isToggle) 48.dp else fieldHeight
+            val touchWidth = maxOf(fieldWidth, reach)
+            val touchHeight = maxOf(fieldHeight, reachHeight)
             Box(
                 Modifier
-                    .offset(x = left, y = top)
-                    .size(width = fieldWidth, height = fieldHeight),
+                    .offset(
+                        x = width * fraction.left.toFloat() - (touchWidth - fieldWidth) / 2,
+                        y = height * fraction.top.toFloat() - (touchHeight - fieldHeight) / 2,
+                    )
+                    .size(width = touchWidth, height = touchHeight),
+                contentAlignment = Alignment.Center,
             ) {
                 FieldBox(
                     field = field,
@@ -360,6 +371,7 @@ private fun FormFields(
                     focused = focused == field.name,
                     onFocus = { onFocus(field.name) },
                     onChange = { onChange(field.name, it) },
+                    modifier = Modifier.size(width = fieldWidth, height = fieldHeight),
                 )
             }
         }
@@ -368,6 +380,10 @@ private fun FormFields(
 
 /**
  * One field, drawn the way it is drawn on the page.
+ *
+ * The page is white, so the text is the ink colour of a document rather
+ * than the colour of the app's theme: on a white field, a theme colour
+ * meant for a dark background cannot be read.
  */
 @Composable
 private fun FieldBox(
@@ -376,6 +392,7 @@ private fun FieldBox(
     focused: Boolean,
     onFocus: () -> Unit,
     onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val border = if (focused) {
         MaterialTheme.colorScheme.primary
@@ -393,11 +410,10 @@ private fun FieldBox(
                 singleLine = !field.multiline,
                 textStyle = TextStyle(
                     fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = FieldInk,
                 ),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier
-                    .fillMaxSize()
+                modifier = modifier
                     .background(Color.White.copy(alpha = 0.92f))
                     .border(1.dp, border)
                     .semantics {
@@ -408,8 +424,7 @@ private fun FieldBox(
         PdfFieldKind.CHECKBOX, PdfFieldKind.RADIO -> {
             val on = value.isNotEmpty() && value != "Off"
             Box(
-                Modifier
-                    .fillMaxSize()
+                modifier
                     .background(Color.White.copy(alpha = 0.9f))
                     .border(1.dp, border)
                     .clickable {
@@ -427,7 +442,7 @@ private fun FieldBox(
                         Icons.Filled.Check,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
+                        tint = FieldInk,
                     )
                 }
             }
@@ -435,8 +450,7 @@ private fun FieldBox(
         PdfFieldKind.DROPDOWN, PdfFieldKind.LISTBOX -> {
             var menuOpen by remember { mutableStateOf(false) }
             Box(
-                Modifier
-                    .fillMaxSize()
+                modifier
                     .background(Color.White.copy(alpha = 0.92f))
                     .border(1.dp, border)
                     .clickable {
@@ -452,7 +466,7 @@ private fun FieldBox(
                 Text(
                     value.ifEmpty { "Choose" },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = FieldInk,
                     maxLines = 1,
                     modifier = Modifier.padding(horizontal = 4.dp),
                 )
@@ -473,8 +487,7 @@ private fun FieldBox(
             // A button or a signature. ZiyOffice does not press buttons and
             // draws signatures of its own, so the box is only outlined.
             Box(
-                Modifier
-                    .fillMaxSize()
+                modifier
                     .background(Color.White.copy(alpha = 0.9f))
                     .border(1.dp, border)
                     .semantics { contentDescription = field.name },
@@ -482,6 +495,9 @@ private fun FieldBox(
         }
     }
 }
+
+/** The colour of the ink on the page. */
+private val FieldInk = Color(0xFF1A1C1B)
 
 /**
  * The strip at the bottom: which field is being filled in, and the way to
