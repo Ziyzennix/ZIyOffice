@@ -74,6 +74,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -139,6 +140,7 @@ import org.ziyoffice.model.DocumentRegion
 import org.ziyoffice.model.FocusPath
 import org.ziyoffice.model.mapParagraphAt
 import org.ziyoffice.model.formatRange
+import org.ziyoffice.model.applyText
 import org.ziyoffice.model.findMatches
 import org.ziyoffice.model.replaceAll
 import org.ziyoffice.model.paragraphAt
@@ -167,8 +169,7 @@ import org.ziyoffice.ooxml.PreservedFeature
 
 /**
  * The document editor: reads the file with the OOXML layer, renders styles,
- * lists, tables and images, and - with the pencil on - lets the user edit text
- * and formatting, then saves the whole document back as a real .docx.
+ * lists, tables and images, and saves the edits back as a real .docx.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,17 +189,18 @@ fun EditorScreen(
     var editing by remember(file.uri) { mutableStateOf(initialEditing) }
     var dirty by remember(file.uri) { mutableStateOf(false) }
     var saving by remember(file.uri) { mutableStateOf(false) }
-    // Bumped by every document edit, so an in-flight save can tell whether newer
-    // work appeared while it was writing.
+    // Bumped by every edit, so an in-flight save can spot newer work.
     var writeVersion by remember(file.uri) { mutableStateOf(0L) }
     var showExitDialog by remember(file.uri) { mutableStateOf(false) }
-    // Content-loss gate: shown once per open, before the first write that would
-    // delete parts of the file ZiyOffice cannot reproduce.
+    // Content-loss gate: shown once per open, before the first write that
+    // would drop parts of the file we cannot reproduce.
     var showLossWarning by remember(file.uri) { mutableStateOf(false) }
     var lossAccepted by remember(file.uri) { mutableStateOf(false) }
-    var pendingAfterLoss by remember(file.uri) { mutableStateOf<(() -> Unit)?>(null) }
     var focusedTarget by remember(file.uri) { mutableStateOf<FocusPath?>(null) }
-    var focusedSelection by remember(file.uri) { mutableStateOf(TextRange.Zero) }
+    // A selection belongs to the paragraph it was made in. Tapping into
+    // another paragraph must not leave the old offsets behind, or Bold would
+    // land on the wrong words.
+    val selections = remember(file.uri) { mutableStateMapOf<FocusPath, TextRange>() }
     var findOpen by remember { mutableStateOf(false) }
     var findQuery by remember { mutableStateOf("") }
     var findCursor by remember { mutableStateOf(0) }
@@ -209,15 +211,14 @@ fun EditorScreen(
         else (preview as? DocxPreview.Ready)?.document?.findMatches(findQuery) ?: emptyList()
     }
 
-    /** A blank document means the user came here to write: caret in, keyboard up. */
+    /** A blank document means the user came here to write, so put the caret in. */
     fun focusBlankDocumentIfEmpty() {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         val onlyParagraph = ready.document.blocks.singleOrNull() as? Paragraph ?: return
         if (onlyParagraph.text().isEmpty()) focusedTarget = FocusPath(0)
     }
 
-    // A document created a moment ago opens writing; put the caret in it as
-    // soon as it finishes loading.
+    // A document created a moment ago opens writing, so the caret goes in as soon as it loads.
     var focusedBlankOnce by remember(file.uri) { mutableStateOf(false) }
     val readyArrived = preview is DocxPreview.Ready
     LaunchedEffect(file.uri, readyArrived) {
@@ -227,10 +228,8 @@ fun EditorScreen(
         }
     }
 
-    // Undo/redo: free, because the document model is immutable — each edit
-    // produces a new value, so history is just a stack of references. Rapid
-    // typing is coalesced with [coalesce] so undo steps back by thought, not
-    // by keystroke.
+    // Undo/redo is free: the model is immutable, so history is a stack of references.
+    // Rapid typing is coalesced with [coalesce], so undo steps back by thought, not keystroke.
     var undoStack by remember(file.uri) { mutableStateOf(emptyList<Document>()) }
     var redoStack by remember(file.uri) { mutableStateOf(emptyList<Document>()) }
     var coalesceKey by remember(file.uri) { mutableStateOf<String?>(null) }
@@ -245,21 +244,17 @@ fun EditorScreen(
     val currentDoc = (preview as? DocxPreview.Ready)?.document
 
     /**
-     * The bytes to write for [document].
-     *
-     * When the document came from a package, the edited document is written
-     * back into that package: everything the editor cannot edit survives.
-     * A document ZiyOffice created has no package behind it, so it is written
-     * from scratch.
+     * The bytes to write for [document]. A document from a package is written
+     * back into that package, so everything the editor cannot edit survives.
+     * One ZiyOffice created has no package and is written from scratch.
      */
     fun documentBytes(document: Document): ByteArray {
         val source = (previewState.value as? DocxPreview.Ready)?.source
         return if (source != null) DocxEditor(source).save(document) else DocxWriter().write(document)
     }
 
-    // Recovery silence is the bug: a failed autosave used to vanish into
-    // runCatching, so crash protection silently stopped working. Report the
-    // transition into failure once, then stay quiet until it recovers.
+    // A failed autosave used to vanish into runCatching, so crash protection
+    // silently stopped working. Report the failure once, then stay quiet.
     var draftAutosaveHealthy by remember(file.uri) { mutableStateOf(true) }
     LaunchedEffect(currentDoc, editing, dirty) {
         if (!dirty || !editing || currentDoc == null) return@LaunchedEffect
@@ -277,13 +272,11 @@ fun EditorScreen(
         }
     }
 
-    // A keystroke in the last 1.5 s of a session exists only in this process:
-    // the debounced autosave above has not run yet and composable state is not
-    // rememberSaveable. Leaving composition is the last chance, so the draft is
-    // flushed on a thread that outlives the cancelled composition scope.
+    // A keystroke in the last 1.5 s exists only in this process: the debounced
+    // autosave has not run yet and state is not rememberSaveable. Leaving
+    // composition is the last chance, so the draft goes out on a daemon thread.
     val flushTarget = remember(file.uri) { mutableStateOf<Document?>(null) }
-    // Set when the user explicitly discards: the last-chance flush must not
-    // resurrect the very draft Discard just deleted.
+    // Set when the user discards on purpose: the last-chance flush must not resurrect that draft.
     val discardDraft = remember(file.uri) { mutableStateOf(false) }
     SideEffect { flushTarget.value = currentDoc?.takeIf { dirty && editing } }
     DisposableEffect(file.uri) {
@@ -293,8 +286,7 @@ fun EditorScreen(
             val uri = file.uri
             val store = draftStore
             // A composition scope is cancelled before onDispose runs, so a plain
-            // scope.launch would never land. A daemon thread always finishes,
-            // and this is a small file write (a few milliseconds).
+            // scope.launch would never land. A daemon thread always finishes.
             Thread {
                 runCatching { store.save(uri, documentBytes(document)) }
             }.apply { name = "draft-flush" }.start()
@@ -323,7 +315,6 @@ fun EditorScreen(
         updateDocument(coalesce) { doc -> doc.mapParagraphAt(target, transform) }
     }
 
-    /** Applies a writing preset (Body/Heading/Title) to the focused paragraph. */
     fun applyPreset(preset: ParagraphPreset) {
         val target = focusedTarget ?: return
         updateTargetParagraph { paragraph ->
@@ -337,7 +328,7 @@ fun EditorScreen(
         }
     }
 
-    /** Hands the .docx to any installed app the user picks (no permissions needed). */
+    /** Hands the .docx to another app the user picks, no permissions needed. */
     fun shareDocument() {
         runCatching {
             val intent = Intent(Intent.ACTION_SEND).apply {
@@ -355,10 +346,7 @@ fun EditorScreen(
         }
     }
 
-    /**
-     * The name the SAF provider reports for [uri]. Falls back to the last path
-     * segment so the message still names something useful.
-     */
+    /** The name the SAF provider reports for [uri], or the last path segment. */
     fun pdfName(uri: Uri): String {
         val queried = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
@@ -373,19 +361,15 @@ fun EditorScreen(
             ?: "the PDF"
     }
 
-    /** Renders the open document to the [uri] chosen by the user as a real PDF. */
     fun exportPdfTo(uri: Uri) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         val document = ready.document
-        // Snackbars outlive the screen: a cancelled export must stay silent
-        // instead of claiming a PDF the user never got. `scope` is the
-        // composition scope, so leaving the editor cancels this coroutine and
-        // the job below reports it.
+        // Snackbars outlive the screen, so a cancelled export stays quiet instead
+        // of claiming a PDF the user never got. Leaving the editor cancels `scope`.
         scope.launch {
             val result: Result<Pair<String, Int>> = withContext(Dispatchers.IO) {
                 runCatching {
-                    // Render to memory first so success can be claimed only
-                    // once real bytes exist.
+                    // Render to memory first, so success is only claimed once there are real bytes.
                     val buffer = ByteArrayOutputStream()
                     PdfExporter.export(document, buffer)
                     val bytes = buffer.toByteArray()
@@ -412,11 +396,7 @@ fun EditorScreen(
         }
     }
 
-    /**
-     * Opens the system print dialog for the current document. Rendering happens
-     * off the main thread because a long document takes real time; the print
-     * framework then owns the bytes.
-     */
+    /** Opens the system print dialog. Rendering runs off the main thread. */
     fun printDocument() {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         scope.launch {
@@ -454,8 +434,7 @@ fun EditorScreen(
             }
             result.fold(
                 onSuccess = {
-                    // The bytes are already written: always say so, even when
-                    // the recents index cannot be updated.
+                    // The bytes are already written, so say so even when the recents index fails.
                     val entry = RecentFilesStore(context).remember(uri)?.file
                     if (entry != null) {
                         draftStore.clear(file.uri)
@@ -573,7 +552,7 @@ fun EditorScreen(
 
     fun toggleBold() {
         val target = focusedTarget ?: return
-        val sel = focusedSelection
+        val sel = selections[target] ?: TextRange.Zero
         val range = if (!sel.collapsed) sel.min..sel.max else null
         updateTargetParagraph { p ->
             if (range != null) {
@@ -588,7 +567,7 @@ fun EditorScreen(
 
     fun toggleItalic() {
         val target = focusedTarget ?: return
-        val sel = focusedSelection
+        val sel = selections[target] ?: TextRange.Zero
         val range = if (!sel.collapsed) sel.min..sel.max else null
         updateTargetParagraph { p ->
             if (range != null) {
@@ -603,7 +582,7 @@ fun EditorScreen(
 
     fun toggleUnderline() {
         val target = focusedTarget ?: return
-        val sel = focusedSelection
+        val sel = selections[target] ?: TextRange.Zero
         val range = if (!sel.collapsed) sel.min..sel.max else null
         updateTargetParagraph { p ->
             if (range != null) {
@@ -618,7 +597,7 @@ fun EditorScreen(
 
     fun toggleStrike() {
         val target = focusedTarget ?: return
-        val sel = focusedSelection
+        val sel = selections[target] ?: TextRange.Zero
         val range = if (!sel.collapsed) sel.min..sel.max else null
         updateTargetParagraph { p ->
             if (range != null) {
@@ -633,7 +612,7 @@ fun EditorScreen(
 
     fun setFontSize(size: Float) {
         updateTargetParagraph {
-            val sel = focusedSelection
+            val sel = focusedTarget?.let { selections[it] } ?: TextRange.Zero
             val range = if (!sel.collapsed) sel.min..sel.max else null
             if (range != null) it.copy(runs = it.runs.formatRange(range) { r -> r.copy(sizePt = size) })
             else it.copy(runs = it.runs.map { r -> r.copy(sizePt = size) })
@@ -642,7 +621,7 @@ fun EditorScreen(
 
     fun setColour(rgb: Int?) {
         updateTargetParagraph {
-            val sel = focusedSelection
+            val sel = focusedTarget?.let { selections[it] } ?: TextRange.Zero
             val range = if (!sel.collapsed) sel.min..sel.max else null
             if (range != null) it.copy(runs = it.runs.formatRange(range) { r -> r.copy(colorRgb = rgb) })
             else it.copy(runs = it.runs.map { r -> r.copy(colorRgb = rgb) })
@@ -659,10 +638,7 @@ fun EditorScreen(
         updateTargetParagraph { paragraph -> paragraph.copy(lineSpacingPercent = percent) }
     }
 
-    /**
-     * Moves the paragraph in or out by one step. A paragraph that carries no
-     * indent of its own starts from zero, so the first tap always moves it.
-     */
+    /** Moves the paragraph in or out one step. One with no indent of its own starts at zero. */
     fun setIndent(deltaTwips: Int) {
         val target = focusedTarget ?: return
         updateTargetParagraph { paragraph ->
@@ -671,7 +647,6 @@ fun EditorScreen(
         }
     }
 
-    /** Sets the space above and below the paragraph. */
     fun setParagraphSpacing(beforeTwips: Int, afterTwips: Int) {
         val target = focusedTarget ?: return
         updateTargetParagraph { paragraph ->
@@ -696,19 +671,18 @@ fun EditorScreen(
     }
 
     /**
-     * Splits paragraph [index] into two at the point where Enter was pressed.
-     * The new paragraph inherits alignment, list membership and run formatting,
-     * so a list keeps numbering and typing continues seamlessly.
+     * Splits paragraph [index] in two at Enter. The new one inherits alignment,
+     * list membership and run formatting, so a list keeps its numbering.
      */
     fun splitParagraph(path: FocusPath, before: String, after: String) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         val paragraph = ready.document.paragraphAt(path) ?: return
         updateDocument { document ->
             document
-                .mapParagraphAt(path) { it.withText(before) }
+                .mapParagraphAt(path) { it.applyText(before) }
                 .withParagraphAddedAfter(
                     path,
-                    paragraph.withText(after).copy(images = emptyList()),
+                    paragraph.applyText(after).copy(images = emptyList()),
                 )
         }
         // The caret follows the new paragraph, wherever it was created.
@@ -719,9 +693,8 @@ fun EditorScreen(
     }
 
     /**
-     * Removes the focused paragraph. A body, header or footer keeps at least one
-     * paragraph, so deleting the last one leaves an empty paragraph behind —
-     * which is what every word processor does.
+     * Removes the focused paragraph. A body, header or footer keeps one
+     * paragraph at least, so deleting the last leaves an empty one behind.
      */
     fun deleteParagraph(path: FocusPath) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
@@ -821,7 +794,6 @@ fun EditorScreen(
         focusedTarget = null
     }
 
-    /** Appends a fresh paragraph at the end of the document and puts the caret in it. */
     fun appendParagraph() {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         val newIndex = ready.document.blocks.size
@@ -832,10 +804,8 @@ fun EditorScreen(
     }
 
     /**
-     * Gives the document a header (or footer) with an empty paragraph, and puts
-     * the caret in it so typing starts immediately. Word requires at least one
-     * paragraph per header part, so the empty one is not padding — it is the
-     * minimum valid content.
+     * Gives the document a header (or footer) with an empty paragraph, the
+     * minimum Word accepts per part, and puts the caret in it.
      */
     fun addHeaderFooter(region: DocumentRegion) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
@@ -859,7 +829,6 @@ fun EditorScreen(
         }
     }
 
-    /** Writes [document] to the source file, reporting the real outcome. */
     fun writeDocument(document: Document, onSaved: () -> Unit) {
         val writingVersion = writeVersion
         saving = true
@@ -887,8 +856,8 @@ fun EditorScreen(
                         snackbarHostState.showSnackbar("Saved \u00B7 ${file.displayName}")
                         onSaved()
                     } else {
-                        // Edits landed while the write was running: the newer
-                        // work stays dirty and keeps its draft recovery copy.
+                        // Edits landed while the write ran: the newer work stays
+                        // dirty and keeps its draft.
                         snackbarHostState.showSnackbar("Saved \u00B7 newer edits kept")
                     }
                 },
@@ -903,20 +872,15 @@ fun EditorScreen(
     }
 
     /**
-     * Writes the document to the file.
-     *
-     * Nothing is lost by saving: the edited parts are written back into the
-     * original package, so there is nothing to warn the user about first.
+     * Writes the document to the file. Nothing is lost by saving: the edited
+     * parts go back into the original package.
      */
     fun save(onSaved: () -> Unit = {}) {
         val ready = previewState.value as? DocxPreview.Ready ?: return
         writeDocument(ready.document, onSaved)
     }
 
-    /**
-     * The single exit path, shared by the toolbar arrow and the system back
-     * gesture. [exitAction] is the tested decision; this only carries it out.
-     */
+    /** The single exit path, for the toolbar arrow and the back gesture. */
     fun tryExit() {
         when (exitAction(dirty = dirty, saving = saving, needsConfirmation = true)) {
             ExitAction.LEAVE -> onBack()
@@ -951,8 +915,7 @@ fun EditorScreen(
                         onClick = {
                             showExitDialog = false
                             // Leaving is the point of Discard: the recovery draft
-                            // goes too, or reopening would silently restore work
-                            // the user just chose to throw away.
+                            // goes too, or reopening would restore thrown-away work.
                             discardDraft.value = true
                             dirty = false
                             val store = draftStore
@@ -976,15 +939,9 @@ fun EditorScreen(
 
     val droppedFeatures = (preview as? DocxPreview.Ready)?.dropped.orEmpty()
     if (showLossWarning) {
-        // Captured for this dialog: a pending action means the warning gates a
-        // save; none means the user opened it from the banner to read the list.
-        val gatingSave = pendingAfterLoss != null
         AlertDialog(
-            onDismissRequest = {
-                showLossWarning = false
-                pendingAfterLoss = null
-            },
-            title = { Text("This save removes content") },
+            onDismissRequest = { showLossWarning = false },
+            title = { Text("Content ZiyOffice can't edit") },
             text = {
                 Text(
                     PreservedCopy.body(droppedFeatures, ".docx"),
@@ -994,19 +951,10 @@ fun EditorScreen(
                 TextButton(
                     onClick = {
                         showLossWarning = false
-                        pendingAfterLoss = null
                         // Read for this session: the banner does not come back.
                         lossAccepted = true
                     },
                 ) { Text("Understood") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showLossWarning = false
-                        pendingAfterLoss = null
-                    },
-                ) { Text("Cancel") }
             },
         )
     }
@@ -1051,8 +999,8 @@ fun EditorScreen(
                         }
                         // Entering edit mode is the primary action, so it keeps its
                         // icon; leaving it lives in the overflow. At 360 dp five
-                        // action icons left the file name clipped to "Head…", and the
-                        // save state — the thing the user needs to see — vanished.
+                        // icons clipped the file name to "Head…" and hid the save
+                        // state, the one thing the user needs.
                         if (editing) {
                             IconButton(onClick = ::save, enabled = dirty && !saving) {
                                 Icon(Icons.Filled.Save, contentDescription = "Save")
@@ -1141,7 +1089,7 @@ fun EditorScreen(
                                         },
                                     )
                                     // A document with no header has no band to tap,
-                                    // so the only way to get one is from here.
+                                    // so this is the only way in.
                                     if ((preview as? DocxPreview.Ready)?.document?.header.isNullOrEmpty()) {
                                         DropdownMenuItem(
                                             text = { Text("Add header") },
@@ -1275,9 +1223,7 @@ fun EditorScreen(
                     onClose = { findOpen = false },
                 )
             }
-            // The page already explains a read failure; repeating the same
-            // sentence above it just doubles the noise. Only report access when
-            // there is a document to show.
+            // The page already explains a read failure, so repeating it doubles the noise.
             if (preview is DocxPreview.Ready) AccessLine(access)
             if (droppedFeatures.isNotEmpty() && !lossAccepted) {
                 Surface(
@@ -1291,10 +1237,7 @@ fun EditorScreen(
                             style = MaterialTheme.typography.bodySmall,
                         )
                         TextButton(
-                            onClick = {
-                                pendingAfterLoss = null
-                                showLossWarning = true
-                            },
+                            onClick = { showLossWarning = true },
                             modifier = Modifier.padding(top = 4.dp),
                         ) {
                             Text("What cannot be edited")
@@ -1331,9 +1274,9 @@ fun EditorScreen(
                                             .distinct()
                                             .associateWith { image -> decodeImage(image.bytes) }
                                     }
-                                    // The draft is the user's unsaved work, not the
-                                    // source file: keep the source audit so the
-                                    // warning still describes what saving removes.
+                                    // The draft is the user's unsaved work, not the source
+                                    // file: keep the source audit so the warning still
+                                    // describes what a save removes.
                                     val previous = (previewState.value as? DocxPreview.Ready)
                                     previewState.value = DocxPreview.Ready(
                                         document = doc,
@@ -1369,7 +1312,9 @@ fun EditorScreen(
                     editing = true
                     focusedTarget = target
                 },
-                onSelectionChange = { sel -> focusedSelection = sel },
+                onSelectionChange = { sel ->
+                    focusedTarget?.let { selections[it] = sel }
+                },
                 onAddParagraphAtEnd = ::appendParagraph,
                 onTextChange = { path, text ->
                     val readyState = previewState.value as? DocxPreview.Ready
@@ -1377,7 +1322,7 @@ fun EditorScreen(
                     if (current != text) {
                         val coalesceKey = "text:${path.blockIndex}:${path.cellRow}:${path.cellColumn}:${path.cellParagraph}"
                         updateDocument(coalesce = coalesceKey) { doc ->
-                            doc.mapParagraphAt(path) { p -> p.withText(text) }
+                            doc.mapParagraphAt(path) { p -> p.applyText(text) }
                         }
                     }
                 },
@@ -1389,9 +1334,8 @@ fun EditorScreen(
 }
 
 /**
- * A writing preset — what other office suites call a paragraph style. Applying
- * one rewrites the paragraph's runs and spacing directly, matching the writer's
- * flatten-styles design (fresh minimal package, direct formatting only).
+ * A writing preset, what other office suites call a paragraph style. Applying
+ * one rewrites the runs and spacing directly (fresh package, direct formatting).
  */
 private data class ParagraphPreset(
     val label: String,
@@ -1420,7 +1364,6 @@ private fun Paragraph.matchingPreset(): ParagraphPreset {
     } ?: BODY_PRESET
 }
 
-/** The in-editor formatting rail: acts on the paragraph that currently has focus. */
 @Composable
 private fun FormattingBar(
     paragraph: Paragraph?,
@@ -1504,10 +1447,7 @@ private fun FormattingBar(
     }
 }
 
-/**
- * Overflow for the document format bar: list style, alignment and paragraph actions as
- * compact chips in one sheet, instead of eight stacked menu rows.
- */
+/** Overflow for the format bar: list style, alignment and paragraph actions in one sheet. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun DocMoreMenu(
@@ -1687,8 +1627,7 @@ private fun FormatAction(
     IconButton(
         onClick = onClick,
         enabled = enabled,
-        // Bold/Italic/Underline/Strikethrough showed their on/off state only as a
-        // tint. The state is now spoken, so it does not rely on colour.
+        // Bold/Italic/Underline/Strikethrough showed their state as a tint only. It is spoken now.
         modifier = Modifier.semantics {
             contentDescription = label
             stateDescription = if (isSelected) "On" else "Off"
@@ -1726,18 +1665,15 @@ private sealed interface DocxPreview {
         val document: Document,
         val images: Map<InlineImage, ImageBitmap?>,
         /**
-         * Content in the source package that a rebuild-from-model save removes.
-         * Carried with the preview so a restored draft keeps warning about the
-         * original file's content rather than the draft's (which has none).
+         * Content a rebuild-from-model save drops, kept so a restored draft
+         * still warns about the source file rather than the draft.
          */
         val dropped: List<PreservedFeature> = emptyList(),
         /**
-         * The package the document was opened from.
-         *
-         * Saving writes the edited document back into this package, so
-         * everything the editor cannot edit — comments, footnotes, tracked
-         * changes, hyperlinks, styles, section breaks — survives the save
-         * instead of being rebuilt away.
+         * The package the document was opened from. Saving writes the edited
+         * document back into it, so what the editor cannot edit (comments,
+         * footnotes, tracked changes, hyperlinks, styles, section breaks)
+         * survives the save.
          */
         val source: DocxSource? = null,
     ) : DocxPreview
@@ -1756,8 +1692,7 @@ private fun rememberDocxPreviewState(file: RecentFile): MutableState<DocxPreview
                     ?: error("the file could not be opened")
                 val bytes = stream.use { it.readBytes() }
                 // The audit reads the same bytes the reader just consumed, so the
-                // warning describes exactly this file and costs no second read of
-                // the user's provider.
+                // warning describes exactly this file and the provider is read once.
                 val dropped = ContentAudit.docx(bytes)
                 val source = DocxReader().readSource(ByteArrayInputStream(bytes))
                 val document = source.document
@@ -1879,8 +1814,8 @@ private fun DocxPage(
                                                 findQuery = findQuery,
                                             )
                                         } else {
-                                            // Tapping text starts writing right there —
-                                            // no mode hunting, no menu (like WPS).
+                                            // Tapping text starts writing right there,
+                                            // no mode hunting and no menu (like WPS).
                                             ParagraphLine(
                                                 line = item.line,
                                                 onClick = { onStartEditingParagraph(FocusPath(index)) },
@@ -1929,11 +1864,9 @@ private fun DocxPage(
 }
 
 /**
- * An editable paragraph: the text field keeps its own value/cursor state and
- * pushes text changes into the document model. Formatting beyond the first run
- * is intentionally simple in this first editor milestone: edited paragraphs are
- * re-styled uniformly from their first run, and the toolbar restyles the whole
- * paragraph.
+ * An editable paragraph: the text field keeps its own value and cursor state
+ * and pushes changes into the model. Formatting past the first run is simple:
+ * the paragraph is re-styled from its first run, and the toolbar restyles it.
  */
 @Composable
 private fun EditableParagraph(
@@ -2008,8 +1941,7 @@ private fun EditableParagraph(
                 text = line.marker,
                 style = DocumentTextStyle,
                 color = DocumentInk,
-                // A minimum, not a fixed width: list numbers must not be clipped
-                // when the system font scale is large.
+                // A minimum, not a fixed width: list numbers must not clip at a large font scale.
                 modifier = Modifier.widthIn(min = 22.dp).padding(end = 2.dp),
             )
         }
@@ -2019,7 +1951,7 @@ private fun EditableParagraph(
                 onValueChange = { value ->
                     if (value.text.contains('\n')) {
                         // Enter starts a new paragraph; the split happens at the
-                        // newline, so mid-text Enter behaves like every editor.
+                        // newline, like every editor.
                         val before = value.text.substringBefore('\n')
                         val after = value.text.substringAfter('\n')
                         field = TextFieldValue(before, selection = TextRange(before.length))
@@ -2090,17 +2022,6 @@ private val DocumentInk = Color(0xFF23262B)
 
 private fun Paragraph.text(): String = runs.joinToString("") { it.text }
 
-/**
- * Replaces the paragraph's text, keeping the first run's formatting as the run
- * style for the edited text (first editor milestone; range-based styling later).
- */
-private fun Paragraph.withText(text: String): Paragraph = copy(
-    runs = when {
-        text.isEmpty() -> emptyList()
-        else -> listOf(runs.firstOrNull()?.copy(text = text) ?: Run(text = text))
-    },
-)
-
 private fun nextFreeNumId(document: Document): Int {
     fun visit(blocks: List<Block>): List<Int> = blocks.flatMap { block ->
         when (block) {
@@ -2144,16 +2065,15 @@ private fun ParagraphAlignment.toTextAlign(): TextAlign = when (this) {
 }
 
 /**
- * One rendered paragraph: its list marker (if any), start padding, spacing and
- * styled text. Markers are resolved to concrete labels here, so the same
- * document always renders the same way.
+ * One rendered paragraph: list marker, start padding, spacing and styled
+ * text. Markers get concrete labels, so a document renders the same way twice.
  */
 private class DisplayLine(
     val marker: String?,
     val indentDp: Int,
     val text: AnnotatedString,
     val alignment: TextAlign,
-    /** Decoded images; an entry is null when the format is not supported. */
+    /** Decoded images, null when the format is not supported. */
     val images: List<ImageBitmap?> = emptyList(),
     val spacingBeforeDp: Int = 0,
     val spacingAfterDp: Int = 0,
@@ -2239,7 +2159,7 @@ private fun countParagraphs(blocks: List<Block>): Int = blocks.sumOf { block ->
     }
 }
 
-/** Word count for the document header — words, not paragraphs. */
+/** Word count for the document header. Words, not paragraphs. */
 private fun countWords(blocks: List<Block>): Int = blocks.sumOf { block ->
     when (block) {
         is Paragraph -> block.text().split(' ', '\n', '\t').count { it.isNotBlank() }
@@ -2274,8 +2194,7 @@ private fun ParagraphLine(line: DisplayLine, onClick: (() -> Unit)? = null) {
                 text = line.marker,
                 style = DocumentTextStyle,
                 color = DocumentInk,
-                // A minimum, not a fixed width: list numbers must not be clipped
-                // when the system font scale is large.
+                // A minimum, not a fixed width: list numbers must not clip at a large font scale.
                 modifier = Modifier.widthIn(min = 22.dp).padding(end = 2.dp),
             )
         }
@@ -2310,7 +2229,6 @@ private fun PageBreakDivider() {
     }
 }
 
-/** The visible way to keep writing: appends a paragraph and puts the caret in it. */
 @Composable
 private fun AddParagraphButton(onClick: () -> Unit) {
     Row(
@@ -2372,8 +2290,8 @@ private val DocumentTextStyle: TextStyle
     @Composable get() = MaterialTheme.typography.bodyMedium.copy(lineHeight = 16.sp)
 
 /**
- * The document text style with the paragraph's line spacing applied: the base
- * line height scaled by the paragraph's percentage (null = the base itself).
+ * The document text style with the paragraph's line spacing applied: base
+ * line height scaled by the percentage (null means the base).
  */
 @Composable
 private fun lineTextStyle(line: DisplayLine): TextStyle {
@@ -2398,9 +2316,9 @@ private fun TableBlock(
     findQuery: String = "",
 ) {
     val placed = remember(table) { table.placedCells() }
-    // Written during layout and read by the draw phase, which always runs
-    // afterwards. Plain fields rather than state: changing state from inside
-    // measure would schedule a second composition for every table layout.
+    // Written during layout, read by the draw phase that always runs after.
+    // Plain fields, not state: a state change inside measure schedules a
+    // second composition for every table layout.
     val geometry = remember(table) { CellGeometry() }
     val lineColor = GridLineColor
     val lineWidth = with(LocalDensity.current) { 1.dp.toPx() }
@@ -2419,10 +2337,9 @@ private fun TableBlock(
                         item.cell.blocks.forEachIndexed { blockIndex, block ->
                             when (block) {
                                 is Paragraph -> {
-                                    // The path keeps the model's own coordinates
-                                    // (row index, cell index) rather than the grid
-                                    // ones, so an edit lands in the cell it came
-                                    // from even when merges shift the columns.
+                                    // The path keeps the model's own row and cell indexes
+                                    // rather than the grid ones, so an edit lands in its
+                                    // own cell even when merges shift the columns.
                                     val path = FocusPath(
                                         blockIndex = tableBlockIndex,
                                         cellRow = item.rowIndex,
@@ -2496,8 +2413,7 @@ private fun TableBlock(
             columnLefts[lastColumn] + columnWidths[lastColumn] - columnLefts[firstColumn]
         }
 
-        // A cell is measured exactly once, at its final width: measuring twice
-        // would wrap the text at a different width than the one drawn.
+        // A cell is measured exactly once, at its final width, or the text wraps differently.
         val measured = placed.mapIndexed { index, _ ->
             val cellWidth = cellWidths[index].coerceAtLeast(1)
             measurables[index].measure(
@@ -2508,16 +2424,15 @@ private fun TableBlock(
         val rowHeights = IntArray(table.rows.size)
         measured.forEachIndexed { index, placeable ->
             val item = placed[index]
-            // The measured box contains its own padding, so its height is the
-            // whole height the row needs.
+            // The measured box carries its own padding, so its height is the row's whole height.
             val needed = placeable.height.coerceAtLeast(1)
             val last = (item.rowIndex + item.rowSpan).coerceAtMost(rowHeights.size)
             if (last <= item.rowIndex) return@forEachIndexed
             if (item.rowSpan <= 1) {
                 rowHeights[item.rowIndex] = maxOf(rowHeights[item.rowIndex], needed)
             } else {
-                // A vertically merged cell must fit across the rows it covers,
-                // so spread its height over them without rounding down.
+                // A vertically merged cell must fit the rows it covers, so spread
+                // its height over them.
                 val rowsCovered = last - item.rowIndex
                 val shared = (needed + rowsCovered - 1) / rowsCovered
                 for (r in item.rowIndex until last) {
@@ -2567,14 +2482,12 @@ private class CellGeometry {
 
 /**
  * Draws the table grid from the rectangles the layout produced, instead of
- * giving every cell its own border. A cell that spans rows or columns then
- * contributes only its real edges, so no rule runs through its middle and
- * neighbouring cells share one line rather than stacking two.
+ * giving every cell its own border. A spanning cell contributes only its real
+ * edges, so no rule runs through its middle and neighbours share one line.
  */
 private fun DrawScope.drawGridLines(rects: List<CellRect>, color: Color, thickness: Float) {
     if (rects.isEmpty()) return
-    // Inset by half the stroke so the outer rules are fully inside the table's
-    // bounds instead of being clipped by the layout node's edge.
+    // Inset by half the stroke so the outer rules stay inside the table's bounds.
     val inset = thickness / 2
     rects.forEach { rect ->
         val left = rect.left.toFloat() + inset
@@ -2596,12 +2509,11 @@ private val CELL_HORIZONTAL = 8.dp
 private val CELL_VERTICAL = 6.dp
 
 /**
- * A header or footer shown as a labelled band above/below the body.
- *
- * They are read-only here on purpose: Word keeps them in separate package parts
- * with their own section rules, and editing them from the body flow would write
- * text into the wrong part. The band makes them visible and truthful instead of
- * silently dropping them on the next save, which is what used to happen.
+ * A header or footer shown as a labelled band above/below the body. Read-only
+ * on purpose: Word keeps them in separate package parts with their own
+ * section rules, so editing them from the body flow would write text into
+ * the wrong part. The band makes them visible instead of dropping them on
+ * the next save, which is what used to happen.
  */
 @Composable
 private fun HeaderFooterBand(
