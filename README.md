@@ -56,9 +56,8 @@ Printing goes through Android's own print service, so no permission is involved.
 
 ## not yet
 
-Encrypted vault, OCR, handwriting notes, images and shapes on slides, PDF form filling,
-macros, pivot tables, `.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS
-Office.
+Encrypted vault, OCR, handwriting notes, images and shapes on slides, macros, pivot tables,
+`.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS Office.
 
 ## install
 
@@ -89,8 +88,8 @@ hand.
 
 Next up: editing the comments, footnotes and tracked changes the app now keeps; cell notes
 and named ranges in sheets; page numbers and a table of contents in documents; images and
-shapes on slides; PDF form filling and OCR; copy/paste between apps; `.odt`/`.ods`/`.odp`
-support; an encrypted vault with a biometric lock.
+shapes on slides; copy/paste between apps; `.odt`/`.ods`/`.odp` support; an encrypted vault
+with a biometric lock.
 
 ## bugs
 

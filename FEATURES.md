@@ -80,7 +80,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Annotate (highlight, ink, notes) | yes | | done |
 | Merge / split / rotate / reorder | yes (paid) | | done |
 | Page labels and text stamps | yes | Stamp text on a page, and number the pages of a saved or printed copy | done |
-| Fill forms | yes (paid) | Fill the fields and save the filled document | planned |
+| Fill forms | yes (paid) | Fill the text boxes, tick the boxes and pick from the lists, and save the filled document. The answers go into the file's own fields, so the copy keeps the fonts, the images and the layout | done |
 | Digital signature (handwritten ink, drawn not cryptographic) | yes (paid) | | done |
 | True redaction (content removed, not black boxes) | partial (paid) | | done |
 | Export progress + cancel, output verified non-empty and `%PDF` | no | | done |

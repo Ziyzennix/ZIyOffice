@@ -258,7 +258,7 @@ private val MAX_COLUMN_WIDTH = 480.dp
 private val MIN_ROW_HEIGHT = 24.dp
 private val MAX_ROW_HEIGHT = 240.dp
 private val ROW_HEADER_WIDTH = 44.dp
-private const val UNDO_LIMIT = 100
+private const val SHEET_UNDO_LIMIT = 100
 
 /**
  * Convert spreadsheet units to on-screen sizes. The package defaults (width
@@ -543,7 +543,7 @@ fun SheetScreen(
         val sheets = current.sheets.toMutableList()
         sheets[activeSheet] = updated
         val next = current.copy(sheets = sheets)
-        undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
         redoStack = emptyList()
         workbook = next
         dirty = true
@@ -1080,7 +1080,7 @@ fun SheetScreen(
         val previous = undoStack.lastOrNull() ?: return
         val current = workbook ?: return
         undoStack = undoStack.dropLast(1)
-        redoStack = (redoStack + current).takeLast(UNDO_LIMIT)
+        redoStack = (redoStack + current).takeLast(SHEET_UNDO_LIMIT)
         workbook = previous
         activeSheet = previous.activeSheet.coerceIn(0, (previous.sheets.size - 1).coerceAtLeast(0))
         val restored = previous.sheets.getOrNull(activeSheet)
@@ -1097,7 +1097,7 @@ fun SheetScreen(
         val next = redoStack.lastOrNull() ?: return
         val current = workbook ?: return
         redoStack = redoStack.dropLast(1)
-        undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
         workbook = next
         activeSheet = next.activeSheet.coerceIn(0, (next.sheets.size - 1).coerceAtLeast(0))
         val restored = next.sheets.getOrNull(activeSheet)
@@ -1204,7 +1204,7 @@ fun SheetScreen(
     fun addSheet() {
         if (editingCell) commitEdit()
         val current = workbook ?: return
-        undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
         redoStack = emptyList()
         val name = "Sheet ${current.sheets.size + 1}"
         val sheets = current.sheets + Sheet(name = name, cells = emptyList())
@@ -1224,7 +1224,7 @@ fun SheetScreen(
         if (trimmed.isEmpty()) return
         val sheets = current.sheets.toMutableList()
         sheets[activeSheet] = sheets[activeSheet].copy(name = trimmed)
-        undoStack = (undoStack + current).takeLast(UNDO_LIMIT)
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
         redoStack = emptyList()
         workbook = current.copy(sheets = sheets)
         dirty = true
