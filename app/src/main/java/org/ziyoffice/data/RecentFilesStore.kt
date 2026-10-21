@@ -11,9 +11,8 @@ import org.ziyoffice.model.RecentFile
 
 /**
  * Recently opened files and the SAF grants behind them, in SharedPreferences
- * plus JSON so M0 needs no extra dependency.
- *
- * Nothing here is ever transmitted, and android:allowBackup is off.
+ * plus JSON so no extra dependency is needed. Nothing here is ever transmitted,
+ * and android:allowBackup is off.
  */
 class RecentFilesStore(context: Context) {
 
@@ -43,12 +42,11 @@ class RecentFilesStore(context: Context) {
     /**
      * Persists the read/write grant for [uri] and records it in the recents list.
      * Write access is what makes in-place saving possible; a provider that only
-     * grants reading still works (saving then reports the limitation honestly).
+     * grants reading still works.
      *
      * [Remembered.persisted] is false when the provider handed over a one-shot
-     * grant (a share or view intent, typically). The file is readable for this
-     * session but could not be reopened from a recents row later, so it is not
-     * written to the list.
+     * grant (a share or view intent, typically): the file is readable now but
+     * could not be reopened from a recents row later, so it is not listed.
      */
     fun remember(uri: Uri, mimeType: String? = null): Remembered? {
         val persisted = persistGrant(uri)
@@ -62,8 +60,8 @@ class RecentFilesStore(context: Context) {
 
     /**
      * Takes a persistable read/write grant for [uri]; read-only is accepted when
-     * the provider refuses write access. Returns false when neither is possible,
-     * which is the normal case for files shared from another app.
+     * the provider refuses write access. False when neither works, the normal
+     * case for files shared from another app.
      */
     private fun persistGrant(uri: Uri): Boolean {
         val resolver = appContext.contentResolver
@@ -82,16 +80,18 @@ class RecentFilesStore(context: Context) {
     private fun entryFor(uri: Uri, mimeType: String?): RecentFile? {
         val (name, size) = queryMetadata(uri) ?: return null
         // Some providers report no usable display name and the fallback is the
-        // document id itself ("document:1000142160"). Showing that in the title
-        // bar is meaningless to a reader, so the file is named after its type
-        // instead, with the intent's MIME type supplying the extension — that
-        // type is authoritative and is all that decides how it opens.
+        // document id itself ("document:1000142160"), which is meaningless in a
+        // title bar. So the file is named after its type, with the intent's
+        // MIME type supplying the extension. That type is authoritative and is
+        // all that decides how it opens.
         val named = DocumentKind.fromFileName(name) != DocumentKind.UNKNOWN
         val displayName = if (named) {
             name
         } else {
-            val extension = DocumentKind.extensionFor(mimeType) ?: return null
-            val kind = DocumentKind.fromMimeType(mimeType) ?: DocumentKind.UNKNOWN
+            val extension = DocumentKind.extensionFor(mimeType) ?: sniffExtension(uri) ?: return null
+            val kind = DocumentKind.fromMimeType(mimeType)
+                ?: DocumentKind.fromFileName(extension)
+                ?: DocumentKind.UNKNOWN
             "${kind.label}.$extension"
         }
         return RecentFile(
@@ -100,6 +100,28 @@ class RecentFilesStore(context: Context) {
             sizeBytes = size,
             lastOpenedAtEpochMs = System.currentTimeMillis(),
         )
+    }
+
+    /**
+     * Works out the extension from the first bytes of the file.
+     *
+     * A provider that hands back neither a usable name nor a MIME type would
+     * otherwise leave the file unopenable, even though the content says
+     * plainly what it is.
+     */
+    private fun sniffExtension(uri: Uri): String? {
+        val head = runCatching {
+            appContext.contentResolver.openInputStream(uri)?.use { input ->
+                ByteArray(SNIFF_BYTES).also { buffer -> input.read(buffer) }
+            }
+        }.getOrNull() ?: return null
+        if (head.isEmpty()) return null
+        val header = String(head, Charsets.ISO_8859_1)
+        return when {
+            header.startsWith("%PDF") -> "pdf"
+            header.startsWith("PK") -> "docx"
+            else -> null
+        }
     }
 
     private fun record(entry: RecentFile) {
@@ -111,10 +133,10 @@ class RecentFilesStore(context: Context) {
     }
 
     /**
-     * Name and size from the provider. Falls back to the uri's last path segment
-     * when the provider cannot be queried — an expired or absent grant, or a
-     * provider that went away. That is a normal outcome for a shared file, and
-     * it must not crash: the editor then reports the real read failure itself.
+     * Name and size from the provider, falling back to the uri's last path
+     * segment when the provider cannot be queried (an expired or absent grant,
+     * or a provider that went away). That is normal for a shared file and must
+     * not crash: the editor reports the real read failure itself.
      */
     private fun queryMetadata(uri: Uri): Pair<String, Long>? {
         var name: String? = null
@@ -152,5 +174,6 @@ class RecentFilesStore(context: Context) {
         const val PREFS_NAME = "recent_files"
         const val KEY_ENTRIES = "entries"
         const val MAX_ENTRIES = 30
+        const val SNIFF_BYTES = 8
     }
 }
