@@ -1,29 +1,19 @@
 package org.ziyoffice.model
 
 /**
- * Formula evaluation for ZiyOffice Sheets.
- *
- * Pure Kotlin, no Android classes. Evaluates a formula string against a [Sheet]
- * and returns a [CellValue]. Handles references (A1, $A$1), ranges (A1:B2),
- * arithmetic, comparisons and the function library in [FormulaFunctions].
- *
- * Parsing is recursive descent over a token stream. References resolve through a
- * single [CellResolver] per evaluation, so a circular reference is reported as
- * an error instead of looping.
+ * Formula evaluation for ZiyOffice Sheets. Pure Kotlin, no Android classes. Parsing is
+ * recursive descent, and one [CellResolver] per evaluation owns cycle detection, so a
+ * circular reference comes back as an error.
  */
 
-/** Result of evaluating a formula cell: value plus any evaluation errors. */
 data class FormulaResult(
     val value: CellValue,
     val errors: List<String> = emptyList(),
 )
 
 /**
- * Evaluates a formula string against [sheet].
- *
- * Returns a [FormulaResult] containing the computed [CellValue] and any errors
- * encountered (circular references, bad references, wrong argument counts, ...).
- * Callers should surface [errors] to the user instead of crashing.
+ * Evaluates a formula string against [sheet]. Errors come back in
+ * [FormulaResult.errors] rather than thrown, so callers show them to the user.
  */
 fun evaluateFormula(sheet: Sheet, formula: String): FormulaResult {
     if (!formula.startsWith("=")) {
@@ -43,7 +33,6 @@ fun columnIndex(letters: String): Int {
     return result - 1
 }
 
-/** 0-based column index to letters: 0 -> "A", 26 -> "AA". */
 fun columnName(index: Int): String {
     var n = index + 1
     val sb = StringBuilder()
@@ -55,7 +44,7 @@ fun columnName(index: Int): String {
     return sb.reverse().toString()
 }
 
-/** A parsed operand: either one scalar or a rectangular range of cells. */
+/** A parsed operand: one scalar or a rectangular range of cells. */
 internal sealed interface Operand {
     data class Scalar(val value: CellValue) : Operand
     data class Range(
@@ -67,10 +56,9 @@ internal sealed interface Operand {
 }
 
 /**
- * Deepest chain of nested formula evaluations resolved for one top-level formula.
- * Cycle detection already stops self-referencing loops; this bound keeps a long
- * acyclic dependency chain (or a pathological reference tree) from exhausting the
- * JVM stack — such cells report [#DEPTH!] instead of crashing the evaluation.
+ * Deepest chain of nested evaluations allowed for one formula. Cycle detection already
+ * stops self-referencing loops; this keeps a long acyclic chain from exhausting the
+ * stack. Those cells report [#DEPTH!].
  */
 private const val MAX_EVALUATION_DEPTH = 200
 
@@ -91,7 +79,6 @@ internal class CellResolver(private val sheet: Sheet) {
         }
     }
 
-    /** The value of one cell; evaluates nested formulas through this resolver. */
     fun cell(row: Int, column: Int): CellValue {
         if (row < 0 || column < 0 || row >= sheet.rowCount || column >= sheet.columnCount) {
             return CellValue.Error("#REF!")
@@ -129,7 +116,6 @@ internal class CellResolver(private val sheet: Sheet) {
         is Operand.Range -> cell(operand.topRow, operand.leftCol)
     }
 
-    /** Range flattened to numbers where a scalar list is required. */
     fun numbers(operand: Operand): List<Double> = when (operand) {
         is Operand.Scalar -> asNumber(operand.value)?.let { listOf(it) } ?: emptyList()
         is Operand.Range -> range(operand).mapNotNull { asNumber(it) }
@@ -155,10 +141,9 @@ internal fun asNumber(value: CellValue): Double? = when (value) {
 }
 
 /**
- * Numeric value for arithmetic operators only: an empty (or absent) cell counts as 0,
- * matching Excel and LibreOffice, so `=A1+1` is 1 when A1 is blank. Other non-numeric
- * text is still not a number, and function argument flattening keeps using [asNumber],
- * which skips blanks the way SUM/AVERAGE expect.
+ * Numeric value for arithmetic operators only. A blank cell counts as 0, the way Excel and
+ * LibreOffice do it, so `=A1+1` is 1 when A1 is empty. Function arguments keep using
+ * [asNumber] instead, which skips blanks.
  */
 private fun asNumberOrZero(value: CellValue): Double? = when (value) {
     is CellValue.Text -> if (value.text.isEmpty()) 0.0 else value.text.toDoubleOrNull()
@@ -306,10 +291,8 @@ private fun tokenize(body: String): List<Token> {
     return tokens
 }
 
-/**
- * Precedence, loosest to tightest:
- * comparison -> concatenation (&) -> additive -> multiplicative -> power -> unary -> primary
- */
+/** Precedence, loosest to tightest: comparison, concatenation, additive, multiplicative,
+ * power, unary, primary. */
 private class Parser(
     private val tokens: List<Token>,
     private val resolver: CellResolver,
@@ -515,7 +498,11 @@ private class Parser(
         }
         val col = columnIndex(letters)
         val row = digits.toIntOrNull()
-        if (col < 0 || row == null || row < 1) throw FormulaException("Bad cell reference '$lexeme'")
+        // The same limits the rewriter uses, so a formula the evaluator accepts
+        // is a formula a save can write back.
+        if (col < 0 || col >= MAX_SHEET_COLUMNS || row == null || row !in 1..MAX_SHEET_ROWS) {
+            throw FormulaException("Bad cell reference '$lexeme'")
+        }
         return (row - 1) to col
     }
 

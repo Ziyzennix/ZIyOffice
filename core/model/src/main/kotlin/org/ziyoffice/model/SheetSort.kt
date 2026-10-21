@@ -3,26 +3,19 @@ package org.ziyoffice.model
 /**
  * Sorting a rectangular range of a sheet.
  *
- * The rules are what a spreadsheet user expects from "sort by column": blanks
- * always sort last, numbers sort numerically, text sorts case-insensitively,
- * and formulas move with their row because whole rows are reordered.
+ * The rules are what a spreadsheet user expects from "sort by column": blanks always sort
+ * last, numbers sort numerically, text sorts case-insensitively, and formulas move with
+ * their row because whole rows are reordered.
  *
- * Formula references are deliberately not rewritten. Rewriting =B1+C1 into
- * =B7+C7 while the target rows move is the classic way spreadsheets corrupt
- * data; moving whole rows keeps every relative reference pointing at the same
- * neighbour it pointed at before.
+ * Formula references are deliberately not rewritten. Rewriting =B1+C1 into =B7+C7 while
+ * the rows move is the classic way spreadsheets corrupt data.
  */
 object SheetSort {
-    /** Column to order by, and which way. */
     data class Key(val column: Int, val ascending: Boolean = true)
 
     /**
-     * Returns [sheet] with rows `topRow..bottomRow` reordered by [key].
-     *
-     * Columns outside `leftColumn..rightColumn` are moved together with their row,
-     * so a sort never strands data that sits outside the sorted range. Cells that
-     * are not in the range and not in the key column keep their row position only
-     * when they are outside the row range; inside it they travel with their row.
+     * Returns [sheet] with rows `topRow..bottomRow` reordered by [key]. Every column moves with its row,
+     * so a sort never strands data outside the key column.
      */
     fun sort(sheet: Sheet, topRow: Int, bottomRow: Int, key: Key): Sheet {
         if (bottomRow <= topRow) return sheet
@@ -63,15 +56,27 @@ object SheetSort {
         val untouched = sheet.cells.filterNot { it.row in topRow..bottomRow }
         return sheet.copy(
             cells = (untouched + moved).sortedWith(compareBy({ it.row }, { it.column })),
+            // A row's height belongs to the row, so it travels with it.
+            rowHeights = movedRowHeights(sheet.rowHeights, ordered, topRow),
         )
     }
 
+    /** Moves the heights of the sorted rows to where those rows ended up. */
+    private fun movedRowHeights(
+        heights: Map<Int, Float>,
+        ordered: List<Int>,
+        topRow: Int,
+    ): Map<Int, Float> {
+        if (heights.isEmpty()) return heights
+        val moved = mutableMapOf<Int, Int>()
+        ordered.forEachIndexed { offset, sourceRow -> moved[sourceRow] = topRow + offset }
+        return heights.entries.associate { (row, height) -> (moved[row] ?: row) to height }
+    }
+
     /**
-     * Rows whose key cell is blank sort after every populated row, in both
-     * directions — that is the behaviour users rely on when sorting a partially
-     * filled column.
+     * Orders two non-blank values; callers handle blanks before reaching here. Rows whose key cell is
+     * blank sort after every populated row, in both directions.
      */
-    /** Orders two non-blank values; callers handle blanks before reaching here. */
     private fun compare(left: CellValue?, right: CellValue?): Int {
         val leftNumber = asNumberOrNull(left)
         val rightNumber = asNumberOrNull(right)

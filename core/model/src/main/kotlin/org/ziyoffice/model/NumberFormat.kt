@@ -8,13 +8,9 @@ import kotlin.math.floor
 import kotlin.math.roundToLong
 
 /**
- * Excel-style number and date rendering for cell values.
- *
- * The patterns are the format codes found in a spreadsheet's numFmt entries:
- * "0.00", "#,##0", "0%", "m/d/yyyy" and friends. Anything this renderer does
- * not understand falls back to [generalNumber], which is what a spreadsheet
- * shows for an unformatted cell - never an error, never a raw serial number
- * pretending to be a date.
+ * Excel-style number and date rendering for cell values. The patterns are the numFmt
+ * format codes a spreadsheet uses. Anything this renderer does not understand falls back
+ * to [generalNumber], so a cell never shows a raw serial number as a date.
  */
 
 /** Renders [value] the way a cell shows it without an explicit format. */
@@ -32,7 +28,6 @@ fun formatNumber(value: Double, pattern: String?): String {
     return formatNumericPattern(value, pattern) ?: generalNumber(value)
 }
 
-/** Renders any [CellValue] under the given format code. */
 fun formatCellValue(value: CellValue, pattern: String?): String = when (value) {
     is CellValue.Number -> formatNumber(value.number, pattern)
     is CellValue.Text -> value.text
@@ -40,10 +35,7 @@ fun formatCellValue(value: CellValue, pattern: String?): String = when (value) {
     is CellValue.Error -> value.message
 }
 
-/**
- * True when [pattern] describes a date and/or time. Bracket sections (colour and
- * condition codes) are ignored, so `[Red]0.00` stays numeric.
- */
+/** True when [pattern] describes a date and/or time; bracket sections are ignored. */
 fun isDateFormat(pattern: String?): Boolean {
     if (pattern.isNullOrEmpty()) return false
     val stripped = stripBracketSections(pattern)
@@ -52,11 +44,9 @@ fun isDateFormat(pattern: String?): Boolean {
 }
 
 /**
- * Converts an Excel serial number to a date/time.
- *
- * Serial 1 is 1900-01-01. Serials 1..59 map directly; serial 60 is the phantom
- * 1900-02-29 that Lotus 1-2-3 introduced and every spreadsheet still carries, so
- * it is folded onto 1900-02-28. From 61 onwards the epoch is 1899-12-30.
+ * Converts an Excel serial number to a date/time. Serial 1 is 1900-01-01, and serial 60
+ * is the phantom 1900-02-29 that Lotus 1-2-3 introduced and every spreadsheet still
+ * carries, so it folds onto 1900-02-28. From 61 onwards the epoch is 1899-12-30.
  */
 fun serialToDateTime(serial: Double): LocalDateTime {
     val wholeDays = floor(serial).toLong()
@@ -212,8 +202,8 @@ private fun kindOf(letter: Char): DateKind = when (letter) {
 }
 
 /**
- * Excel writes both month and minute as `m`; the surrounding tokens decide.
- * An `m` run is minutes when it follows an hour token or precedes a seconds token.
+ * Excel writes both month and minute as `m`, so an `m` run is minutes when it follows an
+ * hour token or precedes a seconds token.
  */
 private fun resolveMinutes(tokens: List<DateToken>): List<DateToken> {
     val significant = tokens.indices.filter { tokens[it] !is DateToken.Literal }
@@ -242,17 +232,19 @@ private fun stripBracketSections(pattern: String): String = buildString {
 }
 
 /**
- * Renders the numeric subset of Excel format codes: `;`-separated sections,
- * thousands separators, fixed decimals, percentages and literal prefixes or
- * suffixes (currency symbols, parentheses for negatives).
- *
- * Returns null for codes it cannot render faithfully — scientific notation,
- * fractions and conditional sections — so the caller can fall back to General.
+ * Renders the numeric subset of Excel format codes: `;`-separated sections, thousands
+ * separators, fixed decimals, percentages and literal prefixes or suffixes. Returns null
+ * for codes it cannot render faithfully (scientific notation, fractions, conditional
+ * sections), so the caller falls back to General.
  */
 private fun formatNumericPattern(value: Double, pattern: String): String? {
     val sections = splitSections(pattern)
     if (sections.isEmpty()) return null
-    if (sections.any { it.contains('E') || it.contains('/') && !it.contains("\"/\"") }) return null
+    // Only the format itself is checked, not the text around it: a currency
+    // prefix like "EUR " carries an E that means nothing here.
+    if (sections.any { withoutLiterals(it).contains('E') || withoutLiterals(it).contains('/') }) {
+        return null
+    }
 
     // A negative section renders its own magnitude; the sign lives in that section's
     // literal text, not in the number, so "-0.00;0.00" does not double the minus.
@@ -330,6 +322,32 @@ private fun splitSections(pattern: String): List<String> {
 /** Drops the double quotes that delimit literal text in a format code. */
 private fun unquoteLiterals(text: String): String = text.replace("\"", "")
 
+/**
+ * A section with its quoted and escaped text taken out.
+ *
+ * Format codes carry text the user typed ("EUR ", "-", "at ") next to the
+ * format itself. Only the second part says what the number looks like.
+ */
+private fun withoutLiterals(section: String): String {
+    val result = StringBuilder()
+    var inQuote = false
+    var i = 0
+    while (i < section.length) {
+        val ch = section[i]
+        when {
+            ch == '\\' && i + 1 < section.length -> {
+                if (!inQuote) result.append(section[i + 1])
+                i++
+            }
+
+            ch == '"' -> inQuote = !inQuote
+            !inQuote -> result.append(ch)
+        }
+        i++
+    }
+    return result.toString()
+}
+
 private fun groupThousands(digits: String): String {
     val builder = StringBuilder()
     digits.forEachIndexed { index, ch ->
@@ -363,11 +381,10 @@ private val DATE_TIME_INPUT_PATTERNS: List<DateTimeFormatter> = listOf(
 )
 
 /**
- * Parses text a user typed into a date- or time-formatted cell and returns the
- * serial number to store, or null when the text is not a date this app accepts.
- *
- * Only called for cells whose format is a date/time code: typing "3/4" in a
- * General cell must stay the text the user typed, not silently become a date.
+ * Parses text a user typed into a date- or time-formatted cell and returns the serial to
+ * store, or null when the text is not a date this app accepts. Only called for cells
+ * whose format is a date/time code: typing "3/4" in a General cell must stay the text
+ * the user typed.
  */
 fun parseDateInput(text: String, reference: LocalDateTime = LocalDateTime.now()): Double? {
     val trimmed = text.trim()

@@ -1,9 +1,8 @@
 package org.ziyoffice.model
 
 /**
- * A run of columns sharing an explicit width, mirroring the `<col min max>`
- * element in a worksheet. Widths are Excel character units: 8.43 is the default
- * Calibri column, and 255 is the format's maximum.
+ * A run of columns sharing an explicit width, mirroring `<col min max>` in a worksheet.
+ * Widths are Excel character units: 8.43 is the default Calibri column, 255 the max.
  */
 data class ColumnWidth(
     val firstColumn: Int,
@@ -32,16 +31,20 @@ const val MAX_SHEET_COLUMNS = 16_384
 /** The last row an `.xlsx` worksheet can address. */
 const val MAX_SHEET_ROWS = 1_048_576
 
-/** The explicit width for [column], or the worksheet default. */
+/** How many rows a sheet shows at least, so a short sheet still has somewhere to write. */
+const val MIN_SHEET_ROWS = 100
+
+/** How many columns a sheet shows at least. */
+const val MIN_SHEET_COLUMNS = 26
+
 fun Sheet.columnWidth(column: Int): Float =
     columnWidths.lastOrNull { it.covers(column) }?.width ?: DEFAULT_COLUMN_WIDTH_CHARS
 
-/** The explicit height for [row], or the worksheet default. */
 fun Sheet.rowHeight(row: Int): Float = rowHeights[row] ?: DEFAULT_ROW_HEIGHT_POINTS
 
 /**
- * Sets one column's width, splitting any wider run that used to cover it so the
- * remaining columns keep their old width.
+ * Sets one column's width, splitting any wider run that used to cover it so the rest
+ * keep their old width.
  */
 fun Sheet.withColumnWidth(column: Int, width: Float): Sheet {
     if (column !in 0 until MAX_SHEET_COLUMNS) return this
@@ -63,7 +66,6 @@ fun Sheet.withColumnWidth(column: Int, width: Float): Sheet {
     return copy(columnWidths = rebuilt.sortedWith(compareBy({ it.firstColumn }, { it.lastColumn })))
 }
 
-/** Sets one row's height in points. */
 fun Sheet.withRowHeight(row: Int, height: Float): Sheet {
     if (row < 0) return this
     val clamped = height.coerceIn(MIN_ROW_HEIGHT_POINTS, MAX_ROW_HEIGHT_POINTS)
@@ -71,8 +73,8 @@ fun Sheet.withRowHeight(row: Int, height: Float): Sheet {
 }
 
 /**
- * Drops malformed and non-positive widths from a file, clamps the rest to the
- * spreadsheet limits, and sorts them so round trips stay stable.
+ * Drops malformed and non-positive widths from a file, clamps the rest to the spreadsheet
+ * limits, and sorts them so round trips stay stable.
  */
 fun List<ColumnWidth>.normaliseColumnWidths(): List<ColumnWidth> =
     filter {
