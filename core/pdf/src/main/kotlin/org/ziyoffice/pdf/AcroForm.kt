@@ -50,10 +50,11 @@ data class PdfRect(
      * over the page as it was drawn.
      */
     fun fractionsOn(page: PdfPage): PdfFractionRect {
-        val boxLeft = page.mediaBox[0]
-        val boxBottom = page.mediaBox[1]
-        val boxWidth = (page.mediaBox[2] - boxLeft).takeIf { it > 0 } ?: 1.0
-        val boxHeight = (page.mediaBox[3] - boxBottom).takeIf { it > 0 } ?: 1.0
+        val box = page.visibleBox
+        val boxLeft = box[0]
+        val boxBottom = box[1]
+        val boxWidth = (box[2] - boxLeft).takeIf { it > 0 } ?: 1.0
+        val boxHeight = (box[3] - boxBottom).takeIf { it > 0 } ?: 1.0
 
         val u0 = (left - boxLeft) / boxWidth
         val u1 = (right - boxLeft) / boxWidth
@@ -104,6 +105,8 @@ class PdfWidget(
     val objectNumber: Int?,
     /** The name of the state that means "on", for a box that can be ticked. */
     val onState: String?,
+    /** The name of the state that means "off", for a box that can be ticked. */
+    val offState: String?,
     /** The value the box gives back when it is on. */
     val exportValue: String?,
 )
@@ -280,6 +283,7 @@ object AcroForm {
                 rect = rect,
                 objectNumber = reference?.number,
                 onState = onStateOf(widgetDict),
+                offState = offStateOf(widgetDict),
                 exportValue = widgetDict.name("Opt"),
             )
         }
@@ -356,13 +360,25 @@ object AcroForm {
      * one that is not "Off" is the one that means it is on.
      */
     private fun onStateOf(widget: PdfDict): String? {
+        val names = stateNames(widget) ?: return null
+        return names.firstOrNull { it != "Off" && it.isNotEmpty() }
+    }
+
+    /** The state that means "off", which is usually called "Off". */
+    private fun offStateOf(widget: PdfDict): String? {
+        val names = stateNames(widget) ?: return null
+        return names.firstOrNull { it == "Off" } ?: "Off"
+    }
+
+    /** The names of the states a box can be in. */
+    private fun stateNames(widget: PdfDict): List<String>? {
         val appearances = widget.dict("AP") ?: return null
         val normal = appearances["N"] ?: return null
         val names = when (normal) {
-            is PdfDict -> normal.entries.keys
+            is PdfDict -> normal.entries.keys.toList()
             else -> return null
         }
-        return names.firstOrNull { it != "Off" && it.isNotEmpty() }
+        return names
     }
 
     /** The appearance a field's own text is drawn with. */

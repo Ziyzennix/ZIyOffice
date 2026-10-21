@@ -34,7 +34,11 @@ class PdfFormWriter(private val file: PdfFile) {
 
             when {
                 field.isToggle -> {
-                    val state = field.widgets.firstOrNull()?.onState ?: "Yes"
+                    val widget = field.widgets.firstOrNull()
+                    val onState = widget?.onState ?: "Yes"
+                    val offState = widget?.offState ?: "Off"
+                    // An empty value means the box is not ticked.
+                    val state = if (value.isEmpty() || value == "Off") offState else onState
                     val updated = field.dict
                         .with("V", PdfName(state))
                         .with("AS", PdfName(state))

@@ -475,6 +475,36 @@ class PdfPage(
         ((value % 360) + 360) % 360
     }
 
+    /**
+     * The part of the page that is shown.
+     *
+     * The crop box is the region the author chose to show, and it is what a
+     * viewer draws. Where it sticks out past the media box, the media box
+     * wins, which is the rule the platform renderer follows too.
+     */
+    val visibleBox: DoubleArray by lazy {
+        val media = mediaBox
+        val crop = cropBox ?: return@lazy media
+        val left = maxOf(media[0], crop[0])
+        val bottom = maxOf(media[1], crop[1])
+        val right = minOf(media[2], crop[2])
+        val top = minOf(media[3], crop[3])
+        if (right <= left || top <= bottom) media else doubleArrayOf(left, bottom, right, top)
+    }
+
+    /** The page's crop box, when it has one. */
+    private val cropBox: DoubleArray? by lazy {
+        val raw = (dict["CropBox"] ?: inherited["CropBox"]) as? PdfArray
+        val numbers = raw?.items?.mapNotNull { numberValue(it) } ?: return@lazy null
+        if (numbers.size < 4) return@lazy null
+        doubleArrayOf(
+            minOf(numbers[0], numbers[2]),
+            minOf(numbers[1], numbers[3]),
+            maxOf(numbers[0], numbers[2]),
+            maxOf(numbers[1], numbers[3]),
+        )
+    }
+
     /** The page's width in points, taking the rotation into account. */
     val widthPoints: Double get() {
         val width = mediaBox[2] - mediaBox[0]

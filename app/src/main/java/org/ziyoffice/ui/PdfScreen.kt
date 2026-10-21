@@ -118,6 +118,7 @@ fun PdfScreen(
     file: RecentFile,
     onBack: () -> Unit,
     onOpenFile: () -> Unit,
+    onFillForm: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -152,6 +153,8 @@ fun PdfScreen(
     var stampPageNumbers by remember(file.uri) { mutableStateOf(false) }
     var splitRange by remember { mutableStateOf("") }
     var splitPages by remember { mutableStateOf<List<Int>>(emptyList()) }
+    /** True when the file has fields to fill in. */
+    var hasForm by remember(file.uri) { mutableStateOf(false) }
 
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/pdf"),
@@ -384,8 +387,16 @@ fun PdfScreen(
             runCatching {
                 val input = context.contentResolver.openInputStream(Uri.parse(file.uri))
                     ?: error("the file couldn't be opened")
+                val bytes = input.use { it.readBytes() }
+                // A file with fields to fill in gets a button for it.
+                val parsed = org.ziyoffice.pdf.PdfFile.open(bytes)
+                val form = parsed?.let { org.ziyoffice.pdf.AcroForm.read(it) }
+                hasForm = form != null && !form.isEmpty
                 val cache = File(context.cacheDir, "pdf-${file.uri.hashCode()}.pdf")
-                input.use { PdfDocument.open(it, cache) } ?: error("this PDF couldn't be parsed")
+                PdfDocument.open(
+                    java.io.ByteArrayInputStream(bytes),
+                    cache,
+                ) ?: error("this PDF couldn't be parsed")
             }
         }
         result.fold(
@@ -457,6 +468,14 @@ fun PdfScreen(
                         // Save and Print stay visible: they are what people
                         // open a PDF to do. The rest move into one menu, because
                         // five icons plus the back arrow clip the title.
+                        if (hasForm) {
+                            IconButton(onClick = onFillForm) {
+                                Icon(
+                                    Icons.Filled.EditNote,
+                                    contentDescription = "Fill the form",
+                                )
+                            }
+                        }
                         IconButton(
                             onClick = { saveLauncher.launch(file.displayName) },
                             enabled = !saving && pages.size > deleted.size,

@@ -1,0 +1,38 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm 7 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R 5 0 R 6 0 R] >>
+endobj
+4 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /T (full name) /V (Ada Lovelace) /Rect [72 700 372 724] /DA (/Helv 11 Tf 0 g) /F 4 >>
+endobj
+5 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Btn /T (agree) /V /Off /Rect [72 660 88 676] /AP << /N << /Yes << /Length 0 >> >> /Off << /Length 0 >> >> >> /F 4 >>
+endobj
+6 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Ch /T (country) /Ff 131072 /V (Norway) /Opt [(Norway) (Sweden) (Denmark)] /Rect [72 620 372 644] /DA (/Helv 11 Tf 0 g) /F 4 >>
+endobj
+7 0 obj
+<< /Fields [4 0 R 5 0 R 6 0 R] /DA (/Helv 0 Tf 0 g) /NeedAppearances false >>
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000080 00000 n 
+0000000137 00000 n 
+0000000236 00000 n 
+0000000378 00000 n 
+0000000548 00000 n 
+0000000728 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+821
+%%EOF

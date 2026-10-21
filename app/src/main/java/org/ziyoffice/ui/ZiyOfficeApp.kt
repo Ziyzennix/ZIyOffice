@@ -72,6 +72,8 @@ fun ZiyOfficeApp(
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var openFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
+    /** The file whose form is being filled in, when one is. */
+    var fillFormUri by rememberSaveable { mutableStateOf<String?>(null) }
     /**
      * A file handed over by another app. Its grant usually cannot be persisted,
      * so it is not a recents entry: it lives only for this visit, and the
@@ -261,6 +263,20 @@ fun ZiyOfficeApp(
         createdFileUri = null
         transientFile = null
     }
+
+    // Filling a form is a screen of its own: the pages are drawn with the
+    // fields on them, which the workspace above does not show.
+    val formFile = fillFormUri?.let { uri ->
+        recents.firstOrNull { it.uri == uri } ?: transientFile?.takeIf { it.uri == uri }
+    }
+    if (formFile != null) {
+        PdfFormScreen(
+            file = formFile,
+            onBack = { fillFormUri = null },
+        )
+        return
+    }
+
     if (openFile != null) {
         when (openFile.kind) {
             DocumentKind.SPREADSHEET -> SheetScreen(
@@ -291,6 +307,7 @@ fun ZiyOfficeApp(
                 file = openFile,
                 onBack = { closeFile() },
                 onOpenFile = openPicker,
+                onFillForm = { fillFormUri = openFile.uri },
             )
             DocumentKind.PRESENTATION -> PresentationScreen(
                 file = openFile,
