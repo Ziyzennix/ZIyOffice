@@ -28,3 +28,4 @@ Unconfirmed*
 # Local agent tooling state (brainstorm server pids/logs, critique output).
 /.superpowers/
 /.impeccable/
+/.claude/
