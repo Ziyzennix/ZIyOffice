@@ -188,33 +188,27 @@ import org.ziyoffice.saf.XLSX_MIME_TYPE
 /** A 0-based cell address inside the active sheet. */
 private data class CellPos(val row: Int, val column: Int)
 
-/** Which axis the size dialog is editing. */
 private enum class SizeTarget { COLUMN, ROW }
 
-/** The axis a structural edit works on: rows or columns. */
 private enum class SheetAxis(val noun: String) {
     ROWS("row"),
     COLUMNS("column");
 
-    /** How many rows or columns the selection covers. */
     fun spanOf(range: CellRange): Int = when (this) {
         ROWS -> range.rowSpan
         COLUMNS -> range.columnSpan
     }
 
-    /** The first selected row or column. */
     fun firstOf(range: CellRange): Int = when (this) {
         ROWS -> range.top
         COLUMNS -> range.left
     }
 
-    /** The last selected row or column. */
     fun lastOf(range: CellRange): Int = when (this) {
         ROWS -> range.bottom
         COLUMNS -> range.right
     }
 
-    /** How many rows or columns the sheet has. */
     fun sizeOf(sheet: Sheet): Int = when (this) {
         ROWS -> sheet.rowCount
         COLUMNS -> sheet.columnCount
@@ -231,7 +225,6 @@ private enum class SheetAxis(val noun: String) {
     }
 }
 
-/** How thick a border line is drawn on screen. */
 private fun borderWidth(style: BorderStyle): Dp = when (style) {
     BorderStyle.THIN, BorderStyle.DASHED, BorderStyle.DOTTED -> 1.5.dp
     BorderStyle.MEDIUM -> 2.5.dp
@@ -268,10 +261,9 @@ private val ROW_HEADER_WIDTH = 44.dp
 private const val UNDO_LIMIT = 100
 
 /**
- * Convert spreadsheet units to on-screen sizes. A column width of 8.43 and a
- * row height of 15 points are the package defaults, so they map to the same
- * 76 x 40 dp cell the editor has always used. Clamps keep a hostile file from
- * making one cell take over the screen; the saved value is untouched.
+ * Convert spreadsheet units to on-screen sizes. The package defaults (width
+ * 8.43, height 15 points) map to the 76 x 40 dp cell the editor has always
+ * used. The clamps are display-only: the saved value is untouched.
  */
 private fun Sheet.columnWidthDp(column: Int): Dp =
     (CELL_WIDTH * (columnWidth(column) / DEFAULT_COLUMN_WIDTH_CHARS))
@@ -299,13 +291,11 @@ private val NUMBER_FORMATS: List<Pair<String?, String>> = listOf(
 )
 
 /**
- * The spreadsheet editor: a scrollable grid with frozen row/column headers,
- * a formula bar, full keyboard navigation and cell formatting.
- *
- * Everything is computed against the [Sheet] model, so a formula shows its value
- * while the formula bar keeps the formula — the same split every spreadsheet user
- * expects. Saving writes a real `.xlsx` through [XlsxWriter]; unsaved work is kept
- * in a local draft so a process death never costs the user their typing.
+ * The spreadsheet editor: a scrollable grid with frozen row/column headers, a
+ * formula bar, keyboard navigation and cell formatting. Everything is computed
+ * against the [Sheet] model, so a formula shows its value while the formula bar
+ * keeps the formula. Saving writes a real `.xlsx`; unsaved work goes to a local
+ * draft, so a process death never costs the user their typing.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -318,7 +308,7 @@ fun SheetScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // Saving must survive the screen leaving composition: the back handler saves
-    // and navigates in the same frame, which would cancel a composition scope.
+    // and navigates in one frame, which would cancel a composition scope.
     val writeScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
     val snackbarHostState = remember { SnackbarHostState() }
     val draftStore = remember { DraftStore(context) }
@@ -332,8 +322,7 @@ fun SheetScreen(
     var editText by remember(file.uri) { mutableStateOf("") }
     var editingCell by remember(file.uri) { mutableStateOf(false) }
     var dirty by remember(file.uri) { mutableStateOf(false) }
-    // Bumped by every mutation, so an in-flight write can tell whether newer
-    // edits appeared while it was running.
+    // Bumped by every mutation, so an in-flight write can spot newer edits.
     var writeVersion by remember(file.uri) { mutableStateOf(0L) }
     var saving by remember(file.uri) { mutableStateOf(false) }
     var undoStack by remember(file.uri) { mutableStateOf(emptyList<Workbook>()) }
@@ -354,25 +343,20 @@ fun SheetScreen(
     var renameText by remember { mutableStateOf("") }
     var sizeTarget by remember { mutableStateOf<SizeTarget?>(null) }
     var sizeValueText by remember { mutableStateOf("") }
-    // Content-loss gate, same contract as the Docs editor: the writer rebuilds
-    // the workbook from the model, so parts it cannot reproduce are announced
-    // before the first save rather than discovered afterwards.
+    // Content-loss gate, same contract as the Docs editor: parts the writer
+    // cannot reproduce are announced before the first save, not after it.
     var droppedFeatures by remember(file.uri) { mutableStateOf(emptyList<PreservedFeature>()) }
     /**
-     * The package the workbook was opened from.
-     *
-     * Saving writes the edited workbook back into this package, so the charts,
-     * images, comments, filters and protections the workbook carries survive
-     * the save instead of being rebuilt away.
+     * The package the workbook was opened from. Saving writes the edited
+     * workbook back into it, so the charts, images, comments, filters and
+     * protections it carries survive the save.
      */
     var sourcePackage by remember(file.uri) { mutableStateOf<XlsxSource?>(null) }
 
     /**
-     * The bytes to write for [current].
-     *
-     * A workbook that came from a package is written back into that package,
-     * so everything the editor cannot edit survives. A workbook ZiyOffice
-     * created has no package behind it and is written from scratch.
+     * The bytes to write for [current]. A workbook from a package goes back into
+     * that package, so what the editor cannot edit survives. One ZiyOffice
+     * created has no package and is written from scratch.
      */
     fun workbookBytes(current: Workbook): ByteArray {
         if (isCsv(file.displayName)) {
@@ -383,9 +367,13 @@ fun SheetScreen(
         return if (source != null) XlsxEditor(source).save(target) else XlsxWriter().write(target)
     }
 
+    // A draft is always an XLSX package, even for a CSV file. Restoring one is
+    // then the same operation whichever file it came from.
+    fun draftBytes(current: Workbook): ByteArray =
+        XlsxWriter().write(current.copy(activeSheet = activeSheet))
+
     var showLossWarning by remember(file.uri) { mutableStateOf(false) }
     var lossAccepted by remember(file.uri) { mutableStateOf(false) }
-    var pendingAfterLoss by remember(file.uri) { mutableStateOf<(() -> Unit)?>(null) }
 
     val gridFocus = remember { FocusRequester() }
     val formulaFocus = remember { FocusRequester() }
@@ -402,7 +390,6 @@ fun SheetScreen(
         }
     }
 
-    /** What the file turned out to hold. */
     data class Loaded(
         val workbook: Workbook,
         val recovered: Boolean,
@@ -414,38 +401,38 @@ fun SheetScreen(
         val loaded = withContext(Dispatchers.IO) {
             runCatching {
                 val draft = draftStore.load(file.uri)
-                if (draft != null) {
-                    // The draft holds the user's unsaved cells; the source file
-                    // still decides what a save would drop, so audit the source
-                    // and keep warning while the recovery copy is in use.
-                    val dropped = if (isCsv(file.displayName)) {
-                        emptyList()
-                    } else {
-                        context.contentResolver.openInputStream(Uri.parse(file.uri))
-                            ?.use { stream -> ContentAudit.xlsx(stream.readBytes()) }
-                            .orEmpty()
-                    }
-                    val draftSource = XlsxSource.capture(draft)
-                    Loaded(draftSource.workbook, true, dropped, draftSource)
-                } else if (isCsv(file.displayName)) {
+                if (isCsv(file.displayName)) {
+                    // CSV has no package to write back into, so there is no
+                    // source and nothing to preserve.
                     val text = context.contentResolver.openInputStream(Uri.parse(file.uri))
                         ?.bufferedReader()?.use { it.readText() }
                         ?: error("the file could not be opened")
-                    Loaded(
-                        Workbook(listOf(parseCsv(text, file.displayName.substringBeforeLast('.')))),
-                        false,
-                        emptyList(),
-                        null,
+                    val fromFile = Workbook(
+                        listOf(parseCsv(text, file.displayName.substringBeforeLast('.'))),
                     )
+                    if (draft != null) {
+                        // The draft holds the user's unsaved cells.
+                        Loaded(XlsxSource.capture(draft).workbook, true, emptyList(), null)
+                    } else {
+                        Loaded(fromFile, false, emptyList(), null)
+                    }
                 } else {
                     val stream = context.contentResolver.openInputStream(Uri.parse(file.uri))
                         ?: error("the file could not be opened")
                     // One read serves both the model and the audit, so the warning
-                    // describes exactly this file.
+                    // describes this file.
                     val bytes = stream.use { it.readBytes() }
                     val dropped = ContentAudit.xlsx(bytes)
-                    val workbookSource = XlsxSource.capture(bytes)
-                    Loaded(workbookSource.workbook, false, dropped, workbookSource)
+                    // The source package always comes from the file on disk. A
+                    // recovered draft only carries the user's cells, and saving
+                    // from it would drop whatever the file had that a save keeps.
+                    val fileSource = XlsxSource.capture(bytes)
+                    if (draft != null) {
+                        val draftWorkbook = XlsxSource.capture(draft).workbook
+                        Loaded(draftWorkbook, true, dropped, fileSource)
+                    } else {
+                        Loaded(fileSource.workbook, false, dropped, fileSource)
+                    }
                 }
             }
         }
@@ -477,7 +464,7 @@ fun SheetScreen(
         val saved = withContext(Dispatchers.IO) {
             runCatching {
                 val target = current.copy(activeSheet = activeSheet)
-                draftStore.save(file.uri, workbookBytes(target))
+                draftStore.save(file.uri, draftBytes(target))
             }.isSuccess
         }
         if (!saved) {
@@ -489,11 +476,10 @@ fun SheetScreen(
         if (initialEditing && workbook != null) runCatching { gridFocus.requestFocus() }
     }
 
-    // A keystroke in the last 1.5 s of a session exists only in this process:
-    // the debounced autosave above has not run yet and composable state is not
-    // rememberSaveable. Leaving composition is the last chance, so the draft is
-    // flushed on a thread that outlives the cancelled composition scope — the
-    // serialization happens once, in onDispose, not on every recomposition.
+    // A keystroke in the last 1.5 s exists only in this process: the debounced
+    // autosave has not run yet and state is not rememberSaveable. Leaving
+    // composition is the last chance, so the draft goes out on a daemon thread.
+    // The serialization happens once, in onDispose, not on every recomposition.
     var flushTarget by remember(file.uri) { mutableStateOf<Workbook?>(null) }
     var flushIsDirty by remember(file.uri) { mutableStateOf(false) }
     var flushSheet by remember(file.uri) { mutableStateOf(0) }
@@ -509,9 +495,8 @@ fun SheetScreen(
                 val uri = file.uri
                 val store = draftStore
                 val sheetIndex = flushSheet
-                // A composition scope is cancelled before onDispose runs, so a
-                // plain scope.launch would never land. A daemon thread always
-                // finishes, and this is a small file write (a few milliseconds).
+                // A composition scope is cancelled before onDispose runs, so a plain
+                // scope.launch would never land. A daemon thread always finishes.
                 Thread {
                     runCatching {
                         store.save(uri, XlsxWriter().write(target.copy(activeSheet = sheetIndex)))
@@ -603,7 +588,7 @@ fun SheetScreen(
         val text = editText
         editingCell = false
         // Committing is a real edit: it must set [dirty], or a cell typed and
-        // then left by tapping another cell would never be saved or drafted.
+        // then left by tapping another cell would never be saved.
         if (text != rawValueAt(selection)) writeCell(selection, normaliseInput(text, formatAt(selection)))
     }
 
@@ -618,7 +603,7 @@ fun SheetScreen(
 
     /**
      * Grows the selection from its active cell to [pos]. A long press is the
-     * one-thumb path; Shift+arrow does the same from a hardware keyboard.
+     * one-thumb path, Shift+arrow the same from a hardware keyboard.
      */
     fun extendSelectionTo(pos: CellPos) {
         val target = currentSheet() ?: return
@@ -695,7 +680,6 @@ fun SheetScreen(
         }
     }
 
-    /** Splits every merged block touched by the selection back into ordinary cells. */
     fun unmergeSelection() {
         if (editingCell) commitEdit()
         val range = selectedRange()
@@ -712,7 +696,6 @@ fun SheetScreen(
         }
     }
 
-    /** Freezes the rows above the cursor, or clears the freeze when one is set. */
     fun toggleFrozenRows() {
         if (editingCell) commitEdit()
         val current = currentSheet() ?: return
@@ -721,7 +704,6 @@ fun SheetScreen(
         }
     }
 
-    /** Opens the size dialog for every column or row touched by the selection. */
     fun openSizeDialog(target: SizeTarget) {
         if (editingCell) commitEdit()
         val current = currentSheet() ?: return
@@ -797,7 +779,6 @@ fun SheetScreen(
         }
     }
 
-    /** Deletes the rows or columns the selection covers. */
     fun deleteSelected(axis: SheetAxis) {
         if (editingCell) commitEdit()
         val sheet = currentSheet() ?: return
@@ -822,7 +803,6 @@ fun SheetScreen(
         }
     }
 
-    /** Routes an action from the rows-and-columns panel. */
     fun runStructureAction(action: StructureAction) {
         when (action) {
             StructureAction.INSERT_ROWS_ABOVE -> insertSelected(SheetAxis.ROWS, before = true)
@@ -834,7 +814,6 @@ fun SheetScreen(
         }
     }
 
-    /** Moves the cursor to a match and brings its row into view. */
     fun selectHit(hit: SheetMatch) {
         findCursor = findHits.indexOfFirst { it.row == hit.row && it.column == hit.column }
         selection = CellPos(hit.row, hit.column)
@@ -915,7 +894,6 @@ fun SheetScreen(
         }
     }
 
-    /** Routes an action from the find panel. */
     fun runFindAction(action: FindAction) {
         when (action) {
             FindAction.NEXT -> findNext()
@@ -924,10 +902,7 @@ fun SheetScreen(
         }
     }
 
-    /**
-     * Draws borders around the selected cells. "Box" draws the outline of the
-     * selection, "all" draws every edge of every cell in it.
-     */
+    /** Draws borders around the selected cells. "Box" is the outline, "all" every edge. */
     fun applyBorders(kind: BorderKind) {
         if (editingCell) commitEdit()
         val range = selectedRange()
@@ -947,7 +922,6 @@ fun SheetScreen(
         scope.launch { snackbarHostState.showSnackbar("Copied ${rangeLabel(range)}") }
     }
 
-    /** Pastes the clipboard into the sheet, starting at the selected cell. */
     fun pasteClipboard() {
         val clipboard = context.getSystemService(ClipboardManager::class.java)
         val text = clipboard?.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
@@ -961,7 +935,6 @@ fun SheetScreen(
         scope.launch { snackbarHostState.showSnackbar("Pasted into ${rangeLabel(selectedRange())}") }
     }
 
-    /** Opens the dropdown editor for the selected range. */
     fun openListDialog() {
         val current = currentSheet() ?: return
         val range = selectedRange()
@@ -984,10 +957,7 @@ fun SheetScreen(
         showListDialog = false
     }
 
-    /**
-     * Sorts every used row of the active sheet by the column the cursor is in.
-     * The whole used block moves, so rows keep their cells together.
-     */
+    /** Sorts every used row by the cursor's column. The whole block moves, rows keep their cells. */
     fun sortBySelection(ascending: Boolean) {
         if (editingCell) commitEdit()
         val current = currentSheet() ?: return
@@ -1022,7 +992,7 @@ fun SheetScreen(
         mutate { sheet ->
             val byPosition = sheet.cells.associateBy { it.row to it.column }
             // Formatting a visible merged cell must reach the cells it hides,
-            // otherwise unmerging would reveal an unstyled block.
+            // or unmerging shows an unstyled block.
             val positions = buildSet {
                 for (row in range.top..range.bottom) {
                     for (column in range.left..range.right) add(row to column)
@@ -1139,7 +1109,6 @@ fun SheetScreen(
         writeVersion++
     }
 
-    /** Writes [current] to the source file, reporting the real outcome. */
     fun writeWorkbook(current: Workbook, onSaved: () -> Unit) {
         val writingVersion = writeVersion
         saving = true
@@ -1176,8 +1145,8 @@ fun SheetScreen(
                         snackbarHostState.showSnackbar("Saved \u00B7 ${file.displayName}")
                         onSaved()
                     } else {
-                        // Edits landed while the write was running: the newer
-                        // work stays dirty and keeps its draft recovery copy.
+                        // Edits landed while the write ran: the newer work stays
+                        // dirty and keeps its draft.
                         snackbarHostState.showSnackbar("Saved \u00B7 newer edits kept")
                     }
                 },
@@ -1192,19 +1161,18 @@ fun SheetScreen(
     }
 
     /**
-     * Confirms once, before the first write, when saving would remove workbook
+     * Confirms once, before the first write, when a save would remove workbook
      * content the writer cannot reproduce.
      */
     fun save(onSaved: () -> Unit = {}) {
         val current = workbook ?: return
-        // Nothing is lost by saving: the edited parts are written back into
-        // the original package, so there is nothing to warn about.
+        // Nothing is lost by saving: the edited parts go back into the original package.
         writeWorkbook(current, onSaved)
     }
 
     /**
-     * The single exit path: save-and-leave when work is dirty, leave immediately
-     * when it is not. Both the system back gesture and the toolbar arrow use it.
+     * The single exit path: save-and-leave when dirty, leave when not. The
+     * system back gesture and the toolbar arrow both use it.
      */
     fun tryExit() {
         if (editingCell) commitEdit()
@@ -1212,7 +1180,7 @@ fun SheetScreen(
             ExitAction.LEAVE -> onBack()
             ExitAction.BLOCK ->
                 // A second write racing the first could land out of order; the
-                // in-flight one already reports its own outcome.
+                // in-flight one reports its own outcome.
                 scope.launch { snackbarHostState.showSnackbar("Saving \u00B7 wait a moment") }
             ExitAction.SAVE_AND_LEAVE -> save(onSaved = { onBack() })
             // Sheets save rather than ask; this branch is unreachable.
@@ -1296,8 +1264,7 @@ fun SheetScreen(
 
     /**
      * Opens the system print dialog for the workbook. The PDF is rendered in
-     * memory first, so a failure to render is reported here rather than inside
-     * the print framework.
+     * memory first, so a render failure is reported here.
      */
     fun printWorkbook() {
         if (editingCell) commitEdit()
@@ -1382,43 +1349,22 @@ fun SheetScreen(
     BackHandler { tryExit() }
 
     if (showLossWarning) {
-        // Captured for this dialog: a pending action means the warning gates a
-        // save; none means the user opened it from the banner to read the list.
-        val gatingSave = pendingAfterLoss != null
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = {
-                showLossWarning = false
-                pendingAfterLoss = null
-            },
-            title = { Text("This save removes content") },
+            onDismissRequest = { showLossWarning = false },
+            title = { Text("Content ZiyOffice can't edit") },
             text = {
                 Text(
-                    PreservedCopy.body(droppedFeatures, ".xlsx") +
-                        "\n\nUnsaved edits stay in this session if you cancel.",
+                    PreservedCopy.body(droppedFeatures, ".xlsx"),
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showLossWarning = false
-                        val next = pendingAfterLoss
-                        pendingAfterLoss = null
-                        if (next != null) {
-                            // Accepted for this session: later saves of the same
-                            // workbook are not re-asked.
-                            lossAccepted = true
-                            save(next)
-                        }
+                        // Accepted for this session: the banner does not come back.
+                        lossAccepted = true
                     },
                 ) { Text("Understood") }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showLossWarning = false
-                        pendingAfterLoss = null
-                    },
-                ) { Text("Cancel") }
             },
         )
     }
@@ -1567,9 +1513,9 @@ fun SheetScreen(
     }
 
     if (showChart) {
-        // Commit first, in the event handler that opened the sheet — not here.
-        // The body below runs on every recomposition while the sheet is open, and
-        // mutating editor state during composition would re-trigger it.
+        // Commit first, in the event handler that opened the sheet, not here.
+        // The body below runs on every recomposition, and mutating editor
+        // state would re-trigger it.
         val chartSheet = currentSheet()
         if (chartSheet != null) {
             androidx.compose.material3.ModalBottomSheet(onDismissRequest = { showChart = false }) {
@@ -1849,10 +1795,7 @@ fun SheetScreen(
                             style = MaterialTheme.typography.bodySmall,
                         )
                         TextButton(
-                            onClick = {
-                                pendingAfterLoss = null
-                                showLossWarning = true
-                            },
+                            onClick = { showLossWarning = true },
                             modifier = Modifier.padding(top = 4.dp),
                         ) {
                             Text("What cannot be edited")
@@ -1878,8 +1821,7 @@ fun SheetScreen(
 
             )
 
-            // A cell with a dropdown offers its choices right under the
-            // formula bar, so a value is one tap away.
+            // A cell with a dropdown offers its choices right under the formula bar.
             val choices = sheet?.validationAt(selection.row, selection.column)?.values.orEmpty()
             if (choices.isNotEmpty()) {
                 Row(
@@ -1972,9 +1914,8 @@ private fun FormulaBar(
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .width(if (isRange) 82.dp else 56.dp)
-                    // Spoken on the address itself rather than on the field: a
-                    // contentDescription on an editable node would replace the
-                    // text TalkBack reads back as the user types.
+                    // Spoken on the address itself, not on the field: a contentDescription
+                    // on an editable node would replace the text TalkBack reads back.
                     .semantics {
                         contentDescription = if (isRange) {
                             "Selected range ${rangeLabel(range)}, active cell " +
@@ -2032,8 +1973,7 @@ private fun SheetGrid(
     onExtendTo: (CellPos) -> Unit,
     onStartEdit: (CellPos) -> Unit,
 ) {
-    // One scroll state shared by the header and every row keeps the frozen row
-    // headers aligned with the grid while columns scroll.
+    // One scroll state shared by the header and every row keeps the frozen headers aligned.
     val horizontal = rememberScrollState()
     val vertical = rememberLazyListState()
     val density = LocalDensity.current
@@ -2053,9 +1993,8 @@ private fun SheetGrid(
         if (merge == null) selection else CellPos(merge.top, merge.left)
     }
 
-    // A band that starts above the freeze line is frozen as a whole. Splitting a
-    // vertical merge at that line would either clip its text or leave half a
-    // cell behind, and a freeze through a merged block is not meaningful.
+    // A band that starts above the freeze line is frozen as a whole. A freeze
+    // through a vertical merge would clip its text or leave half a cell behind.
     val frozenBands = remember(bands, sheet.frozenRows) {
         bands.count { it.startRow < sheet.frozenRows }
     }
@@ -2145,12 +2084,10 @@ private fun SheetGrid(
 }
 
 /**
- * One band of model rows, laid out as an absolute grid rather than a Row.
- *
- * Rows have to be bands because a vertically merged cell is taller than one row
- * and must be measured once, at its full height. Inside the band every placement
- * is measured at its final size and placed at its grid offset, so merged anchors
- * and ordinary cells line up without nesting weight rows inside rows.
+ * One band of model rows, laid out as an absolute grid rather than a Row. Rows
+ * have to be bands because a vertically merged cell is taller than one row and
+ * must be measured once, at full height. Every placement is measured at its
+ * final size and placed at its offset, so merged anchors line up with the rest.
  */
 @Composable
 private fun GridBand(
@@ -2279,11 +2216,9 @@ private fun prefixSums(values: List<Int>): IntArray {
 }
 
 /**
- * The colour a cell's text is drawn in.
- *
- * A cell with a light fill needs dark text: the dark theme's on-surface is
- * near-white, so a pale fill would swallow the text. An explicit font colour
- * always wins, the way it does in the PDF export.
+ * The colour a cell's text is drawn in. A light fill needs dark text: the
+ * dark theme's on-surface is near-white, so a pale fill swallows the text.
+ * An explicit font colour always wins, as in the PDF export.
  */
 @Composable
 private fun cellTextColour(format: CellFormat): Color {
@@ -2335,8 +2270,7 @@ private fun SheetCell(
         else -> null
     }
 
-    // Hoisted so the semantics block reads like the rest of the file: plain
-    // values, not assignments captured from receiver-scope properties.
+    // Hoisted so the semantics block reads like the rest of the file: plain values.
     val isSelected = selected || active
     val label = buildString {
         append(columnName(column))
@@ -2370,8 +2304,7 @@ private fun SheetCell(
                 onDoubleClick = onDoubleClick,
             )
             .semantics {
-                // Coordinate + value, so a screen-reader user hears "B3, 42"
-                // rather than a bare number with no address.
+                // Coordinate + value, so a screen-reader user hears "B3, 42", not a bare number.
                 this.contentDescription = label
                 this.selected = isSelected
                 role = Role.Button
@@ -2383,7 +2316,7 @@ private fun SheetCell(
             CellAlignment.GENERAL -> Alignment.CenterStart
         },
     ) {
-        // the cell's own borders, drawn over the grid lines
+        // The cell's own borders, drawn over the grid lines
         val borders = format.borders
         if (!borders.isEmpty) {
             val lineColor = MaterialTheme.colorScheme.onSurface
@@ -2432,8 +2365,7 @@ private fun SheetCell(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),
             style = TextStyle(
-                // sp follows the system font scale; the 13 pt fallback is the
-                // cell's own size, not a screen-density guess.
+                // sp follows the system font scale; the 13 pt fallback is the cell's own size.
                 fontSize = (format.sizePt ?: 13f).sp,
                 fontWeight = if (format.bold) FontWeight.Bold else FontWeight.Normal,
                 fontStyle = if (format.italic) FontStyle.Italic else FontStyle.Normal,
@@ -2522,8 +2454,8 @@ private fun SheetFormatBar(
 }
 
 /**
- * Overflow for the sheet format bar: one compact panel with fill swatches, alignment and
- * number format — three rows of controls instead of nineteen stacked menu items.
+ * Overflow for the sheet format bar: fill swatches, alignment and number
+ * format, three rows of controls instead of nineteen stacked menu items.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -2660,8 +2592,8 @@ private fun SheetAction(
     IconButton(
         onClick = onClick,
         enabled = enabled,
-        // Bold/Italic/etc. showed their on/off state only by tint. The state is
-        // now a semantic property, so TalkBack says "Bold, on" / "Bold, off".
+        // Bold/Italic/etc. showed their state by tint only. It is a semantic
+        // property now, so TalkBack says "Bold, on" / "Bold, off".
         modifier = Modifier.semantics {
             this.contentDescription = label
             stateDescription = if (isSelected) "On" else "Off"
@@ -2670,7 +2602,7 @@ private fun SheetAction(
         Icon(
             imageVector = icon,
             // The button node carries the name and state; a second description
-            // on the icon would be announced twice.
+            // would be announced twice.
             contentDescription = null,
             tint = when {
                 !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
@@ -2745,9 +2677,9 @@ private fun SheetTabs(
                     },
                     modifier = Modifier
                         .defaultMinSize(minHeight = 48.dp)
-                        // A tab's active state was colour-only; TalkBack now hears
+                        // A tab's active state was colour-only. TalkBack now hears
                         // the name plus whether it is the current sheet, and the
-                        // selected state is exposed as a semantic property too.
+                        // selected state is a semantic property too.
                         .semantics(mergeDescendants = true) {
                             contentDescription = "Sheet ${sheet.name}"
                             this.selected = selected
