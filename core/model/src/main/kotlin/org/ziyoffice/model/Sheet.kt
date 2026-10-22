@@ -12,6 +12,8 @@ data class Cell(
     val format: CellFormat = CellFormat(),
     /** Cached last-computed evaluation; null until evaluated. */
     val cached: CellValue? = null,
+    /** A note pinned to the cell; empty when it has none. */
+    val note: String = "",
 )
 
 data class CellFormat(

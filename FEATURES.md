@@ -67,6 +67,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Dropdown lists in cells | yes | Give a range a list of choices and pick one with a tap; a plain list survives a save, a rule that points at another range is warned about | done |
 | Insert and delete rows and columns | yes | Insert above/below or left/right and delete from the selected range; cells, merged ranges, sizes, the freeze line and formula references follow the edit, and a deleted reference becomes `#REF!` | done |
 | Charts (bar, from a column) | yes | | done |
+| Cell notes | yes | Pin a note to a cell and read it back; written the way a spreadsheet program expects, and a spreadsheet program reads it | done |
 | Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths, heights, fills, borders and alignment are honoured | done |
 | Print via the system print service | yes | | done |
 | Content a save keeps but can't edit (charts, images, pivot tables, conditional formatting, filters, protection, hidden rows/columns) | no | Kept as they are by a save; listed on open | done |

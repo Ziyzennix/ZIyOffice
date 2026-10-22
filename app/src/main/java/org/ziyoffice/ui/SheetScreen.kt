@@ -340,6 +340,8 @@ fun SheetScreen(
     var showListDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
     var showNameDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
     var nameText by remember { mutableStateOf("") }
     var sortFirstColumn by remember { mutableStateOf(0) }
     var sortSecondColumn by remember { mutableStateOf<Int?>(null) }
@@ -1043,6 +1045,28 @@ fun SheetScreen(
         dirty = true
     }
 
+    /** Puts a note on the selected cell, or takes the one it has off. */
+    fun setNote(note: String) {
+        if (editingCell) commitEdit()
+        val position = selection
+        mutate { sheet ->
+            val existing = sheet.cells.firstOrNull { it.row == position.row && it.column == position.column }
+            val updated = if (note.isEmpty()) {
+                existing?.copy(note = "") ?: return@mutate sheet
+            } else {
+                (existing ?: Cell(position.row, position.column)).copy(note = note)
+            }
+            val without = sheet.cells.filterNot { it.row == position.row && it.column == position.column }
+            sheet.copy(cells = (without + updated).sortedWith(compareBy({ it.row }, { it.column })))
+        }
+    }
+
+    /** The note on the selected cell. */
+    fun noteAtSelection(): String =
+        currentSheet()?.cells
+            ?.firstOrNull { it.row == selection.row && it.column == selection.column }
+            ?.note.orEmpty()
+
     fun applyFormat(transform: (CellFormat) -> CellFormat) {
         if (editingCell) commitEdit()
         val range = selectedRange()
@@ -1526,6 +1550,23 @@ fun SheetScreen(
         )
     }
 
+    if (showNoteDialog) {
+        SheetNoteDialog(
+            note = noteText,
+            cellLabel = "${columnName(selection.column)}${selection.row + 1}",
+            onNoteChange = { noteText = it },
+            onApply = {
+                showNoteDialog = false
+                setNote(noteText.trim())
+            },
+            onRemove = {
+                showNoteDialog = false
+                setNote("")
+            },
+            onDismiss = { showNoteDialog = false },
+        )
+    }
+
     if (showNameDialog) {
         SheetNameDialog(
             name = nameText,
@@ -1834,6 +1875,15 @@ fun SheetScreen(
                                 },
                             )
                             HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Note\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (editingCell) commitEdit()
+                                    noteText = noteAtSelection()
+                                    showNoteDialog = true
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text("Name this range\u2026") },
                                 onClick = {
@@ -2367,6 +2417,9 @@ internal fun isLightColour(rgb: Int): Boolean {
     return (0.299 * red + 0.587 * green + 0.114 * blue) > 140
 }
 
+/** The colour of the corner that marks a cell with a note. */
+private val NoteMarker = Color(0xFFD93025)
+
 @Composable
 private fun SheetCell(
     row: Int,
@@ -2449,6 +2502,16 @@ private fun SheetCell(
             CellAlignment.GENERAL -> Alignment.CenterStart
         },
     ) {
+        // A cell with a note says so in its corner, the way a spreadsheet
+        // program marks one.
+        if (!cell?.note.isNullOrEmpty()) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(7.dp)
+                    .background(NoteMarker),
+            )
+        }
         // The cell's own borders, drawn over the grid lines
         val borders = format.borders
         if (!borders.isEmpty) {

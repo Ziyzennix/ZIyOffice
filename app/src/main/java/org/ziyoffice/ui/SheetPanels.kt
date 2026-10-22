@@ -76,6 +76,43 @@ internal fun SheetListDialog(
 }
 
 @Composable
+internal fun SheetNoteDialog(
+    note: String,
+    cellLabel: String,
+    onNoteChange: (String) -> Unit,
+    onApply: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Note") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = note,
+                    onValueChange = onNoteChange,
+                    label = { Text("Note") },
+                    minLines = 3,
+                )
+                Text(
+                    "$cellLabel. The note shows in the corner of the cell and when the cell is pointed at.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onApply) { Text("Save") } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onRemove) { Text("Remove") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
+}
+
+@Composable
 internal fun SheetNameDialog(
     name: String,
     rangeLabel: String,

@@ -46,7 +46,39 @@ class XlsxEditor(private val source: XlsxSource) {
         workbook.sheets.forEachIndexed { index, sheet ->
             val sheetSource = source.sheets.getOrNull(index)
             if (sheetSource != null) {
-                parts[sheetSource.partName] = editSheet(sheetSource, sheet).encodeToByteArray()
+                var sheetXml = editSheet(sheetSource, sheet)
+                // The notes of this sheet. A sheet whose notes were not
+                // changed keeps the part it had, byte for byte.
+                val notes = XlsxNotes.notesOf(sheet)
+                val notesBefore = XlsxNotes.notesOf(sheetSource.model)
+                if (notes != notesBefore) {
+                    val number = nextCommentsNumber(parts)
+                    parts["xl/comments$number.xml"] =
+                        XlsxNotes.commentsXml(notes).encodeToByteArray()
+                    parts["xl/drawings/vmlDrawing$number.vml"] =
+                        XlsxNotes.vmlDrawingXml(notes).encodeToByteArray()
+                    val relsName = XlsxNotes.relsNameOf(sheetSource.partName)
+                    val rels = parts[relsName]?.decodeToString() ?: emptyRelationships()
+                    val first = nextRelationshipNumber(rels)
+                    parts[relsName] = addTypedRelationship(
+                        addTypedRelationship(
+                            rels,
+                            "rId$first",
+                            XlsxNotes.VML_REL,
+                            "../drawings/vmlDrawing$number.vml",
+                        ),
+                        "rId${first + 1}",
+                        XlsxNotes.COMMENTS_REL,
+                        "../comments$number.xml",
+                    )!!.encodeToByteArray()
+                    sheetXml = addLegacyDrawing(sheetXml, "rId$first")
+                    contentTypes = addContentType(
+                        contentTypes,
+                        "/xl/comments$number.xml",
+                        XlsxNotes.COMMENTS_CONTENT_TYPE,
+                    )
+                }
+                parts[sheetSource.partName] = sheetXml.encodeToByteArray()
                 relIds += sheetSource.relId
             } else {
                 val partName = "xl/worksheets/sheet$nextSheet.xml"
@@ -177,6 +209,43 @@ class XlsxEditor(private val source: XlsxSource) {
         return highest + 1
     }
 
+    /** A number no other part of the notes is using. */
+    private fun nextCommentsNumber(parts: Map<String, ByteArray>): Int {
+        val highest = parts.keys.mapNotNull {
+            Regex("xl/comments(\\d+)\\.xml").find(it)?.groupValues?.get(1)?.toIntOrNull()
+        }.maxOrNull() ?: 0
+        return highest + 1
+    }
+
+    /** A relationships part with nothing in it. */
+    private fun emptyRelationships(): String =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>" +
+            "<Relationships xmlns=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE\"></Relationships>"
+
+    /**
+     * Points a worksheet at the drawing that says where its notes sit.
+     *
+     * The element belongs at the end of the worksheet, and a worksheet that
+     * already has one keeps it.
+     */
+    private fun addLegacyDrawing(xml: String, relId: String): String {
+        if (xml.contains("<legacyDrawing")) return xml
+        val closeAt = xml.lastIndexOf("</worksheet>")
+        if (closeAt < 0) return xml
+        val element = "<legacyDrawing r:id=\"$relId\"/>"
+        val withNamespace = if (xml.contains("xmlns:r=")) {
+            xml
+        } else {
+            xml.replace(
+                "<worksheet ",
+                "<worksheet xmlns:r=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE\" ",
+            )
+        }
+        val at = withNamespace.lastIndexOf("</worksheet>")
+        if (at < 0) return xml
+        return withNamespace.substring(0, at) + element + withNamespace.substring(at)
+    }
+
     private fun addRelationship(
         relationships: String?,
         relId: String,
@@ -186,6 +255,18 @@ class XlsxEditor(private val source: XlsxSource) {
         val text = relationships ?: return null
         val relationship = "<Relationship Id=\"$relId\" " +
             "Type=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE/$kind\" Target=\"$target\"/>"
+        return DocxXml.insertIntoContainer(text, "Relationships", relationship)
+    }
+
+    /** A relationship whose type is written out in full. */
+    private fun addTypedRelationship(
+        relationships: String?,
+        relId: String,
+        type: String,
+        target: String,
+    ): String? {
+        val text = relationships ?: return null
+        val relationship = "<Relationship Id=\"$relId\" Type=\"$type\" Target=\"$target\"/>"
         return DocxXml.insertIntoContainer(text, "Relationships", relationship)
     }
 

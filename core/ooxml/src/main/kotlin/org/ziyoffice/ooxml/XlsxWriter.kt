@@ -35,15 +35,28 @@ class XlsxWriter {
         val styles = StylePlan.from(sheets)
 
         val parts = linkedMapOf<String, ByteArray>()
-        parts["[Content_Types].xml"] = contentTypes(sheets.size).encodeToByteArray()
+        val notesCount = sheets.count { XlsxNotes.notesOf(it).isNotEmpty() }
+        parts["[Content_Types].xml"] = contentTypes(sheets.size, notesCount).encodeToByteArray()
         parts["_rels/.rels"] = ROOT_RELS.encodeToByteArray()
         parts["xl/workbook.xml"] = workbookXml(sheets, workbook.activeSheet, workbook.namedRanges)
             .encodeToByteArray()
         parts["xl/_rels/workbook.xml.rels"] = workbookRels(sheets.size).encodeToByteArray()
         parts["xl/styles.xml"] = styles.toXml().encodeToByteArray()
         sheets.forEachIndexed { index, sheet ->
-            parts["xl/worksheets/sheet${index + 1}.xml"] =
-                sheetXml(sheet, styles).encodeToByteArray()
+            val notes = XlsxNotes.notesOf(sheet)
+            val part = "xl/worksheets/sheet${index + 1}.xml"
+            parts[part] = sheetXml(sheet, styles, notes.isNotEmpty()).encodeToByteArray()
+            if (notes.isNotEmpty()) {
+                // The notes live in a part of their own, and a drawing says
+                // where each one sits.
+                val number = index + 1
+                parts["xl/comments$number.xml"] =
+                    XlsxNotes.commentsXml(notes).encodeToByteArray()
+                parts["xl/drawings/vmlDrawing$number.vml"] =
+                    XlsxNotes.vmlDrawingXml(notes).encodeToByteArray()
+                parts["xl/worksheets/_rels/sheet$number.xml.rels"] =
+                    sheetRels(number).encodeToByteArray()
+            }
         }
 
         val out = ByteArrayOutputStream()
@@ -55,6 +68,17 @@ class XlsxWriter {
             }
         }
         return out.toByteArray()
+    }
+
+    /** The relationships of a sheet that carries notes. */
+    private fun sheetRels(number: Int): String = buildString {
+        append(XML_HEADER)
+        append("<Relationships xmlns=\"$PACKAGE_RELS_NAMESPACE\">")
+        append("<Relationship Id=\"rId1\" Type=\"").append(XlsxNotes.VML_REL)
+        append("\" Target=\"../drawings/vmlDrawing$number.vml\"/>")
+        append("<Relationship Id=\"rId2\" Type=\"").append(XlsxNotes.COMMENTS_REL)
+        append("\" Target=\"../comments$number.xml\"/>")
+        append("</Relationships>")
     }
 
     private fun workbookXml(
@@ -130,21 +154,31 @@ class XlsxWriter {
         append("</Relationships>")
     }
 
-    private fun contentTypes(sheetCount: Int): String = buildString {
+    private fun contentTypes(sheetCount: Int, notesCount: Int = 0): String = buildString {
         append(XML_HEADER)
         append("<Types xmlns=\"$CONTENT_TYPES_NAMESPACE\">")
         append("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>")
         append("<Default Extension=\"xml\" ContentType=\"application/xml\"/>")
+        append("<Default Extension=\"vml\" ContentType=\"").append(XlsxNotes.VML_CONTENT_TYPE)
+        append("\"/>")
         append("<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>")
         append("<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>")
         repeat(sheetCount) { index ->
             append("<Override PartName=\"/xl/worksheets/sheet").append(index + 1)
             append(".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>")
         }
+        repeat(notesCount) { index ->
+            append("<Override PartName=\"/xl/comments").append(index + 1)
+            append(".xml\" ContentType=\"").append(XlsxNotes.COMMENTS_CONTENT_TYPE).append("\"/>")
+        }
         append("</Types>")
     }
 
-    private fun sheetXml(sheet: Sheet, styles: StylePlan): String = buildString {
+    private fun sheetXml(
+        sheet: Sheet,
+        styles: StylePlan,
+        hasNotes: Boolean = false,
+    ): String = buildString {
         val lastRow = maxOf(
             sheet.rowCount,
             sheet.mergedRanges.maxOfOrNull { it.bottom + 1 } ?: 0,
@@ -155,7 +189,9 @@ class XlsxWriter {
             sheet.mergedRanges.maxOfOrNull { it.right + 1 } ?: 0,
         ).coerceAtLeast(1)
         append(XML_HEADER)
-        append("<worksheet xmlns=\"$SPREADSHEETML_NAMESPACE\">")
+        append("<worksheet xmlns=\"$SPREADSHEETML_NAMESPACE\"")
+        if (hasNotes) append(" xmlns:r=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE\"")
+        append(">")
         append("<dimension ref=\"A1:").append(columnName(lastColumn - 1))
             .append(lastRow).append("\"/>")
         if (sheet.frozenRows > 0) {
@@ -246,6 +282,10 @@ class XlsxWriter {
                 append("\"</formula1></dataValidation>")
             }
             append("</dataValidations>")
+        }
+        if (hasNotes) {
+            // The drawing that says where the notes sit.
+            append("<legacyDrawing r:id=\"rId1\"/>")
         }
         append("</worksheet>")
     }

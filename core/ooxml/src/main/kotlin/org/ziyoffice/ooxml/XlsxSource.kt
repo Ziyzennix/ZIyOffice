@@ -476,7 +476,11 @@ internal class XlsxSourceReader {
             val partName = rels[entry.relId]?.let { resolveWorkbookTarget(it.target) }
                 ?: "$SHEET_PREFIX${entry.sheetId}.xml"
             val bytes = parts[partName] ?: ByteArray(0)
-            parseSheet(entry, partName, bytes.decodeToString(), sharedStrings, styles)
+            // The notes of a sheet live in a part of their own.
+            val notes = XlsxNotes.commentsPartOf(parts, partName)?.let { commentsPart ->
+                parts[commentsPart]?.let { XlsxNotes.parseNotes(it.decodeToString()) }
+            }.orEmpty()
+            parseSheet(entry, partName, bytes.decodeToString(), sharedStrings, styles, notes)
         }
         val active = parseActiveTab(workbookRoot).coerceIn(0, (sheets.size - 1).coerceAtLeast(0))
         val namedRanges = parseDefinedNames(workbookRoot, sheetEntries, workbookXml)
@@ -607,6 +611,7 @@ internal class XlsxSourceReader {
         xml: String,
         sharedStrings: List<String>,
         styles: XlsxStyles,
+        notes: Map<Pair<Int, Int>, String> = emptyMap(),
     ): XlsxSheetSource {
         val root = XmlScanner.parse(xml).root
         val sheetData = root.child("sheetData")
@@ -665,8 +670,15 @@ internal class XlsxSourceReader {
             cells = cells.mapNotNull { (position, cell) ->
                 val raw = cellValue(cell, sharedStrings)
                 val format = formats[position] ?: CellFormat()
-                if (raw.isEmpty() && format == CellFormat()) null
-                else Cell(row = position.first, column = position.second, value = raw, format = format)
+                val note = notes[position].orEmpty()
+                if (raw.isEmpty() && format == CellFormat() && note.isEmpty()) null
+                else Cell(
+                    row = position.first,
+                    column = position.second,
+                    value = raw,
+                    format = format,
+                    note = note,
+                )
             },
             rowCount = maxOf((rows.keys.maxOrNull() ?: 0) + 1, MIN_SHEET_ROWS),
             columnCount = maxOf((cells.keys.maxOfOrNull { it.second } ?: 0) + 1, MIN_SHEET_COLUMNS),
