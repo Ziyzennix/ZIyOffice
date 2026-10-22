@@ -149,6 +149,9 @@ dependencies {
     implementation(project(":core:pdf"))
     implementation(project(":core:vault"))
 
+    // The text recogniser. It ships its own model and needs no permission.
+    implementation(libs.tessTwo)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.ui)

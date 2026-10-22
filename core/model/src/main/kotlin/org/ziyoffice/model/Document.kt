@@ -151,6 +151,35 @@ fun Run.hasSameFormattingAs(other: Run): Boolean =
 enum class ParagraphAlignment { START, CENTER, END, JUSTIFY }
 
 /**
+ * A document made of plain text, one paragraph per line.
+ *
+ * This is what a scanned page becomes once its words are read: a stack of
+ * lines. A blank line is a paragraph break, and a run of blank lines is one
+ * break rather than several, which is how a page reads.
+ */
+fun documentFromText(text: String): Document {
+    val lines = text.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+    val blocks = mutableListOf<Block>()
+    var afterBlank = false
+    lines.forEach { line ->
+        if (line.isBlank()) {
+            if (blocks.isNotEmpty() && !afterBlank) {
+                blocks += Paragraph()
+                afterBlank = true
+            }
+        } else {
+            blocks += Paragraph(runs = listOf(Run(line.trimEnd())))
+            afterBlank = false
+        }
+    }
+    // A page that ends in blank lines should not end in an empty paragraph.
+    while (blocks.size > 1 && blocks.last() is Paragraph && (blocks.last() as Paragraph).runs.isEmpty()) {
+        blocks.removeAt(blocks.lastIndex)
+    }
+    return Document(blocks = blocks.ifEmpty { listOf(Paragraph()) })
+}
+
+/**
  * The document with a page number in its footer.
  *
  * A footer that is not there yet is made. The number is a field, so the
