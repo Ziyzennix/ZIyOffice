@@ -114,6 +114,7 @@ class XlsxStyles internal constructor(
                 borderId = element.attr("borderId")?.toIntOrNull() ?: 0,
                 numFmtId = element.attr("numFmtId")?.toIntOrNull() ?: 0,
                 alignment = readAlignment(element),
+                wrapText = readWrapText(element),
             )
         }
     }
@@ -136,6 +137,7 @@ class XlsxStyles internal constructor(
             alignment = xf.alignment,
             numberFormat = numberFormat,
             borders = border.borders,
+            wrapText = xf.wrapText,
         )
     }
 
@@ -186,13 +188,18 @@ class XlsxStyles internal constructor(
         }
     }
 
+    private fun readWrapText(element: XmlElement): Boolean {
+        val attr = element.child("alignment")?.attr("wrapText") ?: element.attr("wrapText") ?: return false
+        return attr == "1" || attr.equals("true", ignoreCase = true)
+    }
+
     /** The index of the cell format, adding it to the sheet when it is new. */
     fun indexFor(format: CellFormat): Int {
         val fontId = fontId(format)
         val fillId = fillId(format)
         val borderId = borderId(format)
         val numFmtId = numFmtId(format.numberFormat)
-        val xf = XfEntry(fontId, fillId, borderId, numFmtId, format.alignment)
+        val xf = XfEntry(fontId, fillId, borderId, numFmtId, format.alignment, format.wrapText)
         val existing = cellXfs.indexOfFirst { it.sameAs(xf) }
         if (existing >= 0) return existing
         val index = cellXfs.size
@@ -372,30 +379,39 @@ class XlsxStyles internal constructor(
         val borderId: Int,
         val numFmtId: Int,
         val alignment: CellAlignment,
+        val wrapText: Boolean = false,
     ) {
         fun sameAs(other: XfEntry): Boolean =
             fontId == other.fontId &&
                 fillId == other.fillId &&
                 borderId == other.borderId &&
                 numFmtId == other.numFmtId &&
-                alignment == other.alignment
+                alignment == other.alignment &&
+                wrapText == other.wrapText
 
         fun toXml(): String = buildString {
             append("<xf numFmtId=\"$numFmtId\" fontId=\"$fontId\" fillId=\"$fillId\" ")
             append("borderId=\"$borderId\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"")
             if (borderId != 0) append(" applyBorder=\"1\"")
             if (numFmtId != 0) append(" applyNumberFormat=\"1\"")
-            if (alignment != CellAlignment.GENERAL) {
-                append(" applyAlignment=\"1\"><alignment horizontal=\"")
-                append(
-                    when (alignment) {
-                        CellAlignment.LEFT -> "left"
-                        CellAlignment.CENTER -> "center"
-                        CellAlignment.RIGHT -> "right"
-                        CellAlignment.GENERAL -> "general"
-                    },
-                )
-                append("\"/></xf>")
+            if (alignment != CellAlignment.GENERAL || wrapText) {
+                append(" applyAlignment=\"1\"><alignment")
+                if (alignment != CellAlignment.GENERAL) {
+                    append(" horizontal=\"")
+                    append(
+                        when (alignment) {
+                            CellAlignment.LEFT -> "left"
+                            CellAlignment.CENTER -> "center"
+                            CellAlignment.RIGHT -> "right"
+                            CellAlignment.GENERAL -> "general"
+                        },
+                    )
+                    append('"')
+                }
+                if (wrapText) {
+                    append(" wrapText=\"1\"")
+                }
+                append("/></xf>")
             } else {
                 append("/>")
             }

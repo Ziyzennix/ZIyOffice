@@ -28,6 +28,7 @@ data class CellFormat(
     /** Number format pattern, e.g. "0.00", "0.0%", "$#,##0.00". null = general. */
     val numberFormat: String? = null,
     val borders: CellBorders = CellBorders(),
+    val wrapText: Boolean = false,
 )
 
 enum class CellAlignment { GENERAL, LEFT, CENTER, RIGHT }

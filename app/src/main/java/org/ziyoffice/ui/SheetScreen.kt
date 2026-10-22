@@ -2557,8 +2557,8 @@ private fun SheetCell(
         }
         Text(
             text = text,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+            maxLines = if (format.wrapText) Int.MAX_VALUE else 1,
+            overflow = if (format.wrapText) TextOverflow.Clip else TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 4.dp),
             style = TextStyle(
                 // sp follows the system font scale; the 13 pt fallback is the cell's own size.
@@ -2739,6 +2739,15 @@ private fun SheetMoreSheet(
                         )
                     }
                 }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Text wrap", style = MaterialTheme.typography.titleSmall)
+                FilterChip(
+                    selected = format.wrapText,
+                    onClick = { onFormat { it.copy(wrapText = !it.wrapText) } },
+                    label = { Text("Wrap text in cell") },
+                )
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

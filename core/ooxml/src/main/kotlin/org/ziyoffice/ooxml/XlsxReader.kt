@@ -261,6 +261,11 @@ class XlsxReader(
         }
     }
 
+    private data class ParsedAlignment(
+        val alignment: CellAlignment = CellAlignment.GENERAL,
+        val wrapText: Boolean = false,
+    )
+
     private fun parseStyles(bytes: ByteArray): StyleTable {
         val parser = newParser()
         parser.setInput(ByteArrayInputStream(bytes), null)
@@ -273,7 +278,7 @@ class XlsxReader(
         val xfFillIds = mutableListOf<Int>()
         val xfNumFmtIds = mutableListOf<Int>()
         val xfBorderIds = mutableListOf<Int>()
-        val xfAlignments = mutableListOf<CellAlignment>()
+        val xfAlignments = mutableListOf<ParsedAlignment>()
 
         var section = ""
         var event = parser.eventType
@@ -311,7 +316,8 @@ class XlsxReader(
             val numFmtId = xfNumFmtIds.getOrElse(i) { 0 }
             font.copy(
                 fillRgb = fill,
-                alignment = xfAlignments.getOrElse(i) { CellAlignment.GENERAL },
+                alignment = xfAlignments.getOrNull(i)?.alignment ?: CellAlignment.GENERAL,
+                wrapText = xfAlignments.getOrNull(i)?.wrapText ?: false,
                 numberFormat = builtinOrCustomFormat(numFmtId, numberFormats),
                 borders = borders.getOrElse(xfBorderIds.getOrElse(i) { 0 }) { CellBorders() },
             )
@@ -402,25 +408,29 @@ class XlsxReader(
         return null
     }
 
-    private fun parseXfAlignment(parser: XmlPullParser): CellAlignment {
+    private fun parseXfAlignment(parser: XmlPullParser): ParsedAlignment {
         val depth = parser.depth
         var horizontal = attribute(parser, "horizontal")
+        var wrapText = attribute(parser, "wrapText")?.let { it == "1" || it.equals("true", ignoreCase = true) } ?: false
         var event = parser.next()
         while (!(event == XmlPullParser.END_TAG && parser.depth == depth)) {
             if (event == XmlPullParser.START_TAG && parser.namespace == SPREADSHEETML_NAMESPACE &&
                 parser.name == "alignment"
             ) {
                 horizontal = attribute(parser, "horizontal") ?: horizontal
+                attribute(parser, "wrapText")?.let {
+                    wrapText = it == "1" || it.equals("true", ignoreCase = true)
+                }
             }
             event = parser.next()
         }
-        horizontal ?: return CellAlignment.GENERAL
-        return when (horizontal) {
+        val align = when (horizontal) {
             "left" -> CellAlignment.LEFT
             "center", "centerContinuous" -> CellAlignment.CENTER
             "right" -> CellAlignment.RIGHT
             else -> CellAlignment.GENERAL
         }
+        return ParsedAlignment(align, wrapText)
     }
 
     private fun builtinOrCustomFormat(id: Int, custom: Map<Int, String>): String? {

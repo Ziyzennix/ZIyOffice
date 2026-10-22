@@ -147,6 +147,7 @@ class XlsxRoundTripTest {
             fillRgb = 0xFFF2CC,
             alignment = CellAlignment.CENTER,
             numberFormat = "0.00",
+            wrapText = true,
         )
         val sheet = Sheet(
             name = "Styled",
@@ -165,6 +166,21 @@ class XlsxRoundTripTest {
         assertEquals(0xFFF2CC, readFormat.fillRgb)
         assertEquals(CellAlignment.CENTER, readFormat.alignment)
         assertEquals("0.00", readFormat.numberFormat)
+        assertTrue(readFormat.wrapText)
+    }
+
+    @Test
+    fun textWrapSurvivesRoundTrip() {
+        val format = CellFormat(wrapText = true)
+        val sheet = Sheet(
+            name = "Wrapped",
+            cells = listOf(Cell(row = 1, column = 1, value = "Long wrapped content", format = format)),
+        )
+        val bytes = XlsxWriter().write(Workbook(listOf(sheet)))
+        val out = reader().read(ByteArrayInputStream(bytes)).sheets.single()
+        val readCell = out.cellAt(1, 1)
+        assertEquals("Long wrapped content", readCell?.value)
+        assertTrue(readCell!!.format.wrapText)
     }
 
     @Test

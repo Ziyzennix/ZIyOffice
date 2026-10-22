@@ -413,17 +413,24 @@ class XlsxWriter {
                 append(" applyFont=\"1\" applyFill=\"1\"")
                 if (!format.borders.isEmpty) append(" applyBorder=\"1\"")
                 if (format.numberFormat != null) append(" applyNumberFormat=\"1\"")
-                if (format.alignment != CellAlignment.GENERAL) {
-                    append(" applyAlignment=\"1\"><alignment horizontal=\"")
-                    append(
-                        when (format.alignment) {
-                            CellAlignment.LEFT -> "left"
-                            CellAlignment.CENTER -> "center"
-                            CellAlignment.RIGHT -> "right"
-                            CellAlignment.GENERAL -> "general"
-                        },
-                    )
-                    append("\"/></xf>")
+                if (format.alignment != CellAlignment.GENERAL || format.wrapText) {
+                    append(" applyAlignment=\"1\"><alignment")
+                    if (format.alignment != CellAlignment.GENERAL) {
+                        append(" horizontal=\"")
+                        append(
+                            when (format.alignment) {
+                                CellAlignment.LEFT -> "left"
+                                CellAlignment.CENTER -> "center"
+                                CellAlignment.RIGHT -> "right"
+                                CellAlignment.GENERAL -> "general"
+                            },
+                        )
+                        append('"')
+                    }
+                    if (format.wrapText) {
+                        append(" wrapText=\"1\"")
+                    }
+                    append("/></xf>")
                 } else {
                     append("/>")
                 }
