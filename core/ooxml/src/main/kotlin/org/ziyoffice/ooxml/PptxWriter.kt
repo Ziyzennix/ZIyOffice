@@ -9,6 +9,9 @@ import java.util.zip.ZipOutputStream
 import org.ziyoffice.model.Slide
 import org.ziyoffice.model.SlideDeck
 import org.ziyoffice.model.SlideTransition
+import org.ziyoffice.model.SlideImage
+import org.ziyoffice.model.SlideShape
+import org.ziyoffice.model.SlideShapeKind
 
 /**
  * Writes a [SlideDeck] back into a .pptx package.
@@ -33,11 +36,39 @@ class PptxWriter {
         val kept = deck.slides.map { slide ->
             val requested = "ppt/slides/slide${slide.number}.xml"
             val part = if (requested in existing) requested else "ppt/slides/slide${nextPart++}.xml"
+            val original = parts[part]
+            val slideRels = parts[relsNameOf(part)]?.let { parseRels(it) } ?: emptyList()
+            // A picture the file already has is left where it is. Only the
+            // ones that are new are added, so a save does not double them.
+            val alreadyThere = picturePartsOf(original?.decodeToString().orEmpty(), slideRels)
+            val newImages = slide.images.filterNot { it.partName in alreadyThere }
+            val relIds = mutableMapOf<String, String>()
+            val relsXml = parts[relsNameOf(part)]?.decodeToString()
+            var nextRel = nextRelationshipNumber(relsXml)
+            newImages.forEach { image ->
+                val part2 = if (image.partName.isEmpty()) {
+                    "ppt/media/image${nextPart}.${imageExtension(image.bytes)}"
+                } else {
+                    image.partName
+                }
+                parts[part2] = image.bytes
+                val relId = "rId$nextRel"
+                relIds[part2] = relId
+                parts[relsNameOf(part)] = (addImageRelationship(relsXml, relId, part2)
+                    ?: relsXml.orEmpty()).encodeToByteArray()
+                nextRel++
+            }
+            val withImages = newImages.map { image ->
+                val part2 = relIds.keys.firstOrNull { it.endsWith(image.partName) } ?: image.partName
+                image.copy(partName = part2)
+            }
             parts[part] = parts[part]?.let {
                 val text = rewriteSlideText(it.decodeToString(), slide.lines)
-                applyTransition(text, slide.transition).encodeToByteArray()
+                val withShapes = addShapes(text, slide.shapes, withImages, relIds)
+                applyTransition(withShapes, slide.transition).encodeToByteArray()
             }
-                ?: newSlideXml(slide.lines, slide.transition).encodeToByteArray()
+                ?: newSlideXml(slide.lines, slide.transition, slide.shapes, withImages, relIds)
+                    .encodeToByteArray()
             notesPartOf(part, parts)?.let { notes ->
                 parts[notes] = rewriteSlideText(parts.getValue(notes).decodeToString(), slide.notes.split('\n')).encodeToByteArray()
             }
@@ -79,12 +110,57 @@ class PptxWriter {
         parts["ppt/notesMasters/_rels/notesMaster1.xml.rels"] = notesMasterRels().encodeToByteArray()
         slides.forEachIndexed { index, slide ->
             val number = index + 1
-            parts["ppt/slides/slide$number.xml"] = newSlideXml(slide.lines, slide.transition).encodeToByteArray()
-            parts["ppt/slides/_rels/slide$number.xml.rels"] = slideRels(number).encodeToByteArray()
+            val relIds = mutableMapOf<String, String>()
+            slide.images.forEachIndexed { imageIndex, image ->
+                val part = "ppt/media/image${number}_${imageIndex + 1}.${imageExtension(image.bytes)}"
+                parts[part] = image.bytes
+                relIds[part] = "rId${imageIndex + 1}"
+            }
+            parts["ppt/slides/slide$number.xml"] = newSlideXml(
+                slide.lines,
+                slide.transition,
+                slide.shapes,
+                slide.images.mapIndexed { imageIndex, image ->
+                    val part = "ppt/media/image${number}_${imageIndex + 1}.${imageExtension(image.bytes)}"
+                    image.copy(partName = part)
+                },
+                relIds,
+            ).encodeToByteArray()
+            parts["ppt/slides/_rels/slide$number.xml.rels"] = slideRels(number, relIds).encodeToByteArray()
             parts["ppt/notesSlides/notesSlide$number.xml"] = notesXml(slide.notes).encodeToByteArray()
             parts["ppt/notesSlides/_rels/notesSlide$number.xml.rels"] = notesRels(number).encodeToByteArray()
         }
         return zip(parts)
+    }
+
+    /**
+     * The relationships of a slide.
+     *
+     * A slide points at its layout and at its notes, and at one part for
+     * each picture on it.
+     */
+    private fun slideRels(number: Int, imageRelIds: Map<String, String> = emptyMap()): String =
+        buildString {
+            append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
+            append("<Relationships xmlns=\"$RELS_NAMESPACE\">")
+            append("<Relationship Id=\"rId1\" Type=\"$REL_BASE/slideLayout\" ")
+            append("Target=\"../slideLayouts/slideLayout1.xml\"/>")
+            append("<Relationship Id=\"rId2\" Type=\"$REL_BASE/notesSlide\" ")
+            append("Target=\"../notesSlides/notesSlide$number.xml\"/>")
+            imageRelIds.forEach { (part, relId) ->
+                append("<Relationship Id=\"$relId\" Type=\"$REL_BASE/image\" ")
+                append("Target=\"${part.removePrefix("ppt/")}\"/>")
+            }
+            append("</Relationships>")
+        }
+
+    /** The kind of picture the bytes hold. */
+    internal fun imageExtension(bytes: ByteArray): String = when {
+        bytes.size > 8 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() -> "png"
+        bytes.size > 2 && bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "jpeg"
+        bytes.size > 2 && bytes[0] == 'G'.code.toByte() && bytes[1] == 'I'.code.toByte() -> "gif"
+        bytes.size > 2 && bytes[0] == 'B'.code.toByte() && bytes[1] == 'M'.code.toByte() -> "bmp"
+        else -> "bin"
     }
 
     /** Replaces paragraph text, appends extra lines and keeps the tail paragraphs. */
@@ -259,7 +335,13 @@ class PptxWriter {
         ZipOutputStream(out).use { zip -> parts.forEach { (name, bytes) -> zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry() } }
     }.toByteArray()
 
-    private fun newSlideXml(lines: List<String>, transition: SlideTransition = SlideTransition.NONE): String {
+    private fun newSlideXml(
+        lines: List<String>,
+        transition: SlideTransition = SlideTransition.NONE,
+        shapes: List<SlideShape> = emptyList(),
+        images: List<SlideImage> = emptyList(),
+        imageRelIds: Map<String, String> = emptyMap(),
+    ): String {
         val bodyLines = lines.drop(1)
         val body = bodyLines.joinToString("") { paragraphXml(it) }
         val title = lines.firstOrNull().orEmpty()
@@ -270,8 +352,62 @@ class PptxWriter {
         }
         val xml = SLIDE_XML.replace("<a:p><a:r><a:rPr lang=\"en-US\"/><a:t>{{TITLE}}</a:t></a:r></a:p>", titleParagraph)
             .replace("{{BODY}}", body.ifEmpty { "<a:p><a:endParaRPr lang=\"en-US\"/></a:p>" })
-        return applyTransition(xml, transition)
+        val withShapes = addShapes(xml, shapes, images, imageRelIds)
+        return applyTransition(withShapes, transition)
     }
+
+    /**
+     * Puts the shapes and the pictures into the slide's shape tree.
+     *
+     * They go at the end of the tree, so they sit on top of whatever the
+     * slide already had.
+     */
+    internal fun addShapes(
+        xml: String,
+        shapes: List<SlideShape>,
+        images: List<SlideImage>,
+        imageRelIds: Map<String, String>,
+    ): String {
+        if (shapes.isEmpty() && images.isEmpty()) return xml
+        val builder = StringBuilder()
+        shapes.forEachIndexed { index, shape ->
+            builder.append(shapeXml(shape, 100 + index))
+        }
+        images.forEachIndexed { index, image ->
+            val relId = imageRelIds[image.partName] ?: return@forEachIndexed
+            builder.append(imageXml(image, relId, 200 + index))
+        }
+        val closeAt = xml.lastIndexOf("</p:spTree>")
+        if (closeAt < 0) return xml
+        return xml.substring(0, closeAt) + builder + xml.substring(closeAt)
+    }
+
+    /** A shape, as the format writes it. */
+    private fun shapeXml(shape: SlideShape, id: Int): String {
+        val preset = when (shape.kind) {
+            SlideShapeKind.RECTANGLE -> "rect"
+            SlideShapeKind.ROUNDED_RECTANGLE -> "roundRect"
+            SlideShapeKind.ELLIPSE -> "ellipse"
+        }
+        val fill = shape.fillRgb?.let {
+            "<a:solidFill><a:srgbClr val=\"%06X\"/></a:solidFill>".format(it and 0xFFFFFF)
+        }.orEmpty()
+        val name = escape(shape.name ?: "Shape $id")
+        return "<p:sp><p:nvSpPr><p:cNvPr id=\"$id\" name=\"$name\"/><p:cNvSpPr/><p:nvPr/>" +
+            "</p:nvSpPr><p:spPr><a:xfrm><a:off x=\"${shape.xEmu}\" y=\"${shape.yEmu}\"/>" +
+            "<a:ext cx=\"${shape.widthEmu}\" cy=\"${shape.heightEmu}\"/></a:xfrm>" +
+            "<a:prstGeom prst=\"$preset\"><a:avLst/></a:prstGeom>$fill</p:spPr>" +
+            "<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang=\"en-US\"/></a:p></p:txBody></p:sp>"
+    }
+
+    /** A picture, as the format writes it. */
+    private fun imageXml(image: SlideImage, relId: String, id: Int): String =
+        "<p:pic><p:nvPicPr><p:cNvPr id=\"$id\" name=\"Picture $id\"/>" +
+            "<p:cNvPicPr><a:picLocks noChangeAspect=\"1\"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>" +
+            "<p:blipFill><a:blip r:embed=\"$relId\"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>" +
+            "<p:spPr><a:xfrm><a:off x=\"${image.xEmu}\" y=\"${image.yEmu}\"/>" +
+            "<a:ext cx=\"${image.widthEmu}\" cy=\"${image.heightEmu}\"/></a:xfrm>" +
+            "<a:prstGeom prst=\"rect\"><a:avLst/></a:prstGeom></p:spPr></p:pic>"
 
     /**
      * Puts the transition into a slide, or takes it out.
@@ -326,7 +462,38 @@ class PptxWriter {
         }
         return """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notes xmlns:a="$DRAWINGML_NAMESPACE" xmlns:r="$REL_BASE" xmlns:p="$PRESENTATIONML_NAMESPACE"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/><p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Body"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>$paragraphs</p:txBody></p:sp></p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>"""
     }
-    private fun slideRels(n: Int) = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="$RELS_NAMESPACE"><Relationship Id="rId1" Type="$REL_BASE/slideLayout" Target="../slideLayouts/slideLayout1.xml"/><Relationship Id="rId2" Type="$REL_BASE/notesSlide" Target="../notesSlides/notesSlide$n.xml"/></Relationships>"""
+    /** The pictures a slide already has, by the part they point at. */
+    private fun picturePartsOf(slideXml: String, rels: List<Relationship>): Set<String> {
+        val byId = rels.associate { it.id to resolvePart(it.target) }
+        val found = mutableSetOf<String>()
+        Regex("""r:embed="(rId\d+)"""").findAll(slideXml).forEach { match ->
+            byId[match.groupValues[1]]?.let { found += it }
+        }
+        return found
+    }
+
+    /** A relationship for a picture. */
+    private fun addImageRelationship(
+        relationships: String?,
+        relId: String,
+        part: String,
+    ): String? {
+        val text = relationships ?: return null
+        val relationship = "<Relationship Id=\"$relId\" " +
+            "Type=\"$REL_BASE/image\" " +
+            "Target=\"${part.removePrefix("ppt/")}\"/>"
+        return text.replace("</Relationships>", "$relationship</Relationships>")
+    }
+
+    /** The number a new relationship gets. */
+    private fun nextRelationshipNumber(relationships: String?): Int {
+        val highest = relationships?.let { text ->
+            Regex("""Id="rId(\d+)"""").findAll(text).mapNotNull { it.groupValues[1].toIntOrNull() }
+                .maxOrNull()
+        } ?: 0
+        return highest + 1
+    }
+
     private fun notesRels(n: Int) = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="$RELS_NAMESPACE"><Relationship Id="rId1" Type="$REL_BASE/notesMaster" Target="../notesMasters/notesMaster1.xml"/><Relationship Id="rId2" Type="$REL_BASE/slide" Target="../slides/slide$n.xml"/></Relationships>"""
     private fun notesMasterRels() = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="$RELS_NAMESPACE"><Relationship Id="rId1" Type="$REL_BASE/theme" Target="../theme/theme1.xml"/></Relationships>"""
     private fun notesMasterXml() = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:notesMaster xmlns:a="$DRAWINGML_NAMESPACE" xmlns:r="$REL_BASE" xmlns:p="$PRESENTATIONML_NAMESPACE"><p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld><p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/><p:notesStyle><a:lvl1pPr><a:defRPr lang="en-US"/></a:lvl1pPr></p:notesStyle></p:notesMaster>"""

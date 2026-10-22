@@ -96,7 +96,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Open/edit/save `.pptx` text (preserve other package parts) | yes | | done |
 | Slide strip + text editing | yes | Editing a slide's text keeps the layout, the images, the animations and the rest of the package | done |
 | Print via the system print service | yes | | done |
-| Shape/image editing on slides | yes | | planned. Text edits preserve other parts |
+| Shape/image editing on slides | yes | Put a picture or a shape on a slide, and read the ones a file already had; the picture keeps its own bytes, so a save puts the same picture back | done |
 | Present mode + speaker notes | yes | | done |
 | Transitions / animations | yes | A transition per slide, kept by a save | done |
 

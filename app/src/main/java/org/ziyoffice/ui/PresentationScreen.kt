@@ -87,6 +87,22 @@ import org.ziyoffice.model.SlideTransition
 import org.ziyoffice.model.withTransition
 import org.ziyoffice.ooxml.PptxReader
 import org.ziyoffice.ooxml.PptxWriter
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.Image
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.activity.result.PickVisualMediaRequest
+import org.ziyoffice.model.SlideImage
+import org.ziyoffice.model.SlideShape
+import org.ziyoffice.model.SlideShapeKind
+import org.ziyoffice.model.withImage
+import org.ziyoffice.model.withShape
 
 /**
  * Presentation editor: a slide strip, a text editor for the selected slide and
@@ -116,6 +132,45 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
     var slideIndex by remember(file.uri) { mutableStateOf(0) }
     var showExitDialog by remember(file.uri) { mutableStateOf(false) }
     var loadError by remember(file.uri) { mutableStateOf<String?>(null) }
+
+    /**
+     * Puts a picture on the slide.
+     *
+     * The picture keeps the bytes it was picked with, so a save puts the
+     * same picture into the file rather than a copy of it.
+     */
+    val pictureLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                }.getOrNull()
+            }
+            if (bytes == null || bytes.isEmpty()) {
+                snackbar.showSnackbar("Couldn't read that picture")
+                return@launch
+            }
+            val width = deck?.widthEmu ?: 0
+            val height = deck?.heightEmu ?: 0
+            val size = minOf(width, height) / 3
+            deck = deck?.withImage(
+                slideIndex,
+                SlideImage(
+                    partName = "",
+                    bytes = bytes,
+                    xEmu = (width - size) / 2,
+                    yEmu = (height - size) / 2,
+                    widthEmu = size,
+                    heightEmu = size,
+                ),
+            )
+            dirty = true
+            writeVersion++
+        }
+    }
 
     /**
      * The name the SAF provider reports for [uri], so export messages can name
@@ -422,6 +477,37 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("Add picture\u2026") },
+                                onClick = {
+                                    moreMenuOpen = false
+                                    pictureLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                    )
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Add shape") },
+                                onClick = {
+                                    moreMenuOpen = false
+                                    val slide = deck?.slides?.getOrNull(slideIndex) ?: return@DropdownMenuItem
+                                    val width = deck?.widthEmu ?: 0
+                                    val height = deck?.heightEmu ?: 0
+                                    deck = deck?.withShape(
+                                        slideIndex,
+                                        SlideShape(
+                                            kind = SlideShapeKind.RECTANGLE,
+                                            xEmu = width / 4,
+                                            yEmu = height / 4,
+                                            widthEmu = width / 2,
+                                            heightEmu = height / 3,
+                                            fillRgb = 0xFF3366CC.toInt(),
+                                        ),
+                                    )
+                                    dirty = true
+                                    writeVersion++
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Transition") },
                                 enabled = current?.slides?.isNotEmpty() == true,
                                 onClick = {
@@ -701,6 +787,65 @@ private fun SlideEditor(
  * Full-screen present mode. Tap to advance, tap past the last slide to leave.
  * The bottom bar carries page controls, a notes toggle and an exit button.
  */
+/**
+ * The pictures and the shapes of a slide, drawn where the file puts them.
+ *
+ * The slide's own size is in EMU, so the positions are worked out against
+ * it and the whole thing is scaled to whatever room there is.
+ */
+@Composable
+private fun SlideObjects(
+    slide: org.ziyoffice.model.Slide,
+    widthEmu: Int,
+    heightEmu: Int,
+    modifier: Modifier = Modifier,
+) {
+    if (slide.shapes.isEmpty() && slide.images.isEmpty()) return
+    if (widthEmu <= 0 || heightEmu <= 0) return
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .aspectRatio(widthEmu.toFloat() / heightEmu.toFloat()),
+    ) {
+        val scaleX = maxWidth / widthEmu.toFloat()
+        val scaleY = maxHeight / heightEmu.toFloat()
+        Canvas(Modifier.fillMaxSize()) {
+            slide.shapes.forEach { shape ->
+                val colour = shape.fillRgb?.let { Color(it) } ?: Color(0x33666666)
+                drawRect(
+                    color = colour,
+                    topLeft = Offset(
+                        shape.xEmu * scaleX.toPx(),
+                        shape.yEmu * scaleY.toPx(),
+                    ),
+                    size = Size(
+                        shape.widthEmu * scaleX.toPx(),
+                        shape.heightEmu * scaleY.toPx(),
+                    ),
+                )
+            }
+        }
+        slide.images.forEach { image ->
+            val bitmap = remember(image.bytes) { decodeImage(image.bytes) }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .offset(
+                            x = scaleX * image.xEmu.toFloat(),
+                            y = scaleY * image.yEmu.toFloat(),
+                        )
+                        .size(
+                            width = scaleX * image.widthEmu.toFloat(),
+                            height = scaleY * image.heightEmu.toFloat(),
+                        ),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun PresentingOverlay(
     deck: SlideDeck,
@@ -723,6 +868,15 @@ private fun PresentingOverlay(
         color = MaterialTheme.colorScheme.surface,
     ) {
         Box(Modifier.fillMaxSize().padding(32.dp)) {
+            // The pictures and the shapes sit where the file puts them.
+            if (slide != null) {
+                SlideObjects(
+                    slide = slide,
+                    widthEmu = deck.widthEmu,
+                    heightEmu = deck.heightEmu,
+                    modifier = Modifier.align(Alignment.Center),
+                )
+            }
             Column(
                 modifier = Modifier.align(Alignment.Center),
                 verticalArrangement = Arrangement.spacedBy(24.dp),

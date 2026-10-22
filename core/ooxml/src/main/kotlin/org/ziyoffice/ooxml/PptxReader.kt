@@ -8,6 +8,9 @@ import org.xmlpull.v1.XmlPullParserFactory
 import org.ziyoffice.model.Slide
 import org.ziyoffice.model.SlideDeck
 import org.ziyoffice.model.SlideTransition
+import org.ziyoffice.model.SlideImage
+import org.ziyoffice.model.SlideShape
+import org.ziyoffice.model.SlideShapeKind
 
 /** The PresentationML namespace, as defined by ECMA-376 / ISO 29500. */
 const val PRESENTATIONML_NAMESPACE =
@@ -55,7 +58,15 @@ class PptxReader(
             val lines = parseTextLines(parts[partName] ?: ByteArray(0))
             val notes = notesFor(partName, parts)?.let(::parseNotesText).orEmpty()
             val transition = parseTransition(parts[partName]?.decodeToString().orEmpty())
-            Slide(number = index, lines = lines, notes = notes, transition = transition)
+            val objects = parseSlideObjects(parts[partName] ?: ByteArray(0), parts, partName)
+            Slide(
+                number = index,
+                lines = lines,
+                notes = notes,
+                transition = transition,
+                images = objects.first,
+                shapes = objects.second,
+            )
         }
         return SlideDeck(
             slides = slides,
@@ -73,7 +84,8 @@ class PptxReader(
                 if (entry.name in WANTED_PARTS ||
                     entry.name.startsWith(SLIDES_PREFIX) ||
                     entry.name.startsWith(NOTES_PREFIX) ||
-                    entry.name.startsWith(SLIDE_RELS_PREFIX)
+                    entry.name.startsWith(SLIDE_RELS_PREFIX) ||
+                    entry.name.startsWith(MEDIA_PREFIX)
                 ) {
                     val bytes = zip.readBytes()
                     total += bytes.size
@@ -253,6 +265,132 @@ class PptxReader(
     }
 
     /**
+     * The pictures and the shapes on a slide.
+     *
+     * A picture points at a part of the package through a relationship of
+     * the slide's own. A shape that fills a placeholder is left out: it is
+     * the slide's text, and the text is read on its own.
+     */
+    private fun parseSlideObjects(
+        bytes: ByteArray,
+        parts: Map<String, ByteArray>,
+        slidePart: String,
+    ): Pair<List<SlideImage>, List<SlideShape>> {
+        val rels = parts[relsNameOf(slidePart)]?.let { parseRelationships(it) }.orEmpty()
+        val parser = newParser()
+        parser.setInput(ByteArrayInputStream(bytes), null)
+
+        val images = mutableListOf<SlideImage>()
+        val shapes = mutableListOf<SlideShape>()
+        var inPicture = false
+        var inShape = false
+        var isPlaceholder = false
+        var inSolidFill = false
+        var relId: String? = null
+        var name: String? = null
+        var preset: String? = null
+        var fill: String? = null
+        var x = 0
+        var y = 0
+        var cx = 0
+        var cy = 0
+
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG) {
+                when (parser.name) {
+                    "pic" -> {
+                        inPicture = true
+                        relId = null
+                        x = 0; y = 0; cx = 0; cy = 0
+                    }
+                    "sp" -> {
+                        inShape = true
+                        isPlaceholder = false
+                        name = null
+                        preset = null
+                        fill = null
+                        x = 0; y = 0; cx = 0; cy = 0
+                    }
+                    "ph" -> if (inShape) isPlaceholder = true
+                    "cNvPr" -> if (inShape || inPicture) {
+                        name = parser.getAttributeValue(null, "name")
+                    }
+                    "blip" -> if (inPicture) {
+                        relId = parser.getAttributeValue(null, "embed")
+                    }
+                    "off" -> {
+                        x = parser.getAttributeValue(null, "x")?.toIntOrNull() ?: x
+                        y = parser.getAttributeValue(null, "y")?.toIntOrNull() ?: y
+                    }
+                    "ext" -> {
+                        cx = parser.getAttributeValue(null, "cx")?.toIntOrNull() ?: cx
+                        cy = parser.getAttributeValue(null, "cy")?.toIntOrNull() ?: cy
+                    }
+                    "prstGeom" -> if (inShape) {
+                        preset = parser.getAttributeValue(null, "prst")
+                    }
+                    "solidFill" -> if (inShape) inSolidFill = true
+                    "srgbClr" -> if (inShape && inSolidFill) {
+                        fill = parser.getAttributeValue(null, "val")
+                    }
+                }
+            } else if (event == XmlPullParser.END_TAG) {
+                when (parser.name) {
+                    "solidFill" -> inSolidFill = false
+                    "pic" -> {
+                        if (inPicture) {
+                            val target = relId?.let { rels[it] }
+                            val bytes2 = target?.let { parts[it] }
+                            if (bytes2 != null) {
+                                images += SlideImage(
+                                    partName = target,
+                                    bytes = bytes2,
+                                    xEmu = x,
+                                    yEmu = y,
+                                    widthEmu = cx,
+                                    heightEmu = cy,
+                                )
+                            }
+                        }
+                        inPicture = false
+                    }
+                    "sp" -> {
+                        if (inShape && !isPlaceholder) {
+                            val kind = when (preset) {
+                                "roundRect" -> SlideShapeKind.ROUNDED_RECTANGLE
+                                "ellipse" -> SlideShapeKind.ELLIPSE
+                                "rect", null -> SlideShapeKind.RECTANGLE
+                                else -> null
+                            }
+                            if (kind != null) {
+                                shapes += SlideShape(
+                                    kind = kind,
+                                    xEmu = x,
+                                    yEmu = y,
+                                    widthEmu = cx,
+                                    heightEmu = cy,
+                                    fillRgb = fill?.toIntOrNull(16)?.let {
+                                        (it and 0xFFFFFF) or (0xFF shl 24)
+                                    },
+                                    name = name,
+                                )
+                            }
+                        }
+                        inShape = false
+                    }
+                }
+            }
+            event = parser.next()
+        }
+        return images to shapes
+    }
+
+    /** The name of the part that holds the relationships of [partName]. */
+    private fun relsNameOf(partName: String): String =
+        partName.substringBeforeLast('/') + "/_rels/" + partName.substringAfterLast('/') + ".rels"
+
+    /**
      * The transition of a slide.
      *
      * The element names itself: `<p:fade/>` is a fade, `<p:wipe dir="d"/>` is
@@ -295,6 +433,7 @@ class PptxReader(
         const val SLIDE_RELS_PREFIX = "ppt/slides/_rels/"
         const val NOTES_PREFIX = "ppt/notesSlides/"
         val WANTED_PARTS = setOf(PRESENTATION_PART, PRESENTATION_RELS_PART)
+        const val MEDIA_PREFIX = "ppt/media/"
 
         /** Same 128 MB ceiling the docx reader applies. */
         const val MAX_TOTAL_BYTES = 128L * 1024 * 1024

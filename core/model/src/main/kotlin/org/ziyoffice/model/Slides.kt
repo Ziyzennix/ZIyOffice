@@ -41,9 +41,84 @@ data class Slide(
     val notes: String = "",
     /** How the slide gives way to the next one. */
     val transition: SlideTransition = SlideTransition.NONE,
+    /** The pictures on the slide. */
+    val images: List<SlideImage> = emptyList(),
+    /** The shapes on the slide. */
+    val shapes: List<SlideShape> = emptyList(),
 ) {
     val title: String get() = lines.firstOrNull().orEmpty()
     val body: List<String> get() = lines.drop(1)
+}
+
+/**
+ * A picture on a slide.
+ *
+ * The bytes stay as they are, in the part the file keeps them in, so a save
+ * puts the same picture back rather than a new copy of it.
+ */
+class SlideImage(
+    /** The part the picture's bytes live in, e.g. "ppt/media/image1.png". */
+    val partName: String,
+    val bytes: ByteArray,
+    /** Where the picture sits, in EMU. */
+    val xEmu: Int,
+    val yEmu: Int,
+    /** How wide the picture is, in EMU. */
+    val widthEmu: Int,
+    /** How tall the picture is, in EMU. */
+    val heightEmu: Int,
+) {
+    override fun equals(other: Any?): Boolean =
+        other is SlideImage &&
+            partName == other.partName &&
+            bytes.contentEquals(other.bytes) &&
+            xEmu == other.xEmu &&
+            yEmu == other.yEmu &&
+            widthEmu == other.widthEmu &&
+            heightEmu == other.heightEmu
+
+    override fun hashCode(): Int {
+        var result = partName.hashCode()
+        result = 31 * result + bytes.contentHashCode()
+        result = 31 * result + xEmu
+        result = 31 * result + yEmu
+        result = 31 * result + widthEmu
+        result = 31 * result + heightEmu
+        return result
+    }
+
+    /** The same picture, with [partName] changed. */
+    fun copy(partName: String = this.partName): SlideImage =
+        SlideImage(partName, bytes, xEmu, yEmu, widthEmu, heightEmu)
+}
+
+/** A shape on a slide. */
+data class SlideShape(
+    /** What the shape looks like. */
+    val kind: SlideShapeKind,
+    /** Where the shape sits, in EMU. */
+    val xEmu: Int,
+    val yEmu: Int,
+    /** How wide the shape is, in EMU. */
+    val widthEmu: Int,
+    /** How tall the shape is, in EMU. */
+    val heightEmu: Int,
+    /** The colour of the shape, 0xRRGGBB; null when it has no fill. */
+    val fillRgb: Int? = null,
+    /**
+     * The name the file gave the shape.
+     *
+     * A shape the file already had keeps its name, so a save knows it is the
+     * same shape and leaves it alone.
+     */
+    val name: String? = null,
+)
+
+/** The shapes ZiyOffice draws. */
+enum class SlideShapeKind {
+    RECTANGLE,
+    ROUNDED_RECTANGLE,
+    ELLIPSE,
 }
 
 /**
@@ -115,5 +190,21 @@ fun SlideDeck.withTransition(index: Int, transition: SlideTransition): SlideDeck
     if (index !in slides.indices) return this
     val updated = slides.toMutableList()
     updated[index] = updated[index].copy(transition = transition)
+    return copy(slides = updated)
+}
+
+/** The deck with [image] on the slide at [index]. */
+fun SlideDeck.withImage(index: Int, image: SlideImage): SlideDeck {
+    if (index !in slides.indices) return this
+    val updated = slides.toMutableList()
+    updated[index] = updated[index].copy(images = updated[index].images + image)
+    return copy(slides = updated)
+}
+
+/** The deck with [shape] on the slide at [index]. */
+fun SlideDeck.withShape(index: Int, shape: SlideShape): SlideDeck {
+    if (index !in slides.indices) return this
+    val updated = slides.toMutableList()
+    updated[index] = updated[index].copy(shapes = updated[index].shapes + shape)
     return copy(slides = updated)
 }

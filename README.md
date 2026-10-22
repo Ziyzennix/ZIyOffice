@@ -47,9 +47,8 @@ file has been written *and* read back.
   sorting by one column or two, named ranges, merged cells, column widths and row heights,
   cell borders, dropdown lists, inserting and deleting rows and columns, find and replace,
   copy and paste, charts, CSV.
-- **Slides**: slide text, adding/deleting/reordering slides, speaker notes, a transition per
-  slide, a present mode, PDF export. Images and shapes survive an edit but can't be edited
-  yet.
+- **Slides**: slide text, adding/deleting/reordering slides, pictures and shapes, speaker
+  notes, a transition per slide, a present mode, PDF export.
 - **PDF**: fill in the forms a file already has, highlight, ink, notes, a drawn signature,
   text stamped on a page, page numbers, rotate, reorder, delete, merge, split, and redaction
   that removes the content underneath instead of covering it.
