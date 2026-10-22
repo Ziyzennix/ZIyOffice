@@ -1,18 +1,8 @@
 # ZiyOffice feature matrix vs WPS Office
 
-A checklist that gets updated as things land. `Status` values: `done` · `in progress` ·
-`planned` · `—` (not planned yet). Only mark `done` what a user can actually do on a phone
-today.
+A checklist that gets updated as things land. Status values: `done`, `in progress`, `planned`, `not planned`. Only mark `done` what a user can actually do on a phone today.
 
-**Content preservation.** Saving writes the edited parts back into the package the file came
-from instead of building a new one from ZiyOffice's own model. A paragraph the user didn't
-touch comes out of a save byte for byte. A paragraph they did touch keeps its properties, its
-hyperlinks, its comment anchors and its drawings, and only the text and the formatting they
-changed get rewritten. Everything the editor can't edit (comments, footnotes, tracked
-changes, equations, text boxes, section breaks, charts, pivot tables, conditional formatting,
-filters, hidden rows and columns) stays in the file exactly as it was. The editors list that
-content when you open the file; nothing gets removed by a save. See the per-format rows
-below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced contract.
+Content preservation: Saving writes the edited parts back into the package the file came from instead of building a new one from ZiyOffice's own model. A paragraph the user did not touch comes out of a save byte for byte. A paragraph they did touch keeps its properties, hyperlinks, comment anchors, and drawings, and only the text and formatting they changed get rewritten. Everything the editor cannot edit (comments, footnotes, tracked changes, equations, text boxes, section breaks, charts, pivot tables, conditional formatting, filters, hidden rows and columns) stays in the file exactly as it was. The editors list that content when you open the file. Nothing gets removed by a save. See `DocxPreservationTest` and `XlsxPreservationTest` for the enforced contract.
 
 ## Foundations (M0)
 
@@ -21,100 +11,139 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Opens documents from user folders (SAF) | yes | yes | done |
 | Opens from another app ("Open with" / "Share to") | yes | yes | done |
 | Recent files list, local only | yes | yes | done |
-| **No system permissions** | no (dozens) | **yes** | done |
-| **No ads / no subscription** | no | **yes** | done |
-| **No account required** | no | **yes** | done |
-| **Can't use the network at all** | no | **yes** | done |
+| No system permissions | no (dozens) | yes | done |
+| No ads / no subscription | no | yes | done |
+| No account required | no | yes | done |
+| Can't use the network at all | no | yes | done |
 | Dark mode | yes | yes | done |
 | Home screen, Settings, About (privacy receipt) | yes | yes | done |
 | Save-safety: unsaved-edit prompt, crash recovery draft | yes | yes | done |
 | Accessible controls (TalkBack labels/state, 48 dp targets) | partial | yes | done |
 
-## Documents — M1
+## Documents (M1)
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
-| Open/edit/save `.docx` | yes | | done |
-| Bold/italic/underline/strike, colors, sizes | yes | | done |
-| Headings, lists, alignment, line spacing | yes | | done |
-| Paragraph indent and spacing | yes | Increase or decrease the indent and set tight, normal or relaxed spacing; both survive a save | done |
-| Images (insert/resize) | yes | | done |
-| Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn and kept by a save | done |
-| Find & replace | yes | Find the next match, replace one match or replace all; a formula is searched through the text it quotes, never through its references | done |
-| Copy and paste cells | yes | Copy a range as tab-separated text and paste it anywhere, including into another app; a copied formula stays a formula | done |
-| Undo/redo, word count | yes | | done |
-| Autosave + crash recovery | yes | | done |
-| Export to PDF (matches screen exactly) | yes | | done |
-| Print via the system print service | yes | | done |
-| Page numbers | yes | Put a page number in the footer; it is a real field, so the word processor fills it in for every page | done |
-| Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. First-page and even-page variants are kept as they are but can't be edited | done |
-| Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Kept as they are by a save, so the file stays complete, but not editable here (listed on open) | — |
-| Equations, SmartArt | partial | | — |
-| Mail merge | yes | | — |
+| Open/edit/save `.docx` | yes | yes | done |
+| Bold/italic/underline/strike, colors, sizes | yes | yes | done |
+| Headings, lists, alignment, line spacing | yes | yes | done |
+| Paragraph indent and spacing | yes | Increase or decrease indent, set tight, normal, or relaxed spacing; survives a save | done |
+| Images (insert/resize) | yes | yes | done |
+| Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn, and kept by a save | done |
+| Find and replace | yes | Find next match, replace one, or replace all; search skips raw formula references | done |
+| Copy and paste cells | yes | Copy range as tab-separated text; copied formula stays a formula | done |
+| Undo/redo, word count | yes | yes | done |
+| Autosave and crash recovery | yes | yes | done |
+| Export to PDF (matches screen exactly) | yes | yes | done |
+| Print via the system print service | yes | yes | done |
+| Page numbers | yes | Real page number footer field, filled per page | done |
+| Headers and footers | yes | Shown above and below body, edited in place, kept on save | done |
+| Mobile reflow reading mode | yes | Text wraps to phone width without horizontal scrolling | planned |
+| Page setup (margins, orientation, paper size) | yes | Margin presets, portrait/landscape toggle, standard paper sizes | planned |
+| Superscript and subscript | yes | Character baseline shift controls | planned |
+| Footnotes and endnotes | yes | Kept as they are by save; editing and inserting planned | planned |
+| Comments and track changes review | yes | Kept on save; panel to read, reply, and resolve planned | planned |
+| Equations, SmartArt | partial | Kept byte for byte on save, not editable | not planned |
+| Mail merge | yes | Kept byte for byte on save | not planned |
 
-## Sheets — M2
-
-| Feature | WPS | ZiyOffice | Status |
-|---|---|---|---|
-| Open/edit/save `.xlsx`, CSV import/export | yes | | done |
-| Grid with touch + keyboard editing | yes | | done |
-| Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | About 70 functions: aggregates, maths, text, logic, conditional counting, lookup, statistics, dates and information tests | done |
-| Number/date formatting | yes | | done |
-| Freeze panes, sorting | yes | Sort by one column or by two, the second breaking the ties | done |
-| Named ranges | yes | Give a range a name and use it in a formula; read and write `.xlsx` defined names | done |
-| Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |
-| Column widths and row heights | yes | Resize the selected columns or rows; read and write `.xlsx` `<col>` widths and row `ht` | done |
-| Cell borders | yes | Draw the top, bottom, left or right edge, every edge or a box around the selection; read and write `.xlsx` border styles | done |
-| Dropdown lists in cells | yes | Give a range a list of choices and pick one with a tap; a plain list survives a save, a rule that points at another range is warned about | done |
-| Insert and delete rows and columns | yes | Insert above/below or left/right and delete from the selected range; cells, merged ranges, sizes, the freeze line and formula references follow the edit, and a deleted reference becomes `#REF!` | done |
-| Charts (bar, from a column) | yes | | done |
-| Cell notes | yes | Pin a note to a cell and read it back; written the way a spreadsheet program expects, and a spreadsheet program reads it | done |
-| Export to PDF (paginated, header row repeated) | yes | Merged titles span their columns; custom widths, heights, fills, borders and alignment are honoured | done |
-| Print via the system print service | yes | | done |
-| Content a save keeps but can't edit (charts, images, pivot tables, conditional formatting, filters, protection, hidden rows/columns) | no | Kept as they are by a save; listed on open | done |
-| Pivot tables | yes | | — |
-| Macros | yes | | — |
-
-## PDF — M3
+## Sheets (M2)
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
-| Viewer (page render, page list) | yes | | done |
-| Annotate (highlight, ink, notes) | yes | | done |
-| Merge / split / rotate / reorder | yes (paid) | | done |
-| Page labels and text stamps | yes | Stamp text on a page, and number the pages of a saved or printed copy | done |
-| Fill forms | yes (paid) | Fill the text boxes, tick the boxes and pick from the lists, and save the filled document. The answers go into the file's own fields, so the copy keeps the fonts, the images and the layout | done |
-| Digital signature (handwritten ink, drawn not cryptographic) | yes (paid) | | done |
-| True redaction (content removed, not black boxes) | partial (paid) | | done |
-| Export progress + cancel, output verified non-empty and `%PDF` | no | | done |
-| Marks rotate with their page; mark list with remove | no | | done |
-| Print via the system print service (current page order, marks baked in) | yes | | done |
+| Open/edit/save `.xlsx`, CSV import/export | yes | yes | done |
+| Grid with touch and keyboard editing | yes | yes | done |
+| Formula engine (SUM, IF, VLOOKUP, and ~70 functions) | yes | Aggregates, maths, text, logic, conditional counting, lookup, statistics, dates | done |
+| Number/date formatting | yes | Standard numeric and date formatting | done |
+| Freeze panes, sorting | yes | Sort by one column or two columns with tie-breaking | done |
+| Named ranges | yes | Defined names read, written, and usable in formulas | done |
+| Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx` | done |
+| Column widths and row heights | yes | Resizes selected columns or rows; reads and writes `<col>` widths and row `ht` | done |
+| Cell borders | yes | Top, bottom, left, right, all edges, box borders | done |
+| Dropdown lists in cells | yes | Range choices with tap selection; plain lists survive a save | done |
+| Insert and delete rows and columns | yes | Adjusts cells, merged ranges, sizes, freeze lines, and formula references | done |
+| Charts (bar chart from a column) | yes | yes | done |
+| Cell notes | yes | Pin notes to cells; compatible with standard spreadsheet tools | done |
+| Export to PDF (paginated, header row repeated) | yes | Custom widths, heights, fills, borders, and alignments honoured | done |
+| Print via the system print service | yes | yes | done |
+| Content kept intact on save (charts, images, pivot tables, filters) | no | Kept as they are by save; listed on open | done |
+| Multi-sheet workbook tabs | yes | Add, delete, rename, reorder, duplicate sheets | planned |
+| AutoFilter dropdowns on column headers | yes | Filter by value or text criteria | planned |
+| Text wrap in cells (`wrap_text`) | yes | Multi-line cell text wrapping toggle | planned |
+| Extended number format picker | yes | Explicit currency, accounting, percentage decimal places, scientific | planned |
+| Line and pie charts | yes | Plot line trends and circular proportions from selected ranges | planned |
+| Pivot tables | yes | Kept intact on save | not planned |
+| Macros / VBA | yes | Kept intact on save | not planned |
 
-## Slides — M4
+## PDF Viewer and Editor (M3)
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
-| Open/edit/save `.pptx` text (preserve other package parts) | yes | | done |
-| Slide strip + text editing | yes | Editing a slide's text keeps the layout, the images, the animations and the rest of the package | done |
-| Print via the system print service | yes | | done |
-| Shape/image editing on slides | yes | Put a picture or a shape on a slide, and read the ones a file already had; the picture keeps its own bytes, so a save puts the same picture back | done |
-| Present mode + speaker notes | yes | | done |
-| Transitions / animations | yes | A transition per slide, kept by a save | done |
+| Viewer (page render, page list) | yes | yes | done |
+| Annotate (highlight, ink, notes) | yes | yes | done |
+| Merge / split / rotate / reorder | yes (paid) | yes | done |
+| Page labels and text stamps | yes | Stamp text on a page, number pages on export or print | done |
+| Fill forms (AcroForms) | yes (paid) | Interactive text boxes, checkboxes, list choices written to file fields | done |
+| Digital signature | yes (paid) | Handwritten ink signature placement | done |
+| Redaction | partial (paid) | Permanent removal of underlying vector and text content | done |
+| Export progress with cancel | no | Output verified non-empty and valid `%PDF` | done |
+| Marks rotate with page; mark list with remove | no | yes | done |
+| Print via the system print service | yes | Current page order, marks baked in | done |
+| Visual page sorter | yes (paid) | Drag-and-drop page thumbnail reorder and single-page delete | planned |
+| PDF compression | yes (paid) | Compress embedded image streams and unused objects | planned |
+| Password protection and decrypt | yes (paid) | Set open password on export; unlock encrypted PDFs | planned |
+| Watermarks | yes (paid) | Add text or image watermark; remove existing watermarks | planned |
+| Direct text edit in digital PDFs | yes (paid) | Modify existing text runs in born-digital PDFs | planned |
 
-## Privacy & freedom (the "beat WPS" list). M5
+## PDF Conversions (M3.5)
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
-| Encrypted vault + biometric lock | no | A vault that keeps files encrypted on the device, names and all. The passphrase is the key and it is not kept anywhere | done |
-| Metadata scrub on share/export | no | A document ZiyOffice *creates* carries no `docProps/` at all (verified by `MetadataScrubTest`). A document it *edits* keeps the metadata it came with, because the file stays the author's own, and adds none of its own | done |
-| Offline OCR (scan → text) | cloud, limited | | planned |
-| Handwriting / ink notes | premium | | planned |
-| Templates (create from built-in templates) | yes, account-gated | | done |
-| License-safe font pack | yes, account-gated | | planned |
-| Works with radios off | no | | — (by construction) |
-| Reproducible source builds (F-Droid) | no | | planned |
+| Export DOCX, XLSX, PPTX to PDF | yes | yes | done |
+| PDF to Word (`.docx`) | yes (paid) | Offline structural text, table, and image extraction to DOCX | planned |
+| PDF to Excel (`.xlsx`) | yes (paid) | Extract detected tabular grids to structured worksheet cells | planned |
+| PDF to PowerPoint (`.pptx`) | yes (paid) | Convert pages to presentation slides | planned |
+| PDF to Images (JPG/PNG) | yes (paid) | Render pages as standalone image files | planned |
+| Image to PDF | yes (paid) | Compile one or more pictures into a standard PDF | done |
+
+## Slides (M4)
+
+| Feature | WPS | ZiyOffice | Status |
+|---|---|---|---|
+| Open/edit/save `.pptx` text | yes | Preserves other package parts byte for byte | done |
+| Slide strip and text editing | yes | Layout, images, animations kept intact | done |
+| Print via the system print service | yes | yes | done |
+| Shape and image editing on slides | yes | Insert pictures or shapes; retains original file bytes | done |
+| Present mode and speaker notes | yes | yes | done |
+| Transitions / animations | yes | Per-slide transition preserved on save | done |
+| Slide layout picker for new slides | yes | Templates for Title, Title and Content, Two Content, Blank | planned |
+| Duplicate and delete slides in UI | yes | Manage deck slides directly from the thumbnail strip | planned |
+| Slide sorter view | yes | Full-screen grid view to reorder and organize slides | planned |
+| Presenter ink and laser pointer | yes | Freehand drawing and pointer during full-screen presentation | planned |
+
+## Scanner and Camera Tools (M5)
+
+| Feature | WPS | ZiyOffice | Status |
+|---|---|---|---|
+| Offline OCR (picture to text) | cloud (limited) | Bundled Tesseract engine with English model, runs offline | done |
+| Camera document scanner | yes | Camera capture with automatic edge detection and crop | planned |
+| Perspective deskew filter | yes | Rectify skewed document photographs to flat rectangles | planned |
+| B&W document enhancement filter | yes | Remove shadows, clean background, sharpen text contrast | planned |
+| Multi-page batch scan to PDF | yes (paid) | Capture multiple photos and compile into a single PDF | planned |
+| ID Card 2-in-1 scan mode | yes (paid) | Composite front and back card photos onto a single A4 page | planned |
+| Paper to spreadsheet | yes (paid) | OCR table grid directly into an `.xlsx` workbook | planned |
+
+## Shell and Utilities (M6)
+
+| Feature | WPS | ZiyOffice | Status |
+|---|---|---|---|
+| Encrypted vault with biometric lock | no | Local AES-GCM encrypted vault, keys never leave device | done |
+| Metadata scrub on share and export | no | Strip `docProps/` on new files; preserve author's own on edit | done |
+| Built-in templates | yes (gated) | Template documents without accounts or subscriptions | done |
+| Starred / favorites document list | yes | Local favorites tab on Home screen | planned |
+| ZIP package inspector | yes | View and extract files inside archive packages | planned |
+| License-safe font pack | yes (gated) | Bundled open-source fonts for consistent rendering | planned |
+| Reproducible source builds (F-Droid) | no | Verified reproducible build setup | planned |
 
 ## Non-goals (for now)
 
-Collaboration, cloud sync, macros/VBA, pivot tables, mail merge, equation editor. Each one
-may come back later, one at a time, with a decision recorded.
+Collaboration, cloud sync, macros/VBA, pivot tables, mail merge, equation editor. Each one may come back later with an explicit architectural decision recorded.
