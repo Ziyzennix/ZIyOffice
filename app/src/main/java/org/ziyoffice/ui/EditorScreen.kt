@@ -911,6 +911,15 @@ fun EditorScreen(
             },
         )
     }
+    var showStats by remember { mutableStateOf(false) }
+    if (showStats) {
+        (previewState.value as? DocxPreview.Ready)?.let { ready ->
+            DocumentStatisticsDialog(
+                stats = computeDocumentStats(ready.document.blocks),
+                onDismiss = { showStats = false },
+            )
+        }
+    }
 
     val droppedFeatures = (preview as? DocxPreview.Ready)?.dropped.orEmpty()
     if (showLossWarning) {
@@ -1044,6 +1053,13 @@ fun EditorScreen(
                                     onClick = {
                                         menuExpanded = false
                                         saveAsLauncher.launch(file.displayName)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Word count") },
+                                    onClick = {
+                                        menuExpanded = false
+                                        showStats = true
                                     },
                                 )
                                 if (editing) {

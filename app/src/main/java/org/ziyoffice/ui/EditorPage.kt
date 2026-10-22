@@ -32,6 +32,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -127,12 +130,28 @@ internal fun DocxPage(
                     )
                 }
                 is DocxPreview.Ready -> {
-                    Text(
-                        "${countWords(preview.document.blocks)} words \u00B7 " +
-                            "${countParagraphs(preview.document.blocks)} paragraphs",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF8A8F8B),
-                    )
+                    var showStatsDialog by remember { mutableStateOf(false) }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        modifier = Modifier
+                            .clickable { showStatsDialog = true }
+                            .semantics { role = Role.Button },
+                    ) {
+                        Text(
+                            "${countWords(preview.document.blocks)} words \u00B7 " +
+                                "${countParagraphs(preview.document.blocks)} paragraphs",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                    if (showStatsDialog) {
+                        DocumentStatisticsDialog(
+                            stats = computeDocumentStats(preview.document.blocks),
+                            onDismiss = { showStatsDialog = false },
+                        )
+                    }
                     preview.document.header?.takeIf { it.isNotEmpty() }?.let { header ->
                         HeaderFooterBand(
                             label = "Header",

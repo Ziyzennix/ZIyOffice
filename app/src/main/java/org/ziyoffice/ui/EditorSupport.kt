@@ -1,5 +1,13 @@
 package org.ziyoffice.ui
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import android.net.Uri
@@ -188,18 +196,106 @@ internal fun collectImages(block: Block): List<InlineImage> = when (block) {
     }
 }
 
-internal fun countParagraphs(blocks: List<Block>): Int = blocks.sumOf { block ->
-    when (block) {
-        is Paragraph -> 1
-        is Table -> block.rows.sumOf { row -> row.cells.sumOf { cell -> countParagraphs(cell.blocks) } }
+data class DocumentStats(
+    val words: Int,
+    val charactersNoSpaces: Int,
+    val charactersWithSpaces: Int,
+    val paragraphs: Int,
+    val nonBlankParagraphs: Int,
+)
+
+internal fun computeDocumentStats(blocks: List<Block>): DocumentStats {
+    var words = 0
+    var charactersNoSpaces = 0
+    var charactersWithSpaces = 0
+    var paragraphs = 0
+    var nonBlankParagraphs = 0
+
+    fun walk(blockList: List<Block>) {
+        for (block in blockList) {
+            when (block) {
+                is Paragraph -> {
+                    paragraphs++
+                    val text = block.text()
+                    if (text.isNotBlank()) {
+                        nonBlankParagraphs++
+                    }
+                    charactersWithSpaces += text.length
+                    for (ch in text) {
+                        if (!ch.isWhitespace()) {
+                            charactersNoSpaces++
+                        }
+                    }
+                    val tokens = text.split(' ', '\n', '\t', '\r')
+                    for (token in tokens) {
+                        if (token.isNotEmpty()) {
+                            words++
+                        }
+                    }
+                }
+                is Table -> {
+                    for (row in block.rows) {
+                        for (cell in row.cells) {
+                            walk(cell.blocks)
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    walk(blocks)
+    return DocumentStats(
+        words = words,
+        charactersNoSpaces = charactersNoSpaces,
+        charactersWithSpaces = charactersWithSpaces,
+        paragraphs = paragraphs,
+        nonBlankParagraphs = nonBlankParagraphs,
+    )
 }
 
+internal fun countParagraphs(blocks: List<Block>): Int = computeDocumentStats(blocks).paragraphs
+
 /** Word count for the document header. Words, not paragraphs. */
-internal fun countWords(blocks: List<Block>): Int = blocks.sumOf { block ->
-    when (block) {
-        is Paragraph -> block.text().split(' ', '\n', '\t').count { it.isNotBlank() }
-        is Table -> block.rows.sumOf { row -> row.cells.sumOf { cell -> countWords(cell.blocks) } }
+internal fun countWords(blocks: List<Block>): Int = computeDocumentStats(blocks).words
+
+@Composable
+internal fun DocumentStatisticsDialog(
+    stats: DocumentStats,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Word count") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                StatRow("Words", stats.words.toString())
+                StatRow("Characters (no spaces)", stats.charactersNoSpaces.toString())
+                StatRow("Characters (with spaces)", stats.charactersWithSpaces.toString())
+                StatRow("Paragraphs", stats.paragraphs.toString())
+                StatRow("Non-empty paragraphs", stats.nonBlankParagraphs.toString())
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        },
+    )
+}
+
+@Composable
+private fun StatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
