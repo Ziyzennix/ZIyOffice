@@ -41,16 +41,18 @@ conditional formatting and hidden rows survive a save even though the app can't 
 file has been written *and* read back.
 
 - **Documents**: text formatting, headings, lists, alignment, line spacing, indent and
-  spacing, page breaks, tables, pictures, headers and footers, find and replace, PDF export,
-  print.
+  spacing, page breaks, tables, pictures, headers and footers, find and replace, copy and
+  paste, PDF export, print.
 - **Spreadsheets**: cells, about 70 formula functions, number and date formats, frozen rows,
-  sorting, merged cells, column widths and row heights, cell borders, dropdown lists,
-  inserting and deleting rows and columns, find and replace, copy and paste, charts, CSV.
-- **Slides**: slide text, adding/deleting/reordering slides, speaker notes, a present mode,
-  PDF export. Images and shapes survive an edit but can't be edited yet.
-- **PDF**: highlight, ink, notes, a drawn signature, text stamped on a page, page numbers,
-  rotate, reorder, delete, merge, split, and redaction that removes the content underneath
-  instead of covering it.
+  sorting by one column or two, named ranges, merged cells, column widths and row heights,
+  cell borders, dropdown lists, inserting and deleting rows and columns, find and replace,
+  copy and paste, charts, CSV.
+- **Slides**: slide text, adding/deleting/reordering slides, speaker notes, a transition per
+  slide, a present mode, PDF export. Images and shapes survive an edit but can't be edited
+  yet.
+- **PDF**: fill in the forms a file already has, highlight, ink, notes, a drawn signature,
+  text stamped on a page, page numbers, rotate, reorder, delete, merge, split, and redaction
+  that removes the content underneath instead of covering it.
 
 Printing goes through Android's own print service, so no permission is involved.
 
@@ -86,10 +88,9 @@ hand.
 
 ## roadmap
 
-Next up: editing the comments, footnotes and tracked changes the app now keeps; cell notes
-and named ranges in sheets; page numbers and a table of contents in documents; images and
-shapes on slides; copy/paste between apps; `.odt`/`.ods`/`.odp` support; an encrypted vault
-with a biometric lock.
+Next up: editing the comments, footnotes and tracked changes the app now keeps; cell notes;
+page numbers and a table of contents in documents; images and shapes on slides;
+`.odt`/`.ods`/`.odp` support; an encrypted vault with a biometric lock.
 
 ## bugs
 

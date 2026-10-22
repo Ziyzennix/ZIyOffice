@@ -5,7 +5,7 @@ package org.ziyoffice.pdf
  *
  * A viewer shows what a field holds by looking at the appearance the field
  * carries. ZiyOffice writes that appearance itself, so the text shows up in
- * any viewer, not only in the ones that redraw fields on their own.
+ * any viewer, including the ones that redraw fields on their own.
  */
 object PdfAppearance {
 
