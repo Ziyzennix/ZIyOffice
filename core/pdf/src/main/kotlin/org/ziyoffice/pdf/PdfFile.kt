@@ -324,7 +324,7 @@ class PdfFile private constructor(
                     parser.readLong()
                     parser.skipWhitespace()
                     val kind = parser.readByte()
-                    if (kind == 'n'.code) offsets[(first + i).toInt()] = offset
+                    if (kind == 'n'.code) offsets[first + i] = offset
                 }
             }
             return Triple(offsets, null, -1)
@@ -360,7 +360,7 @@ class PdfFile private constructor(
                     field += widths[1].toInt()
                     readField(data, field, widths[2].toInt())
                     at += rowLength
-                    if (type == 1L && offset != null) offsets[start + it] = offset
+                    if (type == 1L) offsets[start + it] = offset
                 }
             }
             val previous = dict.integer("Prev")?.toInt() ?: -1

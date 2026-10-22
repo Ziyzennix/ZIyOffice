@@ -51,7 +51,7 @@ object EditorClipboard {
         val clip = clipboard.primaryClip ?: return null
         if (clip.itemCount == 0) return null
         val item = clip.getItemAt(0)
-        val html = item.htmlText?.toString()
+        val html = item.htmlText
         if (!html.isNullOrBlank()) return htmlToParagraphs(html)
         val text = item.text?.toString()
         if (text.isNullOrBlank()) return null

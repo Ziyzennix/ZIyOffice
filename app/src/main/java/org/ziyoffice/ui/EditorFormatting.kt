@@ -252,9 +252,11 @@ internal fun DocMoreMenu(
                     Text("Paragraph spacing", style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         PARAGRAPH_SPACINGS.forEach { (label, before, after) ->
+                            val matches = paragraph != null &&
+                                paragraph.spacingBeforeTwips == before &&
+                                paragraph.spacingAfterTwips == after
                             FilterChip(
-                                selected = paragraph?.spacingBeforeTwips == before &&
-                                    paragraph?.spacingAfterTwips == after,
+                                selected = matches,
                                 onClick = {
                                     open = false
                                     onSpacing(before, after)

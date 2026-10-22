@@ -26,7 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -546,7 +546,7 @@ private fun FormNavigation(
                 onClick = { listOpen = true },
                 modifier = Modifier.size(48.dp),
             ) {
-                Icon(Icons.Filled.List, contentDescription = "All the fields")
+                Icon(Icons.AutoMirrored.Filled.List, contentDescription = "All the fields")
             }
             IconButton(
                 onClick = {
