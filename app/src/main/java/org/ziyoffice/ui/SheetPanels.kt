@@ -76,6 +76,43 @@ internal fun SheetListDialog(
 }
 
 @Composable
+internal fun SheetNameDialog(
+    name: String,
+    rangeLabel: String,
+    onNameChange: (String) -> Unit,
+    onApply: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Name this range") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextField(
+                    value = name,
+                    onValueChange = onNameChange,
+                    singleLine = true,
+                    label = { Text("Name") },
+                )
+                Text(
+                    "$rangeLabel. A formula can use the name instead of the cells.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onApply) { Text("Save") } },
+        dismissButton = {
+            Row {
+                TextButton(onClick = onRemove) { Text("Remove") }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
+    )
+}
+
+@Composable
 internal fun SheetSortDialog(
     columns: List<String>,
     firstColumn: Int,

@@ -60,6 +60,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | About 70 functions: aggregates, maths, text, logic, conditional counting, lookup, statistics, dates and information tests | done |
 | Number/date formatting | yes | | done |
 | Freeze panes, sorting | yes | Sort by one column or by two, the second breaking the ties | done |
+| Named ranges | yes | Give a range a name and use it in a formula; read and write `.xlsx` defined names | done |
 | Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |
 | Column widths and row heights | yes | Resize the selected columns or rows; read and write `.xlsx` `<col>` widths and row `ht` | done |
 | Cell borders | yes | Draw the top, bottom, left or right edge, every edge or a box around the selection; read and write `.xlsx` border styles | done |

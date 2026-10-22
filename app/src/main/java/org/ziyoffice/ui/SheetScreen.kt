@@ -139,6 +139,7 @@ import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.SheetMatch
 import org.ziyoffice.model.SheetRowBand
+import org.ziyoffice.model.NamedRange
 import org.ziyoffice.model.SheetSort
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.cellPlacements
@@ -338,6 +339,8 @@ fun SheetScreen(
     var findCursor by remember { mutableStateOf(0) }
     var showListDialog by remember { mutableStateOf(false) }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showNameDialog by remember { mutableStateOf(false) }
+    var nameText by remember { mutableStateOf("") }
     var sortFirstColumn by remember { mutableStateOf(0) }
     var sortSecondColumn by remember { mutableStateOf<Int?>(null) }
     var sortAscending by remember { mutableStateOf(true) }
@@ -512,6 +515,10 @@ fun SheetScreen(
 
     fun currentSheet(): Sheet? = workbook?.sheets?.getOrNull(activeSheet)
 
+    /** The names a formula on the current sheet may use. */
+    fun namesForSheet(): List<NamedRange> =
+        workbook?.namedRanges?.filter { it.appliesTo(activeSheet) }.orEmpty()
+
     /** The selected rectangle, always including the active cell. */
     fun selectedRange(): CellRange = CellRange.of(
         CellRangeCorner(selection.row, selection.column),
@@ -565,7 +572,11 @@ fun SheetScreen(
             if (raw.isNotEmpty()) {
                 // Cache the computed value so the saved package shows results
                 // before Excel recalculates.
-                val cached = if (raw.startsWith("=")) evaluateFormula(nextSheet, raw).value else null
+                val cached = if (raw.startsWith("=")) {
+                    evaluateFormula(nextSheet, raw, namesForSheet()).value
+                } else {
+                    null
+                }
                 cells += Cell(pos.row, pos.column, raw, effectiveFormat, cached)
             } else if (effectiveFormat != CellFormat()) {
                 cells += Cell(pos.row, pos.column, "", effectiveFormat, null)
@@ -998,6 +1009,38 @@ fun SheetScreen(
         )
         mutate { sorted }
         editText = rawValueAt(selection)
+    }
+
+    /**
+     * Gives the selected cells a name a formula can use.
+     *
+     * A name that is already used on this sheet is replaced, so naming the
+     * same range twice does not leave two names behind.
+     */
+    fun nameSelection(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        val range = selectedRange()
+        val current = workbook ?: return
+        val others = current.namedRanges.filterNot {
+            it.sheetIndex == activeSheet && it.name.equals(trimmed, ignoreCase = true)
+        }
+        workbook = current.copy(
+            namedRanges = others + NamedRange(name = trimmed, range = range, sheetIndex = activeSheet),
+        )
+        dirty = true
+    }
+
+    /** Takes the name off the selected range. */
+    fun removeNameOfSelection() {
+        val current = workbook ?: return
+        val range = selectedRange()
+        workbook = current.copy(
+            namedRanges = current.namedRanges.filterNot {
+                it.sheetIndex == activeSheet && it.range == range
+            },
+        )
+        dirty = true
     }
 
     fun applyFormat(transform: (CellFormat) -> CellFormat) {
@@ -1483,6 +1526,23 @@ fun SheetScreen(
         )
     }
 
+    if (showNameDialog) {
+        SheetNameDialog(
+            name = nameText,
+            rangeLabel = rangeLabel(selectedRange()),
+            onNameChange = { nameText = it },
+            onApply = {
+                showNameDialog = false
+                nameSelection(nameText)
+            },
+            onRemove = {
+                showNameDialog = false
+                removeNameOfSelection()
+            },
+            onDismiss = { showNameDialog = false },
+        )
+    }
+
     if (showSortDialog) {
         val columns = (0..(currentSheet()?.columnCount ?: 26).coerceAtMost(26))
             .map { columnName(it) }
@@ -1775,6 +1835,15 @@ fun SheetScreen(
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
+                                text = { Text("Name this range\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (editingCell) commitEdit()
+                                    nameText = ""
+                                    showNameDialog = true
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Sort by\u2026") },
                                 onClick = {
                                     menuExpanded = false
@@ -1916,6 +1985,7 @@ fun SheetScreen(
                 else -> SheetGrid(
                     sheet = sheet,
                     cells = cellsByPos,
+                    names = namesForSheet(),
                     selection = selection,
                     selectionRange = selectedRange().takeIf {
                         it.rowSpan > 1 || it.columnSpan > 1
@@ -2020,6 +2090,7 @@ private fun FormulaBar(
 private fun SheetGrid(
     sheet: Sheet,
     cells: Map<Pair<Int, Int>, Cell>,
+    names: List<NamedRange>,
     selection: CellPos,
     selectionRange: CellRange?,
     editing: Boolean,
@@ -2105,6 +2176,7 @@ private fun SheetGrid(
                 band = band,
                 cells = cells,
                 sheet = sheet,
+                names = names,
                 active = active,
                 selectionRange = selectionRange,
                 editing = editing,
@@ -2124,6 +2196,7 @@ private fun SheetGrid(
                     band = band,
                     cells = cells,
                     sheet = sheet,
+                    names = names,
                     active = active,
                     selectionRange = selectionRange,
                     editing = editing,
@@ -2151,6 +2224,7 @@ private fun GridBand(
     band: SheetRowBand,
     cells: Map<Pair<Int, Int>, Cell>,
     sheet: Sheet,
+    names: List<NamedRange>,
     active: CellPos,
     selectionRange: CellRange?,
     editing: Boolean,
@@ -2222,6 +2296,7 @@ private fun GridBand(
                             columnSpan = placement.columnSpan,
                             cell = cells[placement.row to placement.column],
                             sheet = sheet,
+                            names = names,
                             selected = selected,
                             active = active.row == placement.row &&
                                 active.column == placement.column,
@@ -2300,6 +2375,7 @@ private fun SheetCell(
     columnSpan: Int,
     cell: Cell?,
     sheet: Sheet,
+    names: List<NamedRange>,
     selected: Boolean,
     active: Boolean,
     editing: Boolean,
@@ -2311,7 +2387,7 @@ private fun SheetCell(
     onDoubleClick: () -> Unit,
 ) {
     val format = cell?.format ?: CellFormat()
-    val text = if (editing) editText else displayValue(cell, sheet)
+    val text = if (editing) editText else displayValue(cell, sheet, names)
     val background = when {
         active -> MaterialTheme.colorScheme.primaryContainer
         selected -> MaterialTheme.colorScheme.secondaryContainer
@@ -2787,11 +2863,15 @@ private fun CenteredNotice(title: String, detail: String?) {
 }
 
 /** What the grid shows for a cell: computed formula results, never the formula itself. */
-private fun displayValue(cell: Cell?, sheet: Sheet): String {
+private fun displayValue(
+    cell: Cell?,
+    sheet: Sheet,
+    names: List<NamedRange> = emptyList(),
+): String {
     if (cell == null || cell.value.isEmpty()) return ""
     val raw = cell.value
     if (raw.startsWith("=")) {
-        return formatCellValue(evaluateFormula(sheet, raw).value, cell.format.numberFormat)
+        return formatCellValue(evaluateFormula(sheet, raw, names).value, cell.format.numberFormat)
     }
     val number = raw.toDoubleOrNull()
     return if (number != null) {

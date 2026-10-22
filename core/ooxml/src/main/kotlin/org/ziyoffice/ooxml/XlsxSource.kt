@@ -10,6 +10,7 @@ import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
+import org.ziyoffice.model.NamedRange
 import org.ziyoffice.model.ColumnWidth
 import org.ziyoffice.model.DataValidation
 import org.ziyoffice.model.MIN_SHEET_COLUMNS
@@ -478,13 +479,71 @@ internal class XlsxSourceReader {
             parseSheet(entry, partName, bytes.decodeToString(), sharedStrings, styles)
         }
         val active = parseActiveTab(workbookRoot).coerceIn(0, (sheets.size - 1).coerceAtLeast(0))
+        val namedRanges = parseDefinedNames(workbookRoot, sheetEntries, workbookXml)
         return XlsxSource(
             parts = parts,
-            workbook = Workbook(sheets = sheets.map { it.model }, activeSheet = active),
+            workbook = Workbook(
+                sheets = sheets.map { it.model },
+                activeSheet = active,
+                namedRanges = namedRanges,
+            ),
             sheets = sheets,
             styles = styles,
             workbookXml = workbookXml,
             workbookRoot = workbookRoot,
+        )
+    }
+
+    /**
+     * The names a formula can use.
+     *
+     * A name points at a range on a sheet: "Sheet1!$A$1:$B$40". A name
+     * that points somewhere else, or at nothing, is left out: a formula that
+     * used it would fail, and a name the file itself does not understand is
+     * not ZiyOffice's to guess at.
+     */
+    private fun parseDefinedNames(
+        root: XmlElement,
+        sheetEntries: List<SheetEntry>,
+        workbookXml: String,
+    ): List<NamedRange> {
+        val names = root.child("definedNames") ?: return emptyList()
+        val found = mutableListOf<NamedRange>()
+        names.childrenNamed("definedName").forEach { element ->
+            val name = element.attr("name")?.trim().orEmpty()
+            val refersTo = element.innerSource(workbookXml).trim()
+            if (name.isEmpty() || refersTo.isEmpty()) return@forEach
+            val sheetIndex = sheetIndexOf(refersTo, sheetEntries)
+            val range = rangeOf(refersTo) ?: return@forEach
+            found += NamedRange(name = name, range = range, sheetIndex = sheetIndex)
+        }
+        return found
+    }
+
+    /** The sheet a reference names, or -1 when it names none. */
+    private fun sheetIndexOf(
+        reference: String,
+        sheetEntries: List<SheetEntry>,
+    ): Int {
+        val bang = reference.indexOf('!')
+        if (bang < 0) return -1
+        val sheetName = reference.substring(0, bang).trim().removeSurrounding("'")
+        return sheetEntries.indexOfFirst { it.name == sheetName }
+    }
+
+    /** The range a reference points at. */
+    private fun rangeOf(reference: String): CellRange? {
+        val bang = reference.indexOf('!')
+        val cells = (if (bang < 0) reference else reference.substring(bang + 1)).replace("$", "")
+        val parts = cells.split(':')
+        val first = CellRange.parse("${parts[0]}:${parts[0]}") ?: return null
+        if (parts.size == 1) return first
+        val second = CellRange.parse("${parts[1]}:${parts[1]}") ?: return null
+        return CellRange(
+            top = minOf(first.top, second.top),
+            left = minOf(first.left, second.left),
+            bottom = maxOf(first.bottom, second.bottom),
+            right = maxOf(first.right, second.right),
         )
     }
 

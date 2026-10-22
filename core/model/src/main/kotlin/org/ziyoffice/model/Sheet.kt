@@ -58,4 +58,29 @@ data class Sheet(
 data class Workbook(
     val sheets: List<Sheet>,
     val activeSheet: Int = 0,
+    /** The names a formula can use instead of a cell reference. */
+    val namedRanges: List<NamedRange> = emptyList(),
 )
+
+/**
+ * A name a formula can use instead of a cell reference.
+ *
+ * A name stands for a range of cells. "Sales" is easier to read in a
+ * formula than "B2:B40", and it survives rows being inserted.
+ */
+data class NamedRange(
+    /** The name as the user typed it. */
+    val name: String,
+    /** The range the name stands for. */
+    val range: CellRange,
+    /**
+     * The sheet the range is on, or -1 when the name is used on every sheet.
+     *
+     * A name that belongs to one sheet is only understood in that sheet's
+     * formulas, which is what a spreadsheet does.
+     */
+    val sheetIndex: Int = -1,
+) {
+    /** True when the name can be used in a formula on the sheet at [index]. */
+    fun appliesTo(index: Int): Boolean = sheetIndex < 0 || sheetIndex == index
+}

@@ -9,6 +9,7 @@ import org.ziyoffice.model.CellAlignment
 import org.ziyoffice.model.CellBorders
 import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.MAX_SHEET_COLUMNS
+import org.ziyoffice.model.NamedRange
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.Workbook
 import org.ziyoffice.model.columnName
@@ -36,7 +37,8 @@ class XlsxWriter {
         val parts = linkedMapOf<String, ByteArray>()
         parts["[Content_Types].xml"] = contentTypes(sheets.size).encodeToByteArray()
         parts["_rels/.rels"] = ROOT_RELS.encodeToByteArray()
-        parts["xl/workbook.xml"] = workbookXml(sheets, workbook.activeSheet).encodeToByteArray()
+        parts["xl/workbook.xml"] = workbookXml(sheets, workbook.activeSheet, workbook.namedRanges)
+            .encodeToByteArray()
         parts["xl/_rels/workbook.xml.rels"] = workbookRels(sheets.size).encodeToByteArray()
         parts["xl/styles.xml"] = styles.toXml().encodeToByteArray()
         sheets.forEachIndexed { index, sheet ->
@@ -55,7 +57,11 @@ class XlsxWriter {
         return out.toByteArray()
     }
 
-    private fun workbookXml(sheets: List<Sheet>, activeSheet: Int): String = buildString {
+    private fun workbookXml(
+        sheets: List<Sheet>,
+        activeSheet: Int,
+        namedRanges: List<NamedRange> = emptyList(),
+    ): String = buildString {
         append(XML_HEADER)
         append("<workbook xmlns=\"$SPREADSHEETML_NAMESPACE\"")
         append(" xmlns:r=\"$DOCUMENT_RELATIONSHIPS_NAMESPACE\">")
@@ -68,7 +74,46 @@ class XlsxWriter {
             append("\" sheetId=\"").append(index + 1)
             append("\" r:id=\"rId").append(index + 1).append("\"/>")
         }
-        append("</sheets></workbook>")
+        append("</sheets>")
+        append(definedNamesXml(namedRanges, sheets))
+        append("</workbook>")
+    }
+
+    /**
+     * The names a formula can use.
+     *
+     * A name is written the way a spreadsheet writes one: the sheet it
+     * belongs to, an exclamation mark, and the range in absolute notation.
+     */
+    internal fun definedNamesXml(
+        namedRanges: List<NamedRange>,
+        sheets: List<Sheet>,
+    ): String {
+        if (namedRanges.isEmpty()) return ""
+        return buildString {
+            append("<definedNames>")
+            namedRanges.forEach { named ->
+                append("<definedName name=\"")
+                append(escapeAttribute(named.name))
+                append("\">")
+                append(referenceOf(named, sheets))
+                append("</definedName>")
+            }
+            append("</definedNames>")
+        }
+    }
+
+    /** The text a defined name points at. */
+    private fun referenceOf(named: NamedRange, sheets: List<Sheet>): String {
+        val sheetName = if (named.sheetIndex in sheets.indices) {
+            escapeAttribute(sheets[named.sheetIndex].name)
+        } else {
+            ""
+        }
+        val range = named.range
+        val cells = "\$${columnName(range.left)}\$${range.top + 1}:" +
+            "\$${columnName(range.right)}\$${range.bottom + 1}"
+        return if (sheetName.isEmpty()) cells else "$sheetName!$cells"
     }
 
     private fun workbookRels(sheetCount: Int): String = buildString {

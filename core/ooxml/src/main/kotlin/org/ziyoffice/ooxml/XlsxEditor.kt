@@ -560,7 +560,43 @@ class XlsxEditor(private val source: XlsxSource) {
             }
         }
 
+        // The names a formula can use. A file whose names were not changed
+        // keeps the bytes it had, and one whose names were is rewritten.
+        if (workbook.namedRanges != source.workbook.namedRanges) {
+            val names = root.child("definedNames")
+            if (names != null) {
+                edits += Edit(names.start, names.end, definedNamesXml(workbook))
+            } else {
+                val sheets = root.child("sheets")
+                if (sheets != null) {
+                    val at = sheets.end
+                    edits += Edit(at, at, definedNamesXml(workbook))
+                }
+            }
+        }
+
         return applyEdits(xml, edits)
+    }
+
+    /** The names a formula can use, as the workbook part holds them. */
+    private fun definedNamesXml(workbook: Workbook): String = buildString {
+        append("<definedNames>")
+        workbook.namedRanges.forEach { named ->
+            append("<definedName name=\"")
+            append(escapeXmlAttribute(named.name))
+            append("\">")
+            val sheetName = if (named.sheetIndex in workbook.sheets.indices) {
+                escapeXmlAttribute(workbook.sheets[named.sheetIndex].name)
+            } else {
+                ""
+            }
+            val range = named.range
+            val cells = "\$${columnName(range.left)}\$${range.top + 1}:" +
+                "\$${columnName(range.right)}\$${range.bottom + 1}"
+            append(if (sheetName.isEmpty()) cells else "$sheetName!$cells")
+            append("</definedName>")
+        }
+        append("</definedNames>")
     }
 
     /**

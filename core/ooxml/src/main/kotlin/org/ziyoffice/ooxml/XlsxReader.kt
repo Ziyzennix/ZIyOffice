@@ -14,6 +14,7 @@ import org.ziyoffice.model.CellFormat
 import org.ziyoffice.model.CellRange
 import org.ziyoffice.model.ColumnWidth
 import org.ziyoffice.model.DataValidation
+import org.ziyoffice.model.NamedRange
 import org.ziyoffice.model.MAX_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.MIN_ROW_HEIGHT_POINTS
 import org.ziyoffice.model.MIN_SHEET_COLUMNS
@@ -65,7 +66,71 @@ class XlsxReader(
             parseSheet(entry.name, bytes, sharedStrings, styles)
         }
         val active = parseActiveTab(workbookBytes).coerceIn(0, (resolved.size - 1).coerceAtLeast(0))
-        return Workbook(sheets = resolved, activeSheet = active)
+        val namedRanges = parseDefinedNames(workbookBytes, sheets)
+        return Workbook(sheets = resolved, activeSheet = active, namedRanges = namedRanges)
+    }
+
+    /**
+     * The names a formula can use.
+     *
+     * A name points at a range on a sheet: "Sheet1!$A$1:$B$40". A name
+     * that points somewhere else, or at nothing, is left out.
+     */
+    private fun parseDefinedNames(bytes: ByteArray, sheets: List<SheetEntry>): List<NamedRange> {
+        val parser = newParser()
+        parser.setInput(ByteArrayInputStream(bytes), null)
+        val found = mutableListOf<NamedRange>()
+        var event = parser.eventType
+        var insideNames = false
+        while (event != XmlPullParser.END_DOCUMENT) {
+            if (event == XmlPullParser.START_TAG) {
+                when (parser.name) {
+                    "definedNames" -> insideNames = true
+                    "definedName" -> {
+                        val name = attribute(parser, "name")?.trim().orEmpty()
+                        val refersTo = parser.nextText().trim()
+                        if (insideNames && name.isNotEmpty() && refersTo.isNotEmpty()) {
+                            val range = rangeOf(refersTo)
+                            if (range != null) {
+                                found += NamedRange(
+                                    name = name,
+                                    range = range,
+                                    sheetIndex = sheetIndexOf(refersTo, sheets),
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (event == XmlPullParser.END_TAG && parser.name == "definedNames") {
+                insideNames = false
+            }
+            event = parser.next()
+        }
+        return found
+    }
+
+    /** The sheet a reference names, or -1 when it names none. */
+    private fun sheetIndexOf(reference: String, sheets: List<SheetEntry>): Int {
+        val bang = reference.indexOf('!')
+        if (bang < 0) return -1
+        val sheetName = reference.substring(0, bang).trim().removeSurrounding("'")
+        return sheets.indexOfFirst { it.name == sheetName }
+    }
+
+    /** The range a reference points at. */
+    private fun rangeOf(reference: String): CellRange? {
+        val bang = reference.indexOf('!')
+        val cells = (if (bang < 0) reference else reference.substring(bang + 1)).replace("$", "")
+        val parts = cells.split(':')
+        val first = CellRange.parse("${parts[0]}:${parts[0]}") ?: return null
+        if (parts.size == 1) return first
+        val second = CellRange.parse("${parts[1]}:${parts[1]}") ?: return null
+        return CellRange(
+            top = minOf(first.top, second.top),
+            left = minOf(first.left, second.left),
+            bottom = maxOf(first.bottom, second.bottom),
+            right = maxOf(first.right, second.right),
+        )
     }
 
     private fun parseWorkbookTargets(bytes: ByteArray): Map<String, String> {

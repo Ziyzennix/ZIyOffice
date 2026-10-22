@@ -12,14 +12,23 @@ data class FormulaResult(
 )
 
 /**
- * Evaluates a formula string against [sheet]. Errors come back in
- * [FormulaResult.errors] rather than thrown, so callers show them to the user.
+ * Evaluates a formula string against [sheet].
+ *
+ * The [names] are the ones a formula on this sheet may use; a name stands
+ * for a range of cells and is written in the formula like a cell reference.
+ *
+ * Errors come back in [FormulaResult.errors] rather than thrown, so callers
+ * show them to the user.
  */
-fun evaluateFormula(sheet: Sheet, formula: String): FormulaResult {
+fun evaluateFormula(
+    sheet: Sheet,
+    formula: String,
+    names: List<NamedRange> = emptyList(),
+): FormulaResult {
     if (!formula.startsWith("=")) {
         return FormulaResult(CellValue.Text(formula))
     }
-    return CellResolver(sheet).evaluate(formula.substring(1))
+    return CellResolver(sheet, names).evaluate(formula.substring(1))
 }
 
 /** Column letters to 0-based index: "A" -> 0, "AA" -> 26. -1 when invalid. */
@@ -63,11 +72,19 @@ internal sealed interface Operand {
 private const val MAX_EVALUATION_DEPTH = 200
 
 /** Resolves references against one sheet; owns cycle-detection state. */
-internal class CellResolver(private val sheet: Sheet) {
+internal class CellResolver(
+    private val sheet: Sheet,
+    /** The names a formula on this sheet can use. */
+    private val names: List<NamedRange> = emptyList(),
+) {
     private val byPosition: Map<Pair<Int, Int>, Cell> =
         sheet.cells.associateBy { it.row to it.column }
     private val evaluating = mutableSetOf<Pair<Int, Int>>()
     private val cycleErrors = mutableListOf<String>()
+
+    /** The range the name stands for, or null when there is no such name. */
+    fun rangeOf(name: String): CellRange? =
+        names.firstOrNull { it.name.equals(name, ignoreCase = true) }?.range
 
     fun evaluate(body: String): FormulaResult {
         return try {
@@ -469,6 +486,17 @@ private class Parser(
     }
 
     private fun parseReferenceOperand(token: Token): Operand {
+        // A name that is not a cell reference stands for a range.
+        if (!looksLikeCellReference(token.lexeme)) {
+            val named = resolver.rangeOf(token.lexeme)
+                ?: throw FormulaException("Unknown name '${token.lexeme}'")
+            return Operand.Range(
+                topRow = named.top,
+                leftCol = named.left,
+                bottomRow = named.bottom,
+                rightCol = named.right,
+            )
+        }
         val start = parseReference(token.lexeme)
         if (peek().type == TokenType.COLON) {
             advance()
@@ -489,6 +517,14 @@ private class Parser(
     }
 
     /** "B12" / "$B$12" -> 0-based (row, column). */
+    /** True when the text is a cell reference such as "B12" or "$B$12". */
+    private fun looksLikeCellReference(lexeme: String): Boolean {
+        val clean = lexeme.replace("$", "")
+        val letters = clean.takeWhile { it.isLetter() }
+        val digits = clean.dropWhile { it.isLetter() }
+        return letters.isNotEmpty() && digits.isNotEmpty() && digits.all { it.isDigit() }
+    }
+
     private fun parseReference(lexeme: String): Pair<Int, Int> {
         val clean = lexeme.replace("$", "")
         val letters = clean.takeWhile { it.isLetter() }
