@@ -32,6 +32,7 @@ class RecentFilesStore(context: Context) {
                             displayName = obj.getString("name"),
                             sizeBytes = obj.optLong("size", -1L),
                             lastOpenedAtEpochMs = obj.optLong("at", 0L),
+                            isStarred = obj.optBoolean("starred", false),
                         )
                     )
                 }
@@ -53,6 +54,15 @@ class RecentFilesStore(context: Context) {
         val entry = entryFor(uri, mimeType) ?: return null
         if (persisted) record(entry)
         return Remembered(entry, persisted)
+    }
+
+    fun toggleStarred(uri: String): List<RecentFile> {
+        val current = load()
+        val updated = current.map {
+            if (it.uri == uri) it.copy(isStarred = !it.isStarred) else it
+        }
+        save(updated)
+        return updated
     }
 
     /** A file the store has seen, and whether its grant survives a restart. */
@@ -125,9 +135,12 @@ class RecentFilesStore(context: Context) {
     }
 
     private fun record(entry: RecentFile) {
-        val updated = load().filterNot { it.uri == entry.uri }
+        val current = load()
+        val existing = current.firstOrNull { it.uri == entry.uri }
+        val toRecord = if (existing != null) entry.copy(isStarred = existing.isStarred) else entry
+        val updated = current.filterNot { it.uri == entry.uri }
             .toMutableList()
-            .apply { add(0, entry) }
+            .apply { add(0, toRecord) }
             .take(MAX_ENTRIES)
         save(updated)
     }
@@ -164,6 +177,7 @@ class RecentFilesStore(context: Context) {
                     put("name", entry.displayName)
                     put("size", entry.sizeBytes)
                     put("at", entry.lastOpenedAtEpochMs)
+                    put("starred", entry.isStarred)
                 }
             )
         }

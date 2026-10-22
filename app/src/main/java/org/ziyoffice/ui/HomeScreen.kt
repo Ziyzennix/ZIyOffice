@@ -66,6 +66,7 @@ fun HomeScreen(
     onCreateTemplate: (String) -> Unit,
     onReadText: () -> Unit,
     onImagesToPdf: () -> Unit,
+    onToggleStar: (RecentFile) -> Unit = {},
     onShowAllFiles: () -> Unit,
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
@@ -226,7 +227,7 @@ fun HomeScreen(
         } else {
             val shown = filtered.take(RECENT_LIMIT)
             items(shown, key = { it.uri }) { file ->
-                RecentRow(file = file, onClick = { onOpenRecent(file) })
+                RecentRow(file = file, onClick = { onOpenRecent(file) }, onToggleStar = { onToggleStar(file) })
             }
             if (filtered.size > RECENT_LIMIT) {
                 item {

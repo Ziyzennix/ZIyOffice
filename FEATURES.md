@@ -32,7 +32,7 @@ Content preservation: Saving writes the edited parts back into the package the f
 | Tables (insert, add/remove rows/cols, merged cells) | yes | Horizontal and vertical merges are read, drawn, and kept by a save | done |
 | Find and replace | yes | Find next match, replace one, or replace all; search skips raw formula references | done |
 | Copy and paste cells | yes | Copy range as tab-separated text; copied formula stays a formula | done |
-| Undo/redo, word count | yes | yes | done |
+| Undo/redo, detailed word and character count | yes | Real-time breakdown of words, characters (with and without spaces), and paragraphs | done |
 | Autosave and crash recovery | yes | yes | done |
 | Export to PDF (matches screen exactly) | yes | yes | done |
 | Print via the system print service | yes | yes | done |
@@ -66,7 +66,7 @@ Content preservation: Saving writes the edited parts back into the package the f
 | Export to PDF (paginated, header row repeated) | yes | Custom widths, heights, fills, borders, and alignments honoured | done |
 | Print via the system print service | yes | yes | done |
 | Content kept intact on save (charts, images, pivot tables, filters) | no | Kept as they are by save; listed on open | done |
-| Multi-sheet workbook tabs | yes | Add, delete, rename, reorder, duplicate sheets | planned |
+| Multi-sheet workbook tabs | yes | Add, delete, rename, duplicate sheets | done |
 | AutoFilter dropdowns on column headers | yes | Filter by value or text criteria | planned |
 | Text wrap in cells (`wrap_text`) | yes | Multi-line cell text wrapping toggle | done |
 | Extended number format picker | yes | Explicit currency, accounting, percentage decimal places, scientific | planned |
@@ -139,7 +139,7 @@ Content preservation: Saving writes the edited parts back into the package the f
 | Encrypted vault with biometric lock | no | Local AES-GCM encrypted vault, keys never leave device | done |
 | Metadata scrub on share and export | no | Strip `docProps/` on new files; preserve author's own on edit | done |
 | Built-in templates | yes (gated) | Template documents without accounts or subscriptions | done |
-| Starred / favorites document list | yes | Local favorites tab on Home screen | planned |
+| Starred / favorites document list | yes | Star and filter favorite files locally on Home and Files | done |
 | ZIP package inspector | yes | View and extract files inside archive packages | planned |
 | License-safe font pack | yes (gated) | Bundled open-source fonts for consistent rendering | planned |
 | Reproducible source builds (F-Droid) | no | Verified reproducible build setup | planned |

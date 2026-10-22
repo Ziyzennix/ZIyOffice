@@ -11,6 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,34 +42,56 @@ import org.ziyoffice.model.RecentFile
  * Role.Button gives a single sentence.
  */
 @Composable
-internal fun RecentRow(file: RecentFile, onClick: () -> Unit) {
+internal fun RecentRow(
+    file: RecentFile,
+    onClick: () -> Unit,
+    onToggleStar: (() -> Unit)? = null,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .semantics(mergeDescendants = true) {
-                contentDescription = recentRowDescription(file, openedLabel(file.lastOpenedAtEpochMs))
-                role = Role.Button
-            }
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        KindBadge(file)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                file.displayName,
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                listOfNotNull(
-                    file.kind.label,
-                    formatSize(file.sizeBytes).takeIf { it.isNotEmpty() },
-                    openedLabel(file.lastOpenedAtEpochMs).takeIf { it.isNotBlank() },
-                ).joinToString(" \u00B7 "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .semantics(mergeDescendants = true) {
+                    contentDescription = recentRowDescription(file, openedLabel(file.lastOpenedAtEpochMs))
+                    role = Role.Button
+                }
+                .clickable(onClick = onClick),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            KindBadge(file)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    file.displayName,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                Text(
+                    listOfNotNull(
+                        file.kind.label,
+                        formatSize(file.sizeBytes).takeIf { it.isNotEmpty() },
+                        openedLabel(file.lastOpenedAtEpochMs).takeIf { it.isNotBlank() },
+                    ).joinToString(" \u00B7 "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (onToggleStar != null) {
+            IconButton(
+                onClick = onToggleStar,
+                modifier = Modifier.size(48.dp),
+            ) {
+                Icon(
+                    imageVector = if (file.isStarred) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    contentDescription = if (file.isStarred) "Unstar ${file.displayName}" else "Star ${file.displayName}",
+                    tint = if (file.isStarred) Color(0xFFF59E0B) else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

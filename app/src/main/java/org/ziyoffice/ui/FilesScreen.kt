@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.RecentFile
 
-private val FILE_FILTERS = listOf("All", "Docs", "Sheets", "Slides", "PDF", "Other")
+private val FILE_FILTERS = listOf("All", "Starred", "Docs", "Sheets", "Slides", "PDF", "Other")
 
 /**
  * The Files tab: a category strip over the same local recents list.
@@ -44,6 +44,7 @@ fun FilesScreen(
     recents: List<RecentFile>,
     onOpenFile: () -> Unit,
     onOpenRecent: (RecentFile) -> Unit,
+    onToggleStar: (RecentFile) -> Unit = {},
 ) {
     var filter by rememberSaveable { mutableStateOf(FILE_FILTERS.first()) }
     val filtered = recents.filter { matchesFilter(it, filter) }
@@ -120,7 +121,7 @@ fun FilesScreen(
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             ) {
                 items(filtered, key = { it.uri }) { file ->
-                    RecentRow(file = file, onClick = { onOpenRecent(file) })
+                    RecentRow(file = file, onClick = { onOpenRecent(file) }, onToggleStar = { onToggleStar(file) })
                 }
             }
         }
@@ -128,6 +129,7 @@ fun FilesScreen(
 }
 
 private fun matchesFilter(file: RecentFile, filter: String): Boolean = when (filter) {
+    "Starred" -> file.isStarred
     "Docs" -> file.kind == DocumentKind.DOCUMENT
     "Sheets" -> file.kind == DocumentKind.SPREADSHEET
     "Slides" -> file.kind == DocumentKind.PRESENTATION

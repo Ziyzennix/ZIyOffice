@@ -10,6 +10,7 @@ data class RecentFile(
     val displayName: String,
     val sizeBytes: Long,
     val lastOpenedAtEpochMs: Long,
+    val isStarred: Boolean = false,
 ) {
     val kind: DocumentKind get() = DocumentKind.fromFileName(displayName)
 }

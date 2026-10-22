@@ -474,11 +474,13 @@ fun ZiyOfficeApp(
                         createFromTemplate(documentTemplate(templateId).name + ".docx")
                     },
                     onShowAllFiles = { tabName = ZiyTab.FILES.name },
+                    onToggleStar = { file -> recents = store.toggleStarred(file.uri) },
                 )
                 ZiyTab.FILES -> FilesScreen(
                     recents = recents,
                     onOpenFile = openPicker,
                     onOpenRecent = { file -> openFileUri = file.uri },
+                    onToggleStar = { file -> recents = store.toggleStarred(file.uri) },
                 )
                 ZiyTab.SETTINGS -> SettingsScreen(
                     onOpenAbout = { showAbout = true },
