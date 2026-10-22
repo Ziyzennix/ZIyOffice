@@ -330,6 +330,8 @@ fun SheetScreen(
     var redoStack by remember(file.uri) { mutableStateOf(emptyList<Workbook>()) }
     var menuExpanded by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
+    var renameTargetIndex by remember { mutableStateOf<Int?>(null) }
+    var deleteConfirmIndex by remember { mutableStateOf<Int?>(null) }
     var showChart by remember { mutableStateOf(false) }
     var showStructure by remember { mutableStateOf(false) }
     var showFind by remember { mutableStateOf(false) }
@@ -1299,16 +1301,57 @@ fun SheetScreen(
         writeVersion++
     }
 
-    fun renameSheet(newName: String) {
+    fun renameSheetAt(index: Int, newName: String) {
         if (editingCell) commitEdit()
         val current = workbook ?: return
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) return
         val sheets = current.sheets.toMutableList()
-        sheets[activeSheet] = sheets[activeSheet].copy(name = trimmed)
+        if (index !in sheets.indices) return
+        sheets[index] = sheets[index].copy(name = trimmed)
         undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
         redoStack = emptyList()
         workbook = current.copy(sheets = sheets)
+        dirty = true
+        writeVersion++
+    }
+
+    fun renameSheet(newName: String) {
+        renameSheetAt(activeSheet, newName)
+    }
+
+    fun duplicateSheet(index: Int) {
+        if (editingCell) commitEdit()
+        val current = workbook ?: return
+        val sourceSheet = current.sheets.getOrNull(index) ?: return
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
+        redoStack = emptyList()
+        val copyName = "${sourceSheet.name} (Copy)"
+        val duplicated = sourceSheet.copy(name = copyName)
+        val sheets = current.sheets.toMutableList()
+        val newIndex = index + 1
+        sheets.add(newIndex, duplicated)
+        workbook = current.copy(sheets = sheets)
+        activeSheet = newIndex
+        selection = CellPos(0, 0)
+        selectionEnd = null
+        dirty = true
+        writeVersion++
+    }
+
+    fun deleteSheet(index: Int) {
+        if (editingCell) commitEdit()
+        val current = workbook ?: return
+        if (current.sheets.size <= 1) return
+        undoStack = (undoStack + current).takeLast(SHEET_UNDO_LIMIT)
+        redoStack = emptyList()
+        val sheets = current.sheets.toMutableList()
+        if (index !in sheets.indices) return
+        sheets.removeAt(index)
+        workbook = current.copy(sheets = sheets)
+        activeSheet = activeSheet.coerceIn(0, sheets.lastIndex)
+        selection = CellPos(0, 0)
+        selectionEnd = null
         dirty = true
         writeVersion++
     }
@@ -1466,13 +1509,38 @@ fun SheetScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        renameSheet(renameText)
+                        val target = renameTargetIndex ?: activeSheet
+                        renameSheetAt(target, renameText)
                         showRename = false
+                        renameTargetIndex = null
                     },
                 ) { Text("Rename") }
             },
             dismissButton = {
-                TextButton(onClick = { showRename = false }) { Text("Cancel") }
+                TextButton(onClick = {
+                    showRename = false
+                    renameTargetIndex = null
+                }) { Text("Cancel") }
+            },
+        )
+    }
+
+    deleteConfirmIndex?.let { index ->
+        val targetName = workbook?.sheets?.getOrNull(index)?.name.orEmpty()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteConfirmIndex = null },
+            title = { Text("Delete sheet?") },
+            text = { Text("Delete \"$targetName\"? Any data on this sheet will be removed.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteSheet(index)
+                        deleteConfirmIndex = null
+                    },
+                ) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirmIndex = null }) { Text("Cancel") }
             },
         )
     }
@@ -1950,6 +2018,13 @@ fun SheetScreen(
                         editText = ""
                     },
                     onAdd = ::addSheet,
+                    onRename = { index ->
+                        renameTargetIndex = index
+                        renameText = workbook?.sheets?.getOrNull(index)?.name.orEmpty()
+                        showRename = true
+                    },
+                    onDuplicate = ::duplicateSheet,
+                    onDelete = { index -> deleteConfirmIndex = index },
                 )
             }
         },
@@ -2861,7 +2936,11 @@ private fun SheetTabs(
     active: Int,
     onSelect: (Int) -> Unit,
     onAdd: () -> Unit,
+    onRename: (Int) -> Unit,
+    onDuplicate: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
 ) {
+    var sheetMenuIndex by remember { mutableStateOf<Int?>(null) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
         Row(
             modifier = Modifier
@@ -2882,15 +2961,23 @@ private fun SheetTabs(
                     },
                     modifier = Modifier
                         .defaultMinSize(minHeight = 48.dp)
-                        // A tab's active state was colour-only. TalkBack now hears
-                        // the name plus whether it is the current sheet, and the
-                        // selected state is a semantic property too.
                         .semantics(mergeDescendants = true) {
                             contentDescription = "Sheet ${sheet.name}"
                             this.selected = selected
                             role = Role.Tab
                         }
-                        .clickable { onSelect(index) },
+                        .combinedClickable(
+                            onClick = {
+                                if (selected) {
+                                    sheetMenuIndex = index
+                                } else {
+                                    onSelect(index)
+                                }
+                            },
+                            onLongClick = {
+                                sheetMenuIndex = index
+                            },
+                        ),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
@@ -2904,6 +2991,34 @@ private fun SheetTabs(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                             maxLines = 1,
                         )
+                        DropdownMenu(
+                            expanded = sheetMenuIndex == index,
+                            onDismissRequest = { sheetMenuIndex = null },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Rename") },
+                                onClick = {
+                                    sheetMenuIndex = null
+                                    onRename(index)
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Duplicate") },
+                                onClick = {
+                                    sheetMenuIndex = null
+                                    onDuplicate(index)
+                                },
+                            )
+                            if (sheets.size > 1) {
+                                DropdownMenuItem(
+                                    text = { Text("Delete") },
+                                    onClick = {
+                                        sheetMenuIndex = null
+                                        onDelete(index)
+                                    },
+                                )
+                            }
+                        }
                     }
                 }
             }
