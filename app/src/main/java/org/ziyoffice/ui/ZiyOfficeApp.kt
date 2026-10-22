@@ -70,6 +70,7 @@ fun ZiyOfficeApp(
     var recents by remember { mutableStateOf(store.load()) }
     var tabName by rememberSaveable { mutableStateOf(ZiyTab.HOME.name) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showVault by rememberSaveable { mutableStateOf(false) }
     var openFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     /** The file whose form is being filled in, when one is. */
@@ -252,6 +253,18 @@ fun ZiyOfficeApp(
         return
     }
 
+    if (showVault) {
+        BackHandler { showVault = false }
+        VaultScreen(
+            onBack = { showVault = false },
+            onOpenFile = { file ->
+                showVault = false
+                openFileUri = file.uri
+            },
+        )
+        return
+    }
+
     val openFile = openFileUri?.let { uri ->
         recents.firstOrNull { it.uri == uri }
             ?: transientFile?.takeIf { it.uri == uri }
@@ -362,7 +375,10 @@ fun ZiyOfficeApp(
                     onOpenFile = openPicker,
                     onOpenRecent = { file -> openFileUri = file.uri },
                 )
-                ZiyTab.SETTINGS -> SettingsScreen(onOpenAbout = { showAbout = true })
+                ZiyTab.SETTINGS -> SettingsScreen(
+                    onOpenAbout = { showAbout = true },
+                    onOpenVault = { showVault = true },
+                )
             }
         }
     }

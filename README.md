@@ -88,8 +88,8 @@ hand.
 ## roadmap
 
 Next up: editing the comments, footnotes and tracked changes the app now keeps; cell notes;
-page numbers and a table of contents in documents; images and shapes on slides;
-`.odt`/`.ods`/`.odp` support; an encrypted vault with a biometric lock.
+page numbers and a table of contents in documents; handwriting; `.odt`/`.ods`/`.odp` support;
+OCR of a picture you pick.
 
 ## bugs
 

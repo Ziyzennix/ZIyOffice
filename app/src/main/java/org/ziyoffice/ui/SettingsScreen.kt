@@ -27,7 +27,7 @@ import org.ziyoffice.BuildConfig
 
 /** Settings tab. No back button, this is a root destination now. */
 @Composable
-fun SettingsScreen(onOpenAbout: () -> Unit) {
+fun SettingsScreen(onOpenAbout: () -> Unit, onOpenVault: () -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -72,6 +72,39 @@ fun SettingsScreen(onOpenAbout: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 48.dp)
+                // One merged node: TalkBack reads "Encrypted vault, button"
+                // instead of a label with no hint that it navigates.
+                .semantics(mergeDescendants = true) {
+                    contentDescription = "Encrypted vault"
+                    role = Role.Button
+                }
+                .clickable(onClick = onOpenVault)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Encrypted vault",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    "Keep files encrypted on this device. The passphrase is the key, and it is " +
+                        "not kept anywhere.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
 
         Row(
             modifier = Modifier

@@ -104,7 +104,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 
 | Feature | WPS | ZiyOffice | Status |
 |---|---|---|---|
-| Encrypted vault + biometric lock | no | | planned |
+| Encrypted vault + biometric lock | no | A vault that keeps files encrypted on the device, names and all. The passphrase is the key and it is not kept anywhere | done |
 | Metadata scrub on share/export | no | A document ZiyOffice *creates* carries no `docProps/` at all (verified by `MetadataScrubTest`). A document it *edits* keeps the metadata it came with, because the file stays the author's own, and adds none of its own | done |
 | Offline OCR (scan → text) | cloud, limited | | planned |
 | Handwriting / ink notes | premium | | planned |

@@ -147,6 +147,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:ooxml"))
     implementation(project(":core:pdf"))
+    implementation(project(":core:vault"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
