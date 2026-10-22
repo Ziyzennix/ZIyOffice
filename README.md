@@ -57,8 +57,7 @@ Printing goes through Android's own print service, so no permission is involved.
 
 ## not yet
 
-Encrypted vault, OCR, handwriting notes, images and shapes on slides, macros, pivot tables,
-`.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS Office.
+OCR, handwriting notes, macros, pivot tables, `.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS Office.
 
 ## install
 

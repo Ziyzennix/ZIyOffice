@@ -27,7 +27,7 @@ that's the worst bug in the project.
 | Recent-files list         | App-private storage on this device     | Never              |
 | Autosave drafts           | App-private storage on this device     | Never              |
 | Settings                  | App-private storage on this device     | Never              |
-| Encrypted vault (planned) | App-private storage, encrypted at rest | Never              |
+| Encrypted vault          | App-private storage, encrypted at rest | Never              |
 
 Android backup is off (`android:allowBackup="false"`), so none of this gets copied to a cloud
 backup service either.
