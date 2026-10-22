@@ -102,4 +102,55 @@ class SheetSortTest {
         val original = sheet("A1" to "only")
         assertEquals(original, SheetSort.sort(original, 0, 0, SheetSort.Key(0)))
     }
+
+    @Test
+    fun theSecondKeyBreaksTheTies() {
+        val sorted = SheetSort.sort(
+            sheet(
+                "A1" to "b", "B1" to "2",
+                "A2" to "a", "B2" to "1",
+                "A3" to "a", "B3" to "3",
+            ),
+            topRow = 0,
+            bottomRow = 2,
+            keys = listOf(
+                SheetSort.Key(column = 0),
+                SheetSort.Key(column = 1),
+            ),
+        )
+        // The two "a" rows are ordered by the second column.
+        assertEquals(listOf("a", "a", "b"), column(sorted, 0).take(3))
+        assertEquals(listOf("1", "3", "2"), column(sorted, 1).take(3))
+    }
+
+    @Test
+    fun theFirstKeyWins() {
+        val sorted = SheetSort.sort(
+            sheet(
+                "A1" to "b", "B1" to "1",
+                "A2" to "a", "B2" to "2",
+            ),
+            topRow = 0,
+            bottomRow = 1,
+            keys = listOf(
+                SheetSort.Key(column = 0),
+                SheetSort.Key(column = 1),
+            ),
+        )
+        assertEquals(listOf("a", "b"), column(sorted, 0).take(2))
+    }
+
+    @Test
+    fun aSortWithOneKeyIsTheSameAsBefore() {
+        val original = sheet("A1" to "c", "A2" to "a", "A3" to "b")
+        val byKey = SheetSort.sort(original, 0, 2, SheetSort.Key(column = 0))
+        val byKeys = SheetSort.sort(original, 0, 2, listOf(SheetSort.Key(column = 0)))
+        assertEquals(byKey.cells, byKeys.cells)
+    }
+
+    @Test
+    fun aSortWithNoKeysChangesNothing() {
+        val original = sheet("A1" to "c", "A2" to "a")
+        assertEquals(original, SheetSort.sort(original, 0, 1, emptyList()))
+    }
 }

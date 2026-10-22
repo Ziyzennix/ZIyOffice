@@ -337,6 +337,10 @@ fun SheetScreen(
     var findMatchCase by remember { mutableStateOf(false) }
     var findCursor by remember { mutableStateOf(0) }
     var showListDialog by remember { mutableStateOf(false) }
+    var showSortDialog by remember { mutableStateOf(false) }
+    var sortFirstColumn by remember { mutableStateOf(0) }
+    var sortSecondColumn by remember { mutableStateOf<Int?>(null) }
+    var sortAscending by remember { mutableStateOf(true) }
     var listChoicesText by remember { mutableStateOf("") }
     // The row the grid should bring into view, set when a match is selected.
     var scrollTargetRow by remember { mutableStateOf<Int?>(null) }
@@ -957,8 +961,15 @@ fun SheetScreen(
         showListDialog = false
     }
 
-    /** Sorts every used row by the cursor's column. The whole block moves, rows keep their cells. */
-    fun sortBySelection(ascending: Boolean) {
+    /**
+     * Sorts every used row by the columns the dialog names. The whole block
+     * moves, rows keep their cells.
+     */
+    fun sortByColumns(
+        firstColumn: Int,
+        secondColumn: Int?,
+        ascending: Boolean,
+    ) {
         if (editingCell) commitEdit()
         val current = currentSheet() ?: return
         val lastRow = current.cells.maxOfOrNull { it.row } ?: return
@@ -975,11 +986,15 @@ fun SheetScreen(
             return
         }
 
+        val keys = buildList {
+            add(SheetSort.Key(column = firstColumn, ascending = ascending))
+            secondColumn?.let { add(SheetSort.Key(column = it, ascending = ascending)) }
+        }
         val sorted = SheetSort.sort(
             sheet = current,
             topRow = 0,
             bottomRow = lastRow,
-            key = SheetSort.Key(column = selection.column, ascending = ascending),
+            keys = keys,
         )
         mutate { sorted }
         editText = rawValueAt(selection)
@@ -1468,6 +1483,29 @@ fun SheetScreen(
         )
     }
 
+    if (showSortDialog) {
+        val columns = (0..(currentSheet()?.columnCount ?: 26).coerceAtMost(26))
+            .map { columnName(it) }
+        SheetSortDialog(
+            columns = columns,
+            firstColumn = sortFirstColumn,
+            secondColumn = sortSecondColumn,
+            ascending = sortAscending,
+            onFirstColumnChange = { sortFirstColumn = it },
+            onSecondColumnChange = { sortSecondColumn = it },
+            onAscendingChange = { sortAscending = it },
+            onApply = {
+                showSortDialog = false
+                sortByColumns(
+                    firstColumn = sortFirstColumn,
+                    secondColumn = sortSecondColumn,
+                    ascending = sortAscending,
+                )
+            },
+            onDismiss = { showSortDialog = false },
+        )
+    }
+
     if (showListDialog) {
         SheetListDialog(
             choices = listChoicesText,
@@ -1737,17 +1775,36 @@ fun SheetScreen(
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
+                                text = { Text("Sort by\u2026") },
+                                onClick = {
+                                    menuExpanded = false
+                                    if (editingCell) commitEdit()
+                                    sortFirstColumn = selection.column
+                                    sortSecondColumn = null
+                                    sortAscending = true
+                                    showSortDialog = true
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Sort column A \u2192 Z") },
                                 onClick = {
                                     menuExpanded = false
-                                    sortBySelection(ascending = true)
+                                    sortByColumns(
+                                        firstColumn = selection.column,
+                                        secondColumn = null,
+                                        ascending = true,
+                                    )
                                 },
                             )
                             DropdownMenuItem(
                                 text = { Text("Sort column Z \u2192 A") },
                                 onClick = {
                                     menuExpanded = false
-                                    sortBySelection(ascending = false)
+                                    sortByColumns(
+                                        firstColumn = selection.column,
+                                        secondColumn = null,
+                                        ascending = false,
+                                    )
                                 },
                             )
                         }

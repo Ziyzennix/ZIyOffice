@@ -17,30 +17,37 @@ object SheetSort {
      * Returns [sheet] with rows `topRow..bottomRow` reordered by [key]. Every column moves with its row,
      * so a sort never strands data outside the key column.
      */
-    fun sort(sheet: Sheet, topRow: Int, bottomRow: Int, key: Key): Sheet {
+    fun sort(sheet: Sheet, topRow: Int, bottomRow: Int, key: Key): Sheet =
+        sort(sheet, topRow, bottomRow, listOf(key))
+
+    /**
+     * Returns [sheet] with rows `topRow..bottomRow` reordered by [keys].
+     *
+     * The first key decides; the next ones break the ties. That is the order
+     * a spreadsheet sorts by when the user adds a second column, and the one
+     * people expect when they say "sort by this, then by that".
+     */
+    fun sort(sheet: Sheet, topRow: Int, bottomRow: Int, keys: List<Key>): Sheet {
         if (bottomRow <= topRow) return sheet
+        if (keys.isEmpty()) return sheet
         val byPosition = sheet.cells.associateBy { it.row to it.column }
 
-        // Capture each row's cells, then order the row indices by the key column.
+        // Capture each row's cells, then order the row indices by the keys.
         val rows = (topRow..bottomRow).toList()
-        val sortValue: (Int) -> CellValue? = { row ->
-            byPosition[row to key.column]?.let { cell -> valueOf(cell, sheet) }
+        val sortValue: (Int, Int) -> CellValue? = { row, column ->
+            byPosition[row to column]?.let { cell -> valueOf(cell, sheet) }
         }
 
         val ordered = rows.sortedWith { a, b ->
-            val left = sortValue(a)
-            val right = sortValue(b)
-            // Blankness outranks direction: negating the whole comparison would
-            // float empty rows to the top of a descending sort.
-            when {
-                isBlank(left) && isBlank(right) -> 0
-                isBlank(left) -> 1
-                isBlank(right) -> -1
-                else -> {
-                    val comparison = compare(left, right)
-                    if (key.ascending) comparison else -comparison
-                }
+            for (key in keys) {
+                val comparison = compareRows(
+                    sortValue(a, key.column),
+                    sortValue(b, key.column),
+                    key.ascending,
+                )
+                if (comparison != 0) return@sortedWith comparison
             }
+            0
         }
 
         val moved = mutableListOf<Cell>()
@@ -71,6 +78,22 @@ object SheetSort {
         val moved = mutableMapOf<Int, Int>()
         ordered.forEachIndexed { offset, sourceRow -> moved[sourceRow] = topRow + offset }
         return heights.entries.associate { (row, height) -> (moved[row] ?: row) to height }
+    }
+
+    /**
+     * Orders two rows by one key.
+     *
+     * Blankness outranks direction: negating the whole comparison would
+     * float empty rows to the top of a descending sort.
+     */
+    private fun compareRows(left: CellValue?, right: CellValue?, ascending: Boolean): Int = when {
+        isBlank(left) && isBlank(right) -> 0
+        isBlank(left) -> 1
+        isBlank(right) -> -1
+        else -> {
+            val comparison = compare(left, right)
+            if (ascending) comparison else -comparison
+        }
     }
 
     /**

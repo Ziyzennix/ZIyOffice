@@ -75,6 +75,92 @@ internal fun SheetListDialog(
     )
 }
 
+@Composable
+internal fun SheetSortDialog(
+    columns: List<String>,
+    firstColumn: Int,
+    secondColumn: Int?,
+    ascending: Boolean,
+    onFirstColumnChange: (Int) -> Unit,
+    onSecondColumnChange: (Int?) -> Unit,
+    onAscendingChange: (Boolean) -> Unit,
+    onApply: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sort") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Sort by",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column {
+                    Column(
+                        Modifier.horizontalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            columns.forEachIndexed { index, name ->
+                                FilterChip(
+                                    selected = firstColumn == index,
+                                    onClick = { onFirstColumnChange(index) },
+                                    label = { Text(name) },
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    "Then by",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column(
+                    Modifier.horizontalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(
+                            selected = secondColumn == null,
+                            onClick = { onSecondColumnChange(null) },
+                            label = { Text("None") },
+                        )
+                        columns.forEachIndexed { index, name ->
+                            FilterChip(
+                                selected = secondColumn == index,
+                                onClick = { onSecondColumnChange(index) },
+                                label = { Text(name) },
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = ascending,
+                        onClick = { onAscendingChange(true) },
+                        label = { Text("A to Z") },
+                    )
+                    FilterChip(
+                        selected = !ascending,
+                        onClick = { onAscendingChange(false) },
+                        label = { Text("Z to A") },
+                    )
+                }
+                Text(
+                    "Rows with nothing in the column they are sorted by go last.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onApply) { Text("Sort") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SheetFindPanel(
