@@ -1,6 +1,8 @@
 package org.ziyoffice.ui
 
 import android.net.Uri
+import android.graphics.BitmapFactory
+import org.ziyoffice.export.ImageToPdfExporter
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,9 +33,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.ziyoffice.data.RecentFilesStore
+import org.ziyoffice.model.Block
 import org.ziyoffice.model.Document
+import org.ziyoffice.model.documentFromText
 import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.Paragraph
+import org.ziyoffice.model.Run
 import org.ziyoffice.model.RecentFile
 import org.ziyoffice.model.Sheet
 import org.ziyoffice.model.SlideDeck
@@ -47,6 +52,9 @@ import org.ziyoffice.saf.PPTX_MIME_TYPE
 import org.ziyoffice.saf.XLSX_MIME_TYPE
 import org.ziyoffice.saf.rememberDocumentCreator
 import org.ziyoffice.saf.rememberDocumentPicker
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 
 private enum class ZiyTab(val label: String) {
     HOME("Home"),
@@ -71,6 +79,13 @@ fun ZiyOfficeApp(
     var tabName by rememberSaveable { mutableStateOf(ZiyTab.HOME.name) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var showVault by rememberSaveable { mutableStateOf(false) }
+    /** The picture whose words are being read, when one is. */
+    var textPictureUri by rememberSaveable { mutableStateOf<String?>(null) }
+    /** Text read from a picture, waiting for the file it will be saved as. */
+    var pendingScanText by remember { mutableStateOf<String?>(null) }
+    /** Photo URIs waiting for the destination PDF to be chosen by the user. */
+    var pendingPhotoUris by remember { mutableStateOf<List<Uri>?>(null) }
+    var compilingPhotosToPdf by remember { mutableStateOf(false) }
     var openFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     var createdFileUri by rememberSaveable { mutableStateOf<String?>(null) }
     /** The file whose form is being filled in, when one is. */
@@ -221,7 +236,72 @@ fun ZiyOfficeApp(
         }
     }
 
-    val createDocument = rememberDocumentCreator(onCreated = { uri -> createNewDocument(uri) })
+    /** Picks the picture whose words will be read. */
+    val readPicture = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri ->
+        if (uri != null) textPictureUri = uri.toString()
+    }
+    val createPhotosPdf = rememberDocumentCreator(
+        mimeType = "application/pdf",
+        onCreated = { outputUri ->
+            val uris = pendingPhotoUris ?: return@rememberDocumentCreator
+            pendingPhotoUris = null
+            scope.launch {
+                compilingPhotosToPdf = true
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bitmaps = uris.mapNotNull { uri ->
+                            context.contentResolver.openInputStream(uri)?.use { stream ->
+                                BitmapFactory.decodeStream(stream)
+                            }
+                        }
+                        if (bitmaps.isEmpty()) error("None of the chosen pictures could be read.")
+                        context.contentResolver.openOutputStream(outputUri)?.use { out ->
+                            ImageToPdfExporter.export(bitmaps, out)
+                        } ?: error("Could not write to destination.")
+                        bitmaps.forEach { it.recycle() }
+                    }
+                }
+                compilingPhotosToPdf = false
+                result.fold(
+                    onSuccess = {
+                        val entry = store.remember(outputUri)?.file
+                        recents = store.load()
+                        openFileUri = entry?.uri ?: outputUri.toString()
+                    },
+                    onFailure = { error ->
+                        statusMessage = "Could not compile photos into a PDF: " +
+                            (error.message ?: error.javaClass.simpleName)
+                    },
+                )
+            }
+        },
+    )
+    val pickPhotosForPdf = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(),
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            pendingPhotoUris = uris
+            createPhotosPdf("Photos.pdf")
+        }
+    }
+
+
+    val createDocument = rememberDocumentCreator(
+        onCreated = { uri ->
+            val scanned = pendingScanText
+            pendingScanText = null
+            createNewDocument(
+                uri,
+                if (scanned == null) {
+                    Document(blocks = listOf(Paragraph()))
+                } else {
+                    documentFromText(scanned)
+                },
+            )
+        },
+    )
     val createSpreadsheet = rememberDocumentCreator(
         mimeType = XLSX_MIME_TYPE,
         onCreated = ::createNewSpreadsheet,
@@ -260,6 +340,21 @@ fun ZiyOfficeApp(
             onOpenFile = { file ->
                 showVault = false
                 openFileUri = file.uri
+            },
+        )
+        return
+    }
+
+    val pictureUri = textPictureUri
+    if (pictureUri != null) {
+        BackHandler { textPictureUri = null }
+        TextFromPictureScreen(
+            imageUri = Uri.parse(pictureUri),
+            onBack = { textPictureUri = null },
+            onCreateDocument = { text ->
+                pendingScanText = text
+                textPictureUri = null
+                createDocument("Scan.docx")
             },
         )
         return
@@ -364,6 +459,16 @@ fun ZiyOfficeApp(
                     onCreateDocument = { createDocument("Document.docx") },
                     onCreateSpreadsheet = { createSpreadsheet("Spreadsheet.xlsx") },
                     onCreatePresentation = { createPresentation("Presentation.pptx") },
+                    onReadText = {
+                        readPicture.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                    onImagesToPdf = {
+                        pickPhotosForPdf.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
                     onCreateTemplate = { templateId ->
                         pendingTemplateId = templateId
                         createFromTemplate(documentTemplate(templateId).name + ".docx")

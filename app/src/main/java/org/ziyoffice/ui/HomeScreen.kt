@@ -16,7 +16,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Slideshow
@@ -62,6 +64,8 @@ fun HomeScreen(
     onCreateSpreadsheet: () -> Unit,
     onCreatePresentation: () -> Unit,
     onCreateTemplate: (String) -> Unit,
+    onReadText: () -> Unit,
+    onImagesToPdf: () -> Unit,
     onShowAllFiles: () -> Unit,
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
@@ -180,6 +184,25 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f),
                     ) { onOpenPdf() }
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CreateTile(
+                        label = "Text",
+                        description = "Read text from a picture",
+                        color = ZiyTypeColors.Image,
+                        icon = Icons.Filled.DocumentScanner,
+                        modifier = Modifier.weight(1f),
+                    ) { onReadText() }
+                    CreateTile(
+                        label = "Photos to PDF",
+                        description = "Compile pictures into a PDF",
+                        color = ZiyTypeColors.Pdf,
+                        icon = Icons.Filled.Collections,
+                        modifier = Modifier.weight(1f),
+                    ) { onImagesToPdf() }
+                }
             }
         }
 
@@ -246,6 +269,7 @@ private fun CreateTile(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     spokenAction: String = "New",
+    description: String? = null,
     onClick: () -> Unit,
 ) {
     Column(
@@ -254,7 +278,7 @@ private fun CreateTile(
             .semantics(mergeDescendants = true) {
                 // "New Docs" for creation, "Open PDF" for the PDF tile: a PDF
                 // cannot be created from scratch, so the tile must not imply it.
-                contentDescription = "$spokenAction $label"
+                contentDescription = description ?: "$spokenAction $label"
                 role = Role.Button
             }
             .clickable(onClick = onClick),
