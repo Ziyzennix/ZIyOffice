@@ -128,6 +128,15 @@ data class Run(
     val sizePt: Float? = null,
     /** Text colour as 0xRRGGBB; null when the document uses automatic colour. */
     val colorRgb: Int? = null,
+    /**
+     * The field this run stands for, such as "PAGE".
+     *
+     * A field is a piece of text the word processor fills in: the page
+     * number, the date, the number of pages. The text of a field run is the
+     * result it last had, so a reader that cannot work the field out still
+     * shows something sensible.
+     */
+    val field: String? = null,
 )
 
 /** True when two runs would look the same on the page. */
@@ -140,3 +149,22 @@ fun Run.hasSameFormattingAs(other: Run): Boolean =
         colorRgb == other.colorRgb
 
 enum class ParagraphAlignment { START, CENTER, END, JUSTIFY }
+
+/**
+ * The document with a page number in its footer.
+ *
+ * A footer that is not there yet is made. The number is a field, so the
+ * word processor fills it in for each page; the text of the field is the
+ * result it last had, so a reader that cannot work it out still shows
+ * something.
+ */
+fun Document.withPageNumberInFooter(): Document {
+    val blocks = footer.orEmpty()
+    // A footer that already has a page number is left alone.
+    val hasNumber = blocks.any { block ->
+        block is Paragraph && block.runs.any { it.field?.equals("PAGE", ignoreCase = true) == true }
+    }
+    if (hasNumber) return this
+    val number = Paragraph(runs = listOf(Run(text = "1", field = "PAGE")))
+    return copy(footer = blocks + number)
+}

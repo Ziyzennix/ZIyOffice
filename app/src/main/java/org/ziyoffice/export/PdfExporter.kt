@@ -294,10 +294,22 @@ private class Renderer(private val output: OutputStream) {
     private fun appendRuns(builder: SpannableStringBuilder, runs: List<Run>) {
         for (run in runs) {
             val start = builder.length
-            builder.append(run.text)
+            builder.append(textOf(run))
             val end = builder.length
             if (end > start) applyRunSpans(builder, run, start, end)
         }
+    }
+
+    /**
+     * The text a run shows.
+     *
+     * A field is filled in here: the page number is the one of the page
+     * being drawn. A field ZiyOffice does not know shows the result it last
+     * had, which is what the file already said.
+     */
+    private fun textOf(run: Run): String = when (run.field?.uppercase()) {
+        "PAGE" -> pageNumber.toString()
+        else -> run.text
     }
 
     private fun applyRunSpans(

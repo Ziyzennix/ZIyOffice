@@ -356,6 +356,10 @@ class DocxEditor(private val source: DocxSource) {
     private fun renderNewRun(slot: SourceRun, piece: Piece, xml: String): String {
         val element = slot.element
         val builder = StringBuilder()
+        if (piece.model.field != null && element.localName != "fldSimple") {
+            DocxXml.writeField(builder, piece.model.copy(text = piece.text))
+            return builder.toString()
+        }
         builder.append(openTag(element, xml))
         val properties = element.child("rPr")
         val newProperties = renderRunProperties(properties, slot.model, piece.model, xml)
@@ -370,6 +374,10 @@ class DocxEditor(private val source: DocxSource) {
         if (pieces.isEmpty()) return ""
         val builder = StringBuilder()
         pieces.forEach { piece ->
+            if (piece.model.field != null) {
+                DocxXml.writeField(builder, piece.model.copy(text = piece.text))
+                return@forEach
+            }
             builder.append("<w:r>")
             builder.append(renderAbsoluteProperties(piece.model))
             builder.append(renderRunText(piece.text))
@@ -414,6 +422,13 @@ class DocxEditor(private val source: DocxSource) {
     ): String {
         val element = slot.element
         val builder = StringBuilder()
+        // A run that became a field is written as the element the format
+        // uses for one. A run that already was a field keeps its own element.
+        if (modelRun?.field != null && element.localName != "fldSimple") {
+            val value = text ?: modelRun.text
+            DocxXml.writeField(builder, modelRun.copy(text = value))
+            return builder.toString()
+        }
         builder.append(openTag(element, xml))
         val contentNodes = slot.contentNodes
         val properties = element.child("rPr")

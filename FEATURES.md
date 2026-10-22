@@ -46,6 +46,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Autosave + crash recovery | yes | | done |
 | Export to PDF (matches screen exactly) | yes | | done |
 | Print via the system print service | yes | | done |
+| Page numbers | yes | Put a page number in the footer; it is a real field, so the word processor fills it in for every page | done |
 | Headers/footers | yes | Shown above and below the body and edited in place; kept by a save. First-page and even-page variants are kept as they are but can't be edited | done |
 | Comments, track change, hyperlinks, equations, text boxes, section/column layout | yes | Kept as they are by a save, so the file stays complete, but not editable here (listed on open) | — |
 | Equations, SmartArt | partial | | — |

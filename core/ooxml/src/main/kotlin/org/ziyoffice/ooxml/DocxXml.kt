@@ -43,7 +43,7 @@ internal object DocxXml {
     fun writeParagraph(sb: StringBuilder, paragraph: Paragraph, relId: ImageRelId) {
         sb.append("<w:p>")
         writeParagraphProperties(sb, paragraph)
-        paragraph.runs.forEach { run -> writeRun(sb, run) }
+        paragraph.runs.forEach { run -> writeRunOrField(sb, run) }
         paragraph.images.forEach { image -> writeImage(sb, image, relId.of(image)) }
         sb.append("</w:p>")
     }
@@ -112,6 +112,25 @@ internal object DocxXml {
         if (props.isNotEmpty()) sb.append("<w:rPr>").append(props).append("</w:rPr>")
         writeRunText(sb, run.text)
         sb.append("</w:r>")
+    }
+
+    /**
+     * A field, as the format writes it.
+     *
+     * A field is an element of its own that holds the result it last had.
+     * The instruction says which field it is, so the word processor can fill
+     * it in again.
+     */
+    fun writeField(sb: StringBuilder, run: Run) {
+        val field = run.field ?: return
+        sb.append("<w:fldSimple w:instr=\" ").append(field.uppercase()).append(" \">")
+        writeRun(sb, run.copy(field = null))
+        sb.append("</w:fldSimple>")
+    }
+
+    /** A run, or a field when it stands for one. */
+    fun writeRunOrField(sb: StringBuilder, run: Run) {
+        if (run.field != null) writeField(sb, run) else writeRun(sb, run)
     }
 
     /** Tabs and line breaks become `w:tab` / `w:br` siblings of the text runs. */

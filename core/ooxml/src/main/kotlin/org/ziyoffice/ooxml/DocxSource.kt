@@ -661,6 +661,9 @@ internal class BodyReader(
                 child.localName == "r" && child.isWord() -> {
                     readRun(child, resolved, runs, images, onPageBreak)
                 }
+                child.localName == "fldSimple" && child.isWord() -> {
+                    readField(child, resolved, runs, images, onPageBreak)
+                }
                 child.localName == "drawing" || child.localName == "pict" -> {
                     readImage(child, images)
                 }
@@ -668,6 +671,50 @@ internal class BodyReader(
                 else -> collectRuns(child, resolved, runs, images, onPageBreak)
             }
         }
+    }
+
+    /**
+     * A field: an element the word processor fills in.
+     *
+     * The instruction says which field it is ("PAGE" for the page number),
+     * and the element holds the result it last had. The result is kept as
+     * the run's text, so a reader that cannot work the field out still shows
+     * something sensible.
+     */
+    private fun readField(
+        element: XmlElement,
+        resolved: DocxSourceReader.ResolvedStyle,
+        runs: MutableList<SourceRun>,
+        images: MutableList<SourceImage>,
+        onPageBreak: () -> Unit,
+    ) {
+        val instruction = element.attr("instr")?.trim().orEmpty()
+        if (instruction.isEmpty()) return
+        val name = instruction.split(Regex("\\s+")).firstOrNull()?.trim().orEmpty()
+        if (name.isEmpty()) return
+
+        val contentNodes = mutableListOf<XmlElement>()
+        val text = StringBuilder()
+        element.descendants().forEach { descendant ->
+            if (descendant.localName == "t" && descendant.isWord()) {
+                text.append(descendant.text)
+                contentNodes += descendant
+            }
+        }
+        val inner = element.child("r")
+        val properties = inner?.child("rPr")
+        val props = properties?.let { parseRunProps(it) }
+        val model = Run(
+            text = text.toString(),
+            bold = props?.bold ?: resolved.run.bold ?: false,
+            italic = props?.italic ?: resolved.run.italic ?: false,
+            underline = props?.underline ?: resolved.run.underline ?: false,
+            strike = props?.strike ?: resolved.run.strike ?: false,
+            sizePt = props?.sizePt ?: resolved.run.sizePt,
+            colorRgb = props?.colorRgb ?: resolved.run.colorRgb,
+            field = name,
+        )
+        runs += SourceRun(element, contentNodes, model)
     }
 
     private fun readRun(

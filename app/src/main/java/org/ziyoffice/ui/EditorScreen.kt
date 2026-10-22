@@ -75,6 +75,7 @@ import org.ziyoffice.model.Document
 import org.ziyoffice.model.blocksIn
 import org.ziyoffice.model.withParagraphRemovedAt
 import org.ziyoffice.model.withParagraphAddedAfter
+import org.ziyoffice.model.withPageNumberInFooter
 import org.ziyoffice.model.DocumentRegion
 import org.ziyoffice.model.FocusPath
 import org.ziyoffice.model.mapParagraphAt
