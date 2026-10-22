@@ -25,9 +25,9 @@ ZiyOffice does the other trade:
 - **OCR & Photos to PDF**: pull text off photos into a document offline, or bundle pictures straight into a PDF.
 - **Vault & Starred**: keep sensitive files in an encrypted vault on device, and star files to find them quickly.
 
-## heads up for 0.5.2
+## heads up
 
-All unit tests pass in Gradle, but this 0.5.2 build has not been tested on a physical phone yet. My phone is broken and my PC is too weak to run the Android emulator.
+All unit tests pass in Gradle, but builds have not been tested on a physical phone yet. My phone is broken and my PC is too weak to run the Android emulator.
 
 If you hit any bugs, crashes or weird layouts, please open an issue:
 https://github.com/Ziyzennix/ZiyOffice/issues
