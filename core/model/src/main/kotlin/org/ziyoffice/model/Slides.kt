@@ -39,9 +39,45 @@ data class Slide(
     val lines: List<String>,
     /** Speaker notes, read from the notes part; empty when the slide has none. */
     val notes: String = "",
+    /** How the slide gives way to the next one. */
+    val transition: SlideTransition = SlideTransition.NONE,
 ) {
     val title: String get() = lines.firstOrNull().orEmpty()
     val body: List<String> get() = lines.drop(1)
+}
+
+/**
+ * How a slide gives way to the next one.
+ *
+ * The names are the ones a presentation program shows.
+ */
+enum class SlideTransition(val label: String) {
+    /** The slide changes with nothing in between. */
+    NONE("None"),
+
+    /** The old slide fades into the new one. */
+    FADE("Fade"),
+
+    /** The new slide wipes across the old one. */
+    WIPE("Wipe"),
+
+    /** The new slide pushes the old one out of the way. */
+    PUSH("Push"),
+
+    /** The new slide covers the old one. */
+    COVER("Cover"),
+
+    /** The two slides mix into each other. */
+    DISSOLVE("Dissolve"),
+
+    /** The old slide disappears at once. */
+    CUT("Cut"),
+
+    /** The new slide opens out from the middle. */
+    SPLIT("Split"),
+
+    /** The new slide grows into place. */
+    ZOOM("Zoom"),
 }
 
 fun SlideDeck.withLines(index: Int, lines: List<String>): SlideDeck {
@@ -71,5 +107,13 @@ fun SlideDeck.withSlideMoved(index: Int, delta: Int): SlideDeck {
     if (index !in slides.indices || target !in slides.indices) return this
     val updated = slides.toMutableList()
     updated.add(target, updated.removeAt(index))
+    return copy(slides = updated)
+}
+
+/** The deck with [transition] on the slide at [index]. */
+fun SlideDeck.withTransition(index: Int, transition: SlideTransition): SlideDeck {
+    if (index !in slides.indices) return this
+    val updated = slides.toMutableList()
+    updated[index] = updated[index].copy(transition = transition)
     return copy(slides = updated)
 }

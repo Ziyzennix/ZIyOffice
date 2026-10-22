@@ -8,6 +8,7 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import org.ziyoffice.model.Slide
 import org.ziyoffice.model.SlideDeck
+import org.ziyoffice.model.SlideTransition
 
 /**
  * Writes a [SlideDeck] back into a .pptx package.
@@ -32,8 +33,11 @@ class PptxWriter {
         val kept = deck.slides.map { slide ->
             val requested = "ppt/slides/slide${slide.number}.xml"
             val part = if (requested in existing) requested else "ppt/slides/slide${nextPart++}.xml"
-            parts[part] = parts[part]?.let { rewriteSlideText(it.decodeToString(), slide.lines).encodeToByteArray() }
-                ?: newSlideXml(slide.lines).encodeToByteArray()
+            parts[part] = parts[part]?.let {
+                val text = rewriteSlideText(it.decodeToString(), slide.lines)
+                applyTransition(text, slide.transition).encodeToByteArray()
+            }
+                ?: newSlideXml(slide.lines, slide.transition).encodeToByteArray()
             notesPartOf(part, parts)?.let { notes ->
                 parts[notes] = rewriteSlideText(parts.getValue(notes).decodeToString(), slide.notes.split('\n')).encodeToByteArray()
             }
@@ -75,7 +79,7 @@ class PptxWriter {
         parts["ppt/notesMasters/_rels/notesMaster1.xml.rels"] = notesMasterRels().encodeToByteArray()
         slides.forEachIndexed { index, slide ->
             val number = index + 1
-            parts["ppt/slides/slide$number.xml"] = newSlideXml(slide.lines).encodeToByteArray()
+            parts["ppt/slides/slide$number.xml"] = newSlideXml(slide.lines, slide.transition).encodeToByteArray()
             parts["ppt/slides/_rels/slide$number.xml.rels"] = slideRels(number).encodeToByteArray()
             parts["ppt/notesSlides/notesSlide$number.xml"] = notesXml(slide.notes).encodeToByteArray()
             parts["ppt/notesSlides/_rels/notesSlide$number.xml.rels"] = notesRels(number).encodeToByteArray()
@@ -255,7 +259,7 @@ class PptxWriter {
         ZipOutputStream(out).use { zip -> parts.forEach { (name, bytes) -> zip.putNextEntry(ZipEntry(name)); zip.write(bytes); zip.closeEntry() } }
     }.toByteArray()
 
-    private fun newSlideXml(lines: List<String>): String {
+    private fun newSlideXml(lines: List<String>, transition: SlideTransition = SlideTransition.NONE): String {
         val bodyLines = lines.drop(1)
         val body = bodyLines.joinToString("") { paragraphXml(it) }
         val title = lines.firstOrNull().orEmpty()
@@ -264,8 +268,56 @@ class PptxWriter {
         } else {
             "<a:p><a:r><a:rPr lang=\"en-US\"/><a:t${spaceAttr(title)}>${escape(title)}</a:t></a:r></a:p>"
         }
-        return SLIDE_XML.replace("<a:p><a:r><a:rPr lang=\"en-US\"/><a:t>{{TITLE}}</a:t></a:r></a:p>", titleParagraph)
+        val xml = SLIDE_XML.replace("<a:p><a:r><a:rPr lang=\"en-US\"/><a:t>{{TITLE}}</a:t></a:r></a:p>", titleParagraph)
             .replace("{{BODY}}", body.ifEmpty { "<a:p><a:endParaRPr lang=\"en-US\"/></a:p>" })
+        return applyTransition(xml, transition)
+    }
+
+    /**
+     * Puts the transition into a slide, or takes it out.
+     *
+     * The element belongs after the colour mapping and before the timing,
+     * which is where the format says it goes.
+     */
+    internal fun applyTransition(xml: String, transition: SlideTransition): String {
+        val without = removeElement(xml, "p:transition")
+        if (transition == SlideTransition.NONE) return without
+        val element = "<p:transition spd=\"med\">${transitionElement(transition)}</p:transition>"
+        val timingAt = without.indexOf("<p:timing")
+        if (timingAt >= 0) return without.substring(0, timingAt) + element + without.substring(timingAt)
+        val closeAt = without.lastIndexOf("</p:sld>")
+        if (closeAt < 0) return without
+        return without.substring(0, closeAt) + element + without.substring(closeAt)
+    }
+
+    /** The element that stands for a transition. */
+    private fun transitionElement(transition: SlideTransition): String = when (transition) {
+        SlideTransition.NONE -> ""
+        SlideTransition.FADE -> "<p:fade/>"
+        SlideTransition.WIPE -> "<p:wipe dir=\"d\"/>"
+        SlideTransition.PUSH -> "<p:push dir=\"u\"/>"
+        SlideTransition.COVER -> "<p:cover dir=\"d\"/>"
+        SlideTransition.DISSOLVE -> "<p:dissolve/>"
+        SlideTransition.CUT -> "<p:cut/>"
+        SlideTransition.SPLIT -> "<p:split orient=\"horz\" dir=\"out\"/>"
+        SlideTransition.ZOOM -> "<p:zoom/>"
+    }
+
+    /**
+     * Takes an element out of a piece of XML.
+     *
+     * Both forms are handled: an element with a body and one that stands
+     * alone.
+     */
+    private fun removeElement(xml: String, name: String): String {
+        val start = xml.indexOf("<$name")
+        if (start < 0) return xml
+        val tagEnd = xml.indexOf('>', start)
+        if (tagEnd < 0) return xml
+        if (xml[tagEnd - 1] == '/') return xml.substring(0, start) + xml.substring(tagEnd + 1)
+        val close = xml.indexOf("</$name>", tagEnd)
+        if (close < 0) return xml.substring(0, start) + xml.substring(tagEnd + 1)
+        return xml.substring(0, start) + xml.substring(close + name.length + 3)
     }
     private fun paragraphXml(text: String) = "<a:p><a:r><a:rPr lang=\"en-US\"/><a:t${spaceAttr(text)}>${escape(text)}</a:t></a:r></a:p>"
     private fun notesXml(notes: String): String {

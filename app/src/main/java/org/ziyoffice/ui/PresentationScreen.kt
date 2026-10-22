@@ -83,6 +83,8 @@ import org.ziyoffice.model.withLines
 import org.ziyoffice.model.withSlideAdded
 import org.ziyoffice.model.withSlideMoved
 import org.ziyoffice.model.withSlideRemoved
+import org.ziyoffice.model.SlideTransition
+import org.ziyoffice.model.withTransition
 import org.ziyoffice.ooxml.PptxReader
 import org.ziyoffice.ooxml.PptxWriter
 
@@ -110,6 +112,7 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
     var saving by remember { mutableStateOf(false) }
     var presenting by remember(file.uri) { mutableStateOf(false) }
     var moreMenuOpen by remember { mutableStateOf(false) }
+    var showTransitionMenu by remember { mutableStateOf(false) }
     var slideIndex by remember(file.uri) { mutableStateOf(0) }
     var showExitDialog by remember(file.uri) { mutableStateOf(false) }
     var loadError by remember(file.uri) { mutableStateOf<String?>(null) }
@@ -419,6 +422,14 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("Transition") },
+                                enabled = current?.slides?.isNotEmpty() == true,
+                                onClick = {
+                                    moreMenuOpen = false
+                                    showTransitionMenu = true
+                                },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("Print…") },
                                 enabled = current?.slides?.isNotEmpty() == true,
                                 onClick = {
@@ -426,6 +437,22 @@ fun PresentationScreen(file: RecentFile, onBack: () -> Unit) {
                                     printDeck()
                                 },
                             )
+                        }
+                        DropdownMenu(
+                            expanded = showTransitionMenu,
+                            onDismissRequest = { showTransitionMenu = false },
+                        ) {
+                            SlideTransition.entries.forEach { transition ->
+                                DropdownMenuItem(
+                                    text = { Text(transition.label) },
+                                    onClick = {
+                                        showTransitionMenu = false
+                                        deck = deck?.withTransition(slideIndex, transition)
+                                        dirty = true
+                                        writeVersion++
+                                    },
+                                )
+                            }
                         }
                     }
                 },

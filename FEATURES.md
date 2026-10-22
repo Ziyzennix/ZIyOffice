@@ -59,7 +59,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Grid with touch + keyboard editing | yes | | done |
 | Formula engine (SUM, IF, VLOOKUP, … growing set) | yes | About 70 functions: aggregates, maths, text, logic, conditional counting, lookup, statistics, dates and information tests | done |
 | Number/date formatting | yes | | done |
-| Freeze panes, sorting | yes | | done |
+| Freeze panes, sorting | yes | Sort by one column or by two, the second breaking the ties | done |
 | Merged cells | yes | Range select, merge/unmerge, read and write `.xlsx`; sorting is refused while merges exist | done |
 | Column widths and row heights | yes | Resize the selected columns or rows; read and write `.xlsx` `<col>` widths and row `ht` | done |
 | Cell borders | yes | Draw the top, bottom, left or right edge, every edge or a box around the selection; read and write `.xlsx` border styles | done |
@@ -96,7 +96,7 @@ below, and `DocxPreservationTest` / `XlsxPreservationTest` for the enforced cont
 | Print via the system print service | yes | | done |
 | Shape/image editing on slides | yes | | planned. Text edits preserve other parts |
 | Present mode + speaker notes | yes | | done |
-| Transitions / animations | yes | Per-slide transitions and animations | planned |
+| Transitions / animations | yes | A transition per slide, kept by a save | done |
 
 ## Privacy & freedom (the "beat WPS" list). M5
 

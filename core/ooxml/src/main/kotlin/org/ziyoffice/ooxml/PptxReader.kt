@@ -7,6 +7,7 @@ import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import org.ziyoffice.model.Slide
 import org.ziyoffice.model.SlideDeck
+import org.ziyoffice.model.SlideTransition
 
 /** The PresentationML namespace, as defined by ECMA-376 / ISO 29500. */
 const val PRESENTATIONML_NAMESPACE =
@@ -53,7 +54,8 @@ class PptxReader(
             val index = slideIndex(partName) ?: 0
             val lines = parseTextLines(parts[partName] ?: ByteArray(0))
             val notes = notesFor(partName, parts)?.let(::parseNotesText).orEmpty()
-            Slide(number = index, lines = lines, notes = notes)
+            val transition = parseTransition(parts[partName]?.decodeToString().orEmpty())
+            Slide(number = index, lines = lines, notes = notes, transition = transition)
         }
         return SlideDeck(
             slides = slides,
@@ -250,8 +252,38 @@ class PptxReader(
         return lines
     }
 
-    /** Speaker notes: the text of the notes part, joined into paragraphs. */
-    private fun parseNotesText(bytes: ByteArray): String =
+    /**
+     * The transition of a slide.
+     *
+     * The element names itself: `<p:fade/>` is a fade, `<p:wipe dir="d"/>` is
+     * a wipe. A transition ZiyOffice does not know is read as none, so a
+     * slide that had one keeps its text and loses only the effect.
+     */
+    private fun parseTransition(xml: String): SlideTransition {
+        val at = xml.indexOf("<p:transition")
+        if (at < 0) return SlideTransition.NONE
+        // The effect is the child element, not the wrapper, so the whole
+        // element is looked at rather than just its opening tag.
+        val end = xml.indexOf("</p:transition>", at)
+        val window = if (end < 0) {
+            xml.substring(at, minOf(xml.length, at + 200))
+        } else {
+            xml.substring(at, end)
+        }
+        return when {
+            window.contains("<p:fade") -> SlideTransition.FADE
+            window.contains("<p:wipe") -> SlideTransition.WIPE
+            window.contains("<p:push") -> SlideTransition.PUSH
+            window.contains("<p:cover") -> SlideTransition.COVER
+            window.contains("<p:dissolve") -> SlideTransition.DISSOLVE
+            window.contains("<p:cut") -> SlideTransition.CUT
+            window.contains("<p:split") -> SlideTransition.SPLIT
+            window.contains("<p:zoom") -> SlideTransition.ZOOM
+            else -> SlideTransition.NONE
+        }
+    }
+
+    /** Speaker notes: the text of the notes part, joined into paragraphs. */    private fun parseNotesText(bytes: ByteArray): String =
         parseTextLines(bytes).joinToString("\n")
 
     private companion object {
