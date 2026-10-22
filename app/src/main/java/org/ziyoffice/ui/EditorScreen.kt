@@ -83,6 +83,8 @@ import org.ziyoffice.model.applyText
 import org.ziyoffice.model.findMatches
 import org.ziyoffice.model.replaceAll
 import org.ziyoffice.model.paragraphAt
+import org.ziyoffice.model.textLength
+import org.ziyoffice.model.withPastedParagraphs
 import org.ziyoffice.model.DocumentKind
 import org.ziyoffice.model.withColumnInserted
 import org.ziyoffice.model.withColumnRemoved
@@ -249,6 +251,42 @@ fun EditorScreen(
     ) {
         val target = focusedTarget ?: return
         updateDocument(coalesce) { doc -> doc.mapParagraphAt(target, transform) }
+    }
+
+    /**
+     * Puts the selected words on the clipboard.
+     *
+     * With nothing selected, the whole paragraph goes, which is what a
+     * reader expects from a tap on a line.
+     */
+    fun copySelection() {
+        val target = focusedTarget ?: return
+        val ready = previewState.value as? DocxPreview.Ready ?: return
+        val paragraph = ready.document.paragraphAt(target) ?: return
+        val sel = selections[target] ?: TextRange.Zero
+        val start = if (sel.collapsed) 0 else sel.min
+        val end = if (sel.collapsed) paragraph.textLength() else sel.max
+        EditorClipboard.copy(context, paragraph, start, end)
+        scope.launch {
+            snackbarHostState.showSnackbar("Copied")
+        }
+    }
+
+    /**
+     * Puts what is on the clipboard into the document.
+     *
+     * The first thing pasted takes the place of the paragraph the caret is
+     * in, and the rest are added after it.
+     */
+    fun pasteClipboard() {
+        val target = focusedTarget ?: return
+        val pasted = EditorClipboard.read(context)
+        if (pasted == null || pasted.isEmpty()) {
+            scope.launch { snackbarHostState.showSnackbar("The clipboard holds nothing to paste") }
+            return
+        }
+        updateDocument { doc -> doc.withPastedParagraphs(target, pasted) }
+        editing = true
     }
 
     fun applyPreset(preset: ParagraphPreset) {
@@ -1008,6 +1046,20 @@ fun EditorScreen(
                                     },
                                 )
                                 if (editing) {
+                                    DropdownMenuItem(
+                                        text = { Text("Copy") },
+                                        onClick = {
+                                            menuExpanded = false
+                                            copySelection()
+                                        },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Paste") },
+                                        onClick = {
+                                            menuExpanded = false
+                                            pasteClipboard()
+                                        },
+                                    )
                                     DropdownMenuItem(
                                         text = { Text("Insert picture\u2026") },
                                         onClick = {
