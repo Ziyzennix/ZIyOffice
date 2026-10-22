@@ -41,23 +41,24 @@ conditional formatting and hidden rows survive a save even though the app can't 
 file has been written *and* read back.
 
 - **Documents**: text formatting, headings, lists, alignment, line spacing, indent and
-  spacing, page breaks, tables, pictures, headers and footers, find and replace, copy and
-  paste, PDF export, print.
+  spacing, page breaks, tables, pictures, headers, footers with page numbers, find and replace,
+  copy and paste, PDF export, print.
 - **Spreadsheets**: cells, about 70 formula functions, number and date formats, frozen rows,
   sorting by one column or two, named ranges, merged cells, column widths and row heights,
-  cell borders, dropdown lists, inserting and deleting rows and columns, find and replace,
-  copy and paste, charts, CSV.
+  cell borders, dropdown lists, cell text wrapping, cell notes, inserting and deleting rows and columns,
+  find and replace, copy and paste, charts, CSV.
 - **Slides**: slide text, adding/deleting/reordering slides, pictures and shapes, speaker
   notes, a transition per slide, a present mode, PDF export.
 - **PDF**: fill in the forms a file already has, highlight, ink, notes, a drawn signature,
-  text stamped on a page, page numbers, rotate, reorder, delete, merge, split, and redaction
-  that removes the content underneath instead of covering it.
-
+  text stamped on a page, page numbers, rotate, reorder, delete, merge, split, compile photos to PDF,
+  and redaction that removes the content underneath instead of covering it.
+- **OCR & Scanner**: read text from pictures directly into editable documents offline.
+- **Vault**: encrypted local storage locked with biometrics or a passphrase.
 Printing goes through Android's own print service, so no permission is involved.
 
 ## not yet
 
-OCR, handwriting notes, macros, pivot tables, `.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS Office.
+Handwriting notes, macros, pivot tables, `.odt`/`.ods`/`.odp`. `FEATURES.md` has the full list against WPS Office.
 
 ## install
 
@@ -86,9 +87,8 @@ hand.
 
 ## roadmap
 
-Next up: editing the comments, footnotes and tracked changes the app now keeps; cell notes;
-page numbers and a table of contents in documents; handwriting; `.odt`/`.ods`/`.odp` support;
-OCR of a picture you pick.
+Next up: editing the comments, footnotes and tracked changes the app now keeps; multi-sheet tabs;
+table of contents in documents; handwriting notes; `.odt`/`.ods`/`.odp` support.
 
 ## bugs
 

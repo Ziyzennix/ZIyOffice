@@ -68,7 +68,7 @@ Content preservation: Saving writes the edited parts back into the package the f
 | Content kept intact on save (charts, images, pivot tables, filters) | no | Kept as they are by save; listed on open | done |
 | Multi-sheet workbook tabs | yes | Add, delete, rename, reorder, duplicate sheets | planned |
 | AutoFilter dropdowns on column headers | yes | Filter by value or text criteria | planned |
-| Text wrap in cells (`wrap_text`) | yes | Multi-line cell text wrapping toggle | planned |
+| Text wrap in cells (`wrap_text`) | yes | Multi-line cell text wrapping toggle | done |
 | Extended number format picker | yes | Explicit currency, accounting, percentage decimal places, scientific | planned |
 | Line and pie charts | yes | Plot line trends and circular proportions from selected ranges | planned |
 | Pivot tables | yes | Kept intact on save | not planned |
