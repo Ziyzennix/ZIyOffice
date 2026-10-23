@@ -1,6 +1,7 @@
 package org.ziyoffice.pdf
 
 import java.io.ByteArrayOutputStream
+import java.util.Locale
 
 /**
  * Writes values into a form and saves the file.
@@ -114,7 +115,7 @@ class PdfFormWriter(private val file: PdfFile) {
         for (group in runs(offsets.keys.sorted())) {
             out.write("${group[0]} ${group.size}\n".toByteArray(Charsets.ISO_8859_1))
             group.forEach { number ->
-                out.write("%010d 00000 n \n".format(offsets.getValue(number)).toByteArray(Charsets.ISO_8859_1))
+                out.write(String.format(Locale.US, "%010d 00000 n \n", offsets.getValue(number)).toByteArray(Charsets.ISO_8859_1))
             }
         }
 

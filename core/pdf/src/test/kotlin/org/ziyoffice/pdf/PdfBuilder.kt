@@ -1,6 +1,7 @@
 package org.ziyoffice.pdf
 
 import java.io.ByteArrayOutputStream
+import java.util.Locale
 
 /**
  * Builds PDF files for the tests.
@@ -40,7 +41,7 @@ internal class PdfBuilder {
         out.write("0 ${bodies.size + 1}\n".toByteArray(Charsets.ISO_8859_1))
         out.write("0000000000 65535 f \n".toByteArray(Charsets.ISO_8859_1))
         for (number in 1..bodies.size) {
-            out.write("%010d 00000 n \n".format(offsets[number]).toByteArray(Charsets.ISO_8859_1))
+            out.write(String.format(Locale.US, "%010d 00000 n \n", offsets[number]).toByteArray(Charsets.ISO_8859_1))
         }
         out.write("trailer\n".toByteArray(Charsets.ISO_8859_1))
         out.write(
