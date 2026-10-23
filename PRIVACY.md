@@ -5,7 +5,7 @@ that's the worst bug in the project.
 
 ## What ZiyOffice never does
 
-1. **It never connects to the internet.** There's no `android.permission.INNET` in the
+1. **It never connects to the internet.** There's no `android.permission.INTERNET` in the
    manifest, and without that permission Android blocks the app from opening any network
    connection. Not a setting, not a toggle, not a policy. That's how Android works.
 2. **It never collects anything.** No analytics, no usage statistics, no crash reporting, no
@@ -28,6 +28,7 @@ that's the worst bug in the project.
 | Autosave drafts           | App-private storage on this device     | Never              |
 | Settings                  | App-private storage on this device     | Never              |
 | Encrypted vault          | App-private storage, encrypted at rest | Never              |
+| A picture read as text    | The picture is read on the device, in memory. The English model ships inside the app | Never              |
 
 Android backup is off (`android:allowBackup="false"`), so none of this gets copied to a cloud
 backup service either.
@@ -44,6 +45,9 @@ Not by discipline. By the build:
   first place, so a later permission change can't turn dead code into live code.
 - `scripts/ci/check-dependencies.sh` fails the build if a known ads, analytics,
   crash-reporting or tracking library gets declared.
+- The OCR engine is Tesseract, which is free software, and its English model ships inside the
+  app rather than being fetched. The app has no network permission, so "read on the device" is
+  not a policy: there is nowhere else for the picture to go.
 - The dependency list is short, pinned in `gradle/libs.versions.toml`, and reviewed by
   humans at every milestone gate.
 - Release builds get published from source (F-Droid rebuilds from source too), so the binary
