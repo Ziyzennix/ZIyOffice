@@ -187,11 +187,11 @@ import org.ziyoffice.saf.SafeWrite
 import org.ziyoffice.saf.XLSX_MIME_TYPE
 
 /** A 0-based cell address inside the active sheet. */
-private data class CellPos(val row: Int, val column: Int)
+internal data class CellPos(val row: Int, val column: Int)
 
 private enum class SizeTarget { COLUMN, ROW }
 
-private enum class SheetAxis(val noun: String) {
+internal enum class SheetAxis(val noun: String) {
     ROWS("row"),
     COLUMNS("column");
 
@@ -3068,5 +3068,5 @@ private fun displayValue(
     }
 }
 
-private fun isCsv(displayName: String): Boolean =
+internal fun isCsv(displayName: String): Boolean =
     displayName.substringAfterLast('.', "").equals("csv", ignoreCase = true)
