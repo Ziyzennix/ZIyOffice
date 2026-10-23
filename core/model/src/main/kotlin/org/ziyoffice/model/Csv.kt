@@ -5,8 +5,43 @@ package org.ziyoffice.model
  * (doubled) and newlines; records end with CRLF, LF or a lone CR.
  */
 
+/** Detects whether CSV text uses comma, semicolon, or tab as the delimiter. */
+fun detectCsvDelimiter(text: String): Char {
+    var commaCount = 0
+    var semicolonCount = 0
+    var tabCount = 0
+    var quoted = false
+    val sample = text.take(4096)
+    var i = 0
+    while (i < sample.length) {
+        val ch = sample[i]
+        if (ch == '"') {
+            if (quoted && i + 1 < sample.length && sample[i + 1] == '"') {
+                i++
+            } else {
+                quoted = !quoted
+            }
+        } else if (!quoted) {
+            when (ch) {
+                ',' -> commaCount++
+                ';' -> semicolonCount++
+                '\t' -> tabCount++
+                '\n' -> if (commaCount > 0 || semicolonCount > 0 || tabCount > 0) break
+            }
+        }
+        i++
+    }
+    return when {
+        semicolonCount > commaCount && semicolonCount >= tabCount -> ';'
+        tabCount > commaCount && tabCount > semicolonCount -> '\t'
+        else -> ','
+    }
+}
+
 /** Parses [text] into a [Sheet] named [name]; empty fields become absent cells. */
-fun parseCsv(text: String, name: String): Sheet {
+fun parseCsv(text: String, name: String, delimiter: Char? = null): Sheet {
+    val cleanText = text.removePrefix("\uFEFF")
+    val separator = delimiter ?: detectCsvDelimiter(cleanText)
     val cells = mutableListOf<Cell>()
     val field = StringBuilder()
     var row = 0
@@ -29,11 +64,11 @@ fun parseCsv(text: String, name: String): Sheet {
     }
 
     var i = 0
-    while (i < text.length) {
-        val ch = text[i]
+    while (i < cleanText.length) {
+        val ch = cleanText[i]
         if (quoted) {
             when {
-                ch == '"' && i + 1 < text.length && text[i + 1] == '"' -> {
+                ch == '"' && i + 1 < cleanText.length && cleanText[i + 1] == '"' -> {
                     field.append('"')
                     i++
                 }
@@ -43,10 +78,10 @@ fun parseCsv(text: String, name: String): Sheet {
         } else {
             when (ch) {
                 '"' -> quoted = true
-                ',' -> endField()
+                separator -> endField()
                 '\r' -> {
                     // CRLF is one record break; a lone CR is one too.
-                    if (i + 1 < text.length && text[i + 1] == '\n') i++
+                    if (i + 1 < cleanText.length && cleanText[i + 1] == '\n') i++
                     endRow()
                 }
                 '\n' -> endRow()

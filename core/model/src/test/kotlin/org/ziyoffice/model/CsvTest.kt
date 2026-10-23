@@ -101,4 +101,31 @@ class CsvTest {
     fun emptySheetWritesEmptyText() {
         assertEquals("", writeCsv(Sheet(name = "Blank", cells = emptyList())))
     }
+
+    @Test
+    fun stripsUtf8ByteOrderMark() {
+        val sheet = parseCsv("\uFEFFItem,Cost\r\nPen,2.5", "BOM")
+        assertEquals("Item", sheet.cellAt(0, 0)?.value)
+        assertEquals("Cost", sheet.cellAt(0, 1)?.value)
+    }
+
+    @Test
+    fun autoDetectsSemicolonDelimiter() {
+        val sheet = parseCsv("Name;Age;Country\r\nAlice;30;ID\r\nBob;25;DE", "Semicolon")
+        assertEquals("Name", sheet.cellAt(0, 0)?.value)
+        assertEquals("Age", sheet.cellAt(0, 1)?.value)
+        assertEquals("Country", sheet.cellAt(0, 2)?.value)
+        assertEquals("Alice", sheet.cellAt(1, 0)?.value)
+        assertEquals("30", sheet.cellAt(1, 1)?.value)
+        assertEquals("ID", sheet.cellAt(1, 2)?.value)
+    }
+
+    @Test
+    fun autoDetectsTabDelimiter() {
+        val sheet = parseCsv("Col1\tCol2\r\nVal1\tVal2", "TSV")
+        assertEquals("Col1", sheet.cellAt(0, 0)?.value)
+        assertEquals("Col2", sheet.cellAt(0, 1)?.value)
+        assertEquals("Val1", sheet.cellAt(1, 0)?.value)
+        assertEquals("Val2", sheet.cellAt(1, 1)?.value)
+    }
 }
