@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -104,8 +108,40 @@ private class ExportCancelled : Exception("export cancelled")
 
 private data class PageKey(val doc: Int, val source: Int)
 
-private data class PdfPage(val key: PageKey, val bitmap: Bitmap?)
+private data class PdfPage(
+    val key: PageKey,
+    val widthPt: Int = 595,
+    val heightPt: Int = 842,
+)
 
+private class PageBitmapCache(private val maxEntries: Int = 6) {
+    private val cache = object : LinkedHashMap<Pair<PageKey, Int>, Bitmap>(maxEntries, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<PageKey, Int>, Bitmap>?): Boolean {
+            if (size > maxEntries) {
+                eldest?.value?.recycle()
+                return true
+            }
+            return false
+        }
+    }
+
+    @Synchronized
+    fun get(key: PageKey, rotation: Int): Bitmap? = cache[key to rotation]?.takeUnless { it.isRecycled }
+
+    @Synchronized
+    fun put(key: PageKey, rotation: Int, bitmap: Bitmap) {
+        val old = cache.put(key to rotation, bitmap)
+        if (old != null && old != bitmap) {
+            old.recycle()
+        }
+    }
+
+    @Synchronized
+    fun clear() {
+        cache.values.forEach { if (!it.isRecycled) it.recycle() }
+        cache.clear()
+    }
+}
 /**
  * PDF workspace: renders pages with the platform renderer and lets the user
  * annotate, reorganise, merge pages in and save. Saving re-renders and writes a
@@ -361,10 +397,9 @@ fun PdfScreen(
             result.fold(
                 onSuccess = { opened ->
                     val docIndex = documents.size
-                    val added = withContext(Dispatchers.IO) {
-                        (0 until opened.pageCount).map { index ->
-                            PdfPage(PageKey(docIndex, index), opened.renderPage(index, pageWidthPx))
-                        }
+                    val added = (0 until opened.pageCount).map { index ->
+                        val size = opened.pageSize(index) ?: (595 to 842)
+                        PdfPage(PageKey(docIndex, index), size.first, size.second)
                     }
                     documents = documents + opened
                     pages = pages + added
@@ -401,10 +436,9 @@ fun PdfScreen(
         }
         result.fold(
             onSuccess = { opened ->
-                val rendered = withContext(Dispatchers.IO) {
-                    (0 until opened.pageCount).map { index ->
-                        PdfPage(PageKey(0, index), opened.renderPage(index, pageWidthPx))
-                    }
+                val rendered = (0 until opened.pageCount).map { index ->
+                    val size = opened.pageSize(index) ?: (595 to 842)
+                    PdfPage(PageKey(0, index), size.first, size.second)
                 }
                 documents = listOf(opened)
                 pages = rendered
@@ -422,8 +456,12 @@ fun PdfScreen(
     // would close renderers other screens still need).
     val documentsRef = remember { mutableStateOf(documents) }
     documentsRef.value = documents
-    DisposableEffect(Unit) {
-        onDispose { documentsRef.value.forEach { runCatching { it.close() } } }
+    val bitmapCache = remember(file.uri) { PageBitmapCache(maxEntries = 6) }
+    DisposableEffect(file.uri) {
+        onDispose {
+            documentsRef.value.forEach { runCatching { it.close() } }
+            bitmapCache.clear()
+        }
     }
 
     fun moveSelected(delta: Int) {
@@ -619,6 +657,37 @@ fun PdfScreen(
                         itemsIndexed(pages, key = { _, page -> "${page.key.doc}:${page.key.source}" }) { index, page ->
                             val isDeleted = page.key in deleted
                             val isSelected = index == selectedPage
+                            val rotation = rotations[page.key] ?: 0
+                            val isSideways = rotation % 180 != 0
+                            val effWidth = if (isSideways) page.heightPt else page.widthPt
+                            val effHeight = if (isSideways) page.widthPt else page.heightPt
+                            val pageHeightPx = (pageWidthPx.toFloat() * effHeight / effWidth).toInt().coerceAtLeast(100)
+
+                            var pageBitmap by remember(page.key, rotation, pageWidthPx) {
+                                mutableStateOf(bitmapCache.get(page.key, rotation))
+                            }
+
+                            LaunchedEffect(page.key, rotation, pageWidthPx) {
+                                if (pageBitmap == null) {
+                                    val doc = documents.getOrNull(page.key.doc)
+                                    val rendered = withContext(Dispatchers.IO) {
+                                        doc?.renderPage(page.key.source, pageWidthPx)?.let { raw ->
+                                            if (rotation != 0) {
+                                                val rotated = rotateBitmap(raw, rotation.toFloat())
+                                                if (rotated != raw) raw.recycle()
+                                                rotated
+                                            } else {
+                                                raw
+                                            }
+                                        }
+                                    }
+                                    if (rendered != null) {
+                                        bitmapCache.put(page.key, rotation, rendered)
+                                        pageBitmap = rendered
+                                    }
+                                }
+                            }
+
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -672,16 +741,9 @@ fun PdfScreen(
                                         }
                                         IconButton(
                                             onClick = {
-                                                rotations = rotations +
-                                                    (page.key to ((rotations[page.key] ?: 0) + 90) % 360)
-                                                // Marks ride along with the content,
-                                                // their fractions re-expressed for
-                                                // the new orientation.
+                                                val nextRotation = ((rotations[page.key] ?: 0) + 90) % 360
+                                                rotations = rotations + (page.key to nextRotation)
                                                 marks = rotateMarks(marks, page.key.doc, page.key.source, 90)
-                                                val rotated = rotateBitmap(page.bitmap, 90f)
-                                                pages = pages.toMutableList().also {
-                                                    it[index] = page.copy(bitmap = rotated)
-                                                }
                                             },
                                             modifier = Modifier.size(48.dp),
                                         ) {
@@ -705,14 +767,15 @@ fun PdfScreen(
                                         }
                                     }
                                 }
-                                if (page.bitmap != null) {
+                                val currentBitmap = pageBitmap
+                                if (currentBitmap != null) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .aspectRatio(page.bitmap.width.toFloat() / page.bitmap.height.toFloat()),
+                                            .aspectRatio(currentBitmap.width.toFloat() / currentBitmap.height.toFloat()),
                                     ) {
                                         Image(
-                                            bitmap = page.bitmap.asImageBitmap(),
+                                            bitmap = currentBitmap.asImageBitmap(),
                                             contentDescription = "Page ${index + 1}",
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -741,7 +804,21 @@ fun PdfScreen(
                                             },
                                         )
                                     }
-                                }
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(with(LocalDensity.current) { pageHeightPx.toDp() })
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Text(
+                                            "Page ${index + 1}",
+                                             style = MaterialTheme.typography.bodySmall,
+                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                         )
+                                     }
+                                 }
                             }
                         }
                         item {
