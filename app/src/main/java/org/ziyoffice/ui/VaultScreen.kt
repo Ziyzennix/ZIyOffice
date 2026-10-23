@@ -34,6 +34,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -114,6 +116,11 @@ fun VaultScreen(
             )
         }
     }
+    DisposableEffect(Unit) {
+        onDispose {
+            clearVaultCache(context)
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -189,9 +196,12 @@ fun VaultScreen(
                             onOpen = {
                                 scope.launch {
                                     val opened = withContext(Dispatchers.IO) {
-                                        val name = current.nameOf(entry.id) ?: entry.name
-                                        val target = File(context.cacheDir, "vault-open/$name")
-                                        target.parentFile?.mkdirs()
+                                        val vaultDir = File(context.cacheDir, "vault-open")
+                                        vaultDir.mkdirs()
+                                        val rawName = current.nameOf(entry.id) ?: entry.name
+                                        val safeName = File(rawName).name.replace("..", "").ifEmpty { "file" }
+                                        val target = File(vaultDir, safeName)
+                                        if (!target.canonicalPath.startsWith(vaultDir.canonicalPath)) return@withContext null
                                         if (current.extractTo(entry.id, target)) {
                                             target
                                         } else {
@@ -343,4 +353,11 @@ private fun displayNameOf(context: android.content.Context, uri: Uri): String {
         }
     }
     return name ?: uri.lastPathSegment ?: "file"
+}
+
+internal fun clearVaultCache(context: Context) {
+    runCatching {
+        val dir = File(context.cacheDir, "vault-open")
+        if (dir.exists()) dir.deleteRecursively()
+    }
 }

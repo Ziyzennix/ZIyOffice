@@ -21,8 +21,11 @@ class DraftStore(context: Context) {
     /** Per-instance, per-uri: "the user threw this draft away; do not write it again". */
     private val discarded = mutableSetOf<String>()
     private val lock = Any()
+    private fun isVaultUri(uri: String): Boolean = uri.contains("/vault-open/")
+
 
     fun save(uri: String, bytes: ByteArray) {
+        if (isVaultUri(uri)) return
         val k = key(uri)
         synchronized(lock) {
             if (k in discarded) return
@@ -31,6 +34,7 @@ class DraftStore(context: Context) {
     }
 
     fun load(uri: String): ByteArray? {
+        if (isVaultUri(uri)) return null
         val f = File(dir, key(uri))
         return if (f.exists()) f.readBytes() else null
     }

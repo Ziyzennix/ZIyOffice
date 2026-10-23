@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import org.ziyoffice.design.ZiyOfficeTheme
 import org.ziyoffice.ui.ZiyOfficeApp
+import org.ziyoffice.ui.clearVaultCache
 
 class MainActivity : ComponentActivity() {
 
@@ -24,6 +25,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        clearVaultCache(this)
         incoming = incomingFrom(intent)
         setContent {
             ZiyOfficeTheme {
