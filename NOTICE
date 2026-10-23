@@ -1,0 +1,40 @@
+ZiyOffice
+Copyright (C) 2026 Ziyzennix
+
+This product includes software developed by third parties:
+
+1. tess-two
+   Copyright (C) 2011 Robert Theis
+   Licensed under the Apache License, Version 2.0.
+   https://github.com/rmtheis/tess-two
+
+2. Tesseract OCR
+   Copyright (C) 1985-1995 Hewlett-Packard Co.
+   Copyright (C) 2005-2018 Google LLC
+   Licensed under the Apache License, Version 2.0.
+   https://github.com/tesseract-ocr/tesseract
+
+3. Leptonica
+   Copyright (C) 2001-2016 Leptonica
+   Licensed under the BSD 2-Clause License.
+   http://www.leptonica.org/
+
+4. Tesseract Language Models (eng.traineddata)
+   Copyright (C) 2016-2018 Google LLC
+   Licensed under the Apache License, Version 2.0.
+   https://github.com/tesseract-ocr/tessdata_fast
+
+5. kXML 2
+   Copyright (c) 2002, 2003, Stefan Haustein, Oberhausen, Rhld., Germany
+   Licensed under the BSD-style License.
+   http://kxml.org/
+
+6. AndroidX and Jetpack Compose libraries
+   Copyright (C) 2020-2026 The Android Open Source Project
+   Licensed under the Apache License, Version 2.0.
+   https://developer.android.com/jetpack
+
+7. Material Symbols
+   Copyright (C) Google LLC
+   Licensed under the Apache License, Version 2.0.
+   https://fonts.google.com/icons
